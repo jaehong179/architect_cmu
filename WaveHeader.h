@@ -1,6 +1,6 @@
 #ifndef WAVEHEADER_H
 #define WAVEHEADER_H
-#include <QtTypes>
+#include <cstdint>
 typedef struct
 {
  char riffId[4];         // "RIFF"
