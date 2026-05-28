@@ -1,0 +1,21 @@
+sudo apt-get install libfftw3-dev
+
+add to cmakelist.txt
+
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
+
+add qcustomplot.cpp and qcustomplot.h to project
+Add Widget to form
+Promote to
+put QCustomPlot in the class name
+click add button
+hit promote 
+
+
+lib /machine:x64 /def:libfftw3-3.def
+lib /machine:x64 /def:libfftw3f-3.def
+lib /machine:x64 /def:libfftw3l-3.def
