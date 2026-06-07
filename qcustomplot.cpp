@@ -21863,8 +21863,8 @@ void QCPGraph::getOptimizedScatterData(QVector<QCPGraphData> *scatterData, QCPGr
           // determine value pixel span and add as many points in interval to maintain certain vertical data density (this is specific to scatter plot):
           double valuePixelSpan = qAbs(valueAxis->coordToPixel(minValue)-valueAxis->coordToPixel(maxValue));
 
-          // PLAKOSH FIXME changed qRound to std::lround
-          int dataModulo = qMax(1, std::lround(intervalDataCount/(valuePixelSpan/4.0))); // approximately every 4 value pixels one data point on average
+          // Guard against valuePixelSpan==0 (constant data) which causes std::lround(inf) -> int overflow on Mac
+          int dataModulo = (valuePixelSpan < 1.0) ? 1 : qMax(1, (int)std::lround(intervalDataCount/(valuePixelSpan/4.0))); // approximately every 4 value pixels one data point on average
           QCPGraphDataContainer::const_iterator intervalIt = currentIntervalStart;
           int c = 0;
           while (intervalIt != it)
@@ -21908,8 +21908,8 @@ void QCPGraph::getOptimizedScatterData(QVector<QCPGraphData> *scatterData, QCPGr
       // determine value pixel span and add as many points in interval to maintain certain vertical data density (this is specific to scatter plot):
       double valuePixelSpan = qAbs(valueAxis->coordToPixel(minValue)-valueAxis->coordToPixel(maxValue));
 
-      // PLAKOSH FIXME changed qRound to std::lround
-      int dataModulo = qMax(1, std::lround(intervalDataCount/(valuePixelSpan/4.0))); // approximately every 4 value pixels one data point on average
+      // Guard against valuePixelSpan==0 (constant data) which causes std::lround(inf) -> int overflow on Mac
+      int dataModulo = (valuePixelSpan < 1.0) ? 1 : qMax(1, (int)std::lround(intervalDataCount/(valuePixelSpan/4.0))); // approximately every 4 value pixels one data point on average
       QCPGraphDataContainer::const_iterator intervalIt = currentIntervalStart;
       int intervalItIndex = int(intervalIt-mDataContainer->constBegin());
       int c = 0;
