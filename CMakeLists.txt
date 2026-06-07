@@ -68,6 +68,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         SimWorker.h
         WatchSynthStream.cpp
         WatchSynthStream.h
+        PerfInstrumentation.h
+        PerfInstrumentation.cpp
         Splash.qrc
         LinuxAudio.cpp
         LinuxAudio.h
@@ -107,6 +109,7 @@ target_link_libraries(TimeGrapher PRIVATE winmm)
 target_link_libraries(TimeGrapher PRIVATE Ole32)
 target_link_libraries(TimeGrapher PRIVATE Uuid)
 target_link_libraries(TimeGrapher PRIVATE Propsys)
+target_link_libraries(TimeGrapher PRIVATE psapi)   # [PERF 계측 §D-1] GetProcessMemoryInfo (Windows RSS)
 ELSEIF(LINUX)
 target_link_libraries(TimeGrapher PRIVATE asound)
 #DP REMOVED NOT NEED IN THIS VERSION

@@ -1,0 +1,49 @@
+// 성능 측정 파이프라인 — 구조(스레드) + 순서(흐름) + 측정지점
+// 렌더: dot -Tpng perf_pipeline.dot -o perf_pipeline.png
+digraph perf {
+  rankdir=LR;
+  graph [fontname="Malgun Gothic", fontsize=13, labelloc=t,
+         label="시계 소리 → 화면: 흐름과 측정 지점 (파란=처리 단계 / 분홍=여기서 측정)"];
+  node  [fontname="Malgun Gothic", fontsize=11];
+  edge  [fontname="Malgun Gothic", fontsize=10];
+
+  // ── 처리 단계 (파란) ──
+  node [shape=box, style="rounded,filled", fillcolor="#bbdefb", color="#1565c0"];
+
+  subgraph cluster_cap {
+    label="캡처 스레드 (백그라운드)"; style="filled"; fillcolor="#fff3e0"; color="#e08a3c";
+    MIC [label="시계 소리\n(마이크 / 합성)", fillcolor="#ffe0b2"];
+    CAP [label="① 캡처"];
+  }
+
+  RB [label="② 링버퍼\n(두 스레드 공유)", shape=cylinder, fillcolor="#e0e0e0", color="#777777"];
+
+  subgraph cluster_main {
+    label="메인 / UI 스레드"; style="filled"; fillcolor="#e3f2fd"; color="#1565c0";
+    HID  [label="③ 스냅샷"];
+    DSP  [label="④ 신호처리\nHPF→엔벨로프→검출→동기"];
+    CALC [label="⑤ 측정값 계산\n(rate·진폭·beat)"];
+    SHOW [label="⑥~⑧ 화면 표시\n(그래프 그리기)"];
+  }
+
+  // 흐름 (순서)
+  MIC -> CAP;
+  CAP -> RB [label="쓰기"];
+  RB  -> HID [label="신호: AudioDataReady"];
+  HID -> DSP -> CALC -> SHOW;
+
+  // ── 측정 지점 (분홍, 점선) ──
+  node [shape=note, fillcolor="#fce4ec", color="#c2185b"];
+  MA [label="입력을 흘렸나?\n→ capture_gap, audio_xrun\n(0이면 정상)"];
+  MB [label="버퍼에 밀렸나?\n→ backlog\n(작을수록 좋음)"];
+  MC [label="처리가 느렸나?\n→ dsp_hpf/detect/sync(ms)\n+ 검출 정확도"];
+  MD [label="값이 정확한가?\n→ rate/amp/beat_err\n(설정값과 비교)"];
+  ME [label="빠른가/부드러운가?\n→ e2e_full(지연), paint_fps(프레임)"];
+
+  edge [style=dashed, color="#c2185b", arrowhead=none];
+  CAP  -> MA;
+  RB   -> MB;
+  DSP  -> MC;
+  CALC -> MD;
+  SHOW -> ME;
+}

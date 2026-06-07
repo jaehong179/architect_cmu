@@ -46,6 +46,10 @@ private:
     uint64_t      FrameCount=0;
     uint64_t      SampleCount=0;
     QElapsedTimer Timer;
+    // ── [PERF 계측 · §B-1/B-3 · QA-RT-02] 드롭 추정/실효 처리량용 (측정 전용) ──
+    int           mSampleRate=0;        // StartAudioRecording 에서 받은 캡처 샘플레이트
+    double        mLastDropLogGap=0.0;  // 직전 로그 시점의 capture_gap(샘플) — 증가분(드롭 신호) 계산용
+    int           mLastAudioErr=0;      // [B-1] QAudioSource::error() 직전값(변화 시만 로그). 0=NoError
 };
 
 #endif // AUDIOWORKER_H

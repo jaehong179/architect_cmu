@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "./ui_MainWindow.h"
 #include "WaveHeader.h"
+#include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -126,6 +127,82 @@ MainWindow::MainWindow(QWidget *parent)
     CreateGraphs();
     LoadAverageingPeriod();
     DisplayResults();
+
+    // ── [PERF 계측 · §C-1/C-2/D-1 · QA-EE-01/QA-RT-03] CPU·메모리·스로틀 1Hz 표본화 ──
+    //  실행 내내 1초 주기로 프로세스 CPU%·RSS(메모리)·Pi 스로틀 플래그를 perf_log.csv 에 기록.
+    //  (Windows/Pi 분기는 PerfInstrumentation 내부에서 처리)
+    mPerfResourceTimer = new QTimer(this);
+    connect(mPerfResourceTimer, &QTimer::timeout, this, &MainWindow::SamplePerfResources);
+    mPerfResourceTimer->start(1000);
+
+    // ── [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 0.1초 하트비트 ──
+    //  100ms 주기 타이머가 '얼마나 늦게' 실제로 불리는지를 측정한다. ProcessSamples/
+    //  replot 등이 메인 스레드를 막으면 타이머가 늦게 발화 → 그 지연 = UI 비응답 시간.
+    //  (사용자 클릭 없이도 GUI 반응성(≤200ms)을 상시 정량화)
+    mPerfUiTimer = new QTimer(this);
+    connect(mPerfUiTimer, &QTimer::timeout, this, &MainWindow::SamplePerfUiResponsiveness);
+    mPerfUiTimer->start(100);
+
+    // ── [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 '그리기 완료' 시점 포착 ──
+    //  replot 은 rpQueuedReplot(지연 렌더)이라, 실제 픽셀이 그려지면 ScopePlot 이 afterReplot 을 낸다.
+    //  그 순간을 잡아 (요청→페인트) 구간과 진짜 종단간(캡처→페인트)을 기록한다.
+    connect(ui->ScopePlot, &QCustomPlot::afterReplot, this, &MainWindow::OnScopeReplotted);
+}
+
+// [PERF 계측 · §A-1/A-2 · QA-LT-01] ScopePlot 이 '실제로 다 그려진' 직후 호출됨.
+//  disp_paint_ms = (페인트 완료 − replot 요청) = 미뤄졌던 그리기 시간.
+//  e2e_full_ms   = (페인트 완료 − 캡처)        = ★진짜 종단간★ = (캡처→요청) + (요청→페인트) 의 합.
+void MainWindow::OnScopeReplotted()
+{
+    if (!mPerfReplotPending) return;     // ProcessSamples가 요청한 replot 에만 반응(잡음 replot 무시)
+    mPerfReplotPending = false;
+    double now = Perf::nowMs();
+    Perf::log("A-2","QA-LT-01","disp_paint_ms", now - mPerfReplotRequestMs, "ms","");   // 요청→실제 페인트
+    if (mPerfReplotLive && mPerfCaptureForReplotMs > 0.0)
+        Perf::log("A-1","QA-LT-01","e2e_full_ms", now - mPerfCaptureForReplotMs, "ms", "paint_included");
+
+    // ── [PERF 계측 · §F-1 · QA-SC-01] 프레임(실제 화면 갱신) 비율 ──
+    //  paint_fps = 초당 실제 paint 수(화면이 실제로 갱신된 횟수). 부하 시 떨어지면 frame drop.
+    //  extra 의 replot_req = 요청 수. 요청>paint 는 정상(rpQueuedReplot 코얼레싱), 둘 다 같이 떨어지면 과부하.
+    mPaintCount++;
+    if (!mPaintHave) { mPaintLastEmitMs = now; mPaintHave = true; }
+    if (now - mPaintLastEmitMs >= 1000.0) {
+        double sec = (now - mPaintLastEmitMs) / 1000.0;
+        Perf::log("F-1","QA-SC-01","paint_fps", (double)mPaintCount / sec, "frame/s",
+                  QString("replot_req=%1").arg(mReplotReqCount));
+        mPaintCount = 0; mReplotReqCount = 0; mPaintLastEmitMs = now;
+    }
+}
+
+// [PERF 계측 · §A-3 · QA-RT-01] 100ms 하트비트의 실제 간격에서 100ms를 뺀 '초과 지연'을 기록.
+//  값이 클수록 메인 스레드가 막혀 UI가 늦게 반응한다는 뜻.
+void MainWindow::SamplePerfUiResponsiveness()
+{
+    double now = Perf::nowMs();
+    if (mPerfUiHave) {
+        double lag = (now - mPerfUiLastMs) - 100.0;   // 명목 주기(100ms) 대비 초과분
+        if (lag < 0.0) lag = 0.0;
+        Perf::log("A-3","QA-RT-01","ui_loop_lag_ms", lag, "ms","");
+    }
+    mPerfUiLastMs = now;
+    mPerfUiHave = true;
+}
+
+// [PERF 계측 · §C-1/C-2/D-1] 1초마다 호출: 자원 사용량을 문서 태그와 함께 기록
+void MainWindow::SamplePerfResources()
+{
+    // §C-1 (QA-EE-01 "평균 CPU ≤70%") — 기능 추가 여유(헤드룸) 판단용
+    double cpu = Perf::sampleProcessCpuPercent();
+    if (cpu >= 0.0) Perf::log("C-1","QA-EE-01","cpu_percent", cpu, "%",
+                              QString("cores=%1").arg(Perf::cpuCoreCount()));
+    // §D-1 (QA-RT-03 "30분 후 증가 ≤200MB·누수 없음") — RSS 추세로 누수/증가 판단
+    qint64 rss = Perf::sampleProcessRssBytes();
+    if (rss >= 0) Perf::log("D-1","QA-RT-03","rss_bytes", (double)rss, "bytes","");
+    // §C-2 (QA-EE-01 스로틀) — Pi 에서만 유효, Windows 는 N/A 로 건너뜀
+    unsigned thr = 0;
+    if (Perf::readThrottled(thr))
+        Perf::log("C-2","QA-EE-01","throttled_flag", (double)thr, "bitmask",
+                  QString("hex=0x%1").arg(thr,0,16));
 }
 void   MainWindow::ConfigureSoundCard(void)
 {
@@ -449,6 +526,30 @@ void MainWindow::DisplayResults(void)
 
     Results="RATE "+RateError+" s/d   AMPLITUDE "+Amplitude+"   BEAT ERROR "+BeatError+" ms   BEAT "+BeatsPerHour+" bph";
     ui->Results->setText(Results);
+
+    // ── [PERF 계측 · §G-1 · QA-CO-01] 측정 정확도: 측정값 - Sim 설정(정답) 오차 ──
+    //  Sim 모드에서만 유효(설정값을 알고 있으므로). Rate/BeatError/Amplitude 의
+    //  (측정값 - 설정값)을 기록 → 목표(±1 s/d, ±0.1 ms, ±5°) 달성 여부 판단.
+    if (mSimActive) {
+        if (mRateErrorEvents.RlsRateValid)
+            Perf::log("G-1","QA-CO-01","rate_err_s_per_d",
+                      mRateErrorEvents.RlsRate - mLastSimCfg.rate_error_s_per_day, "s/d",
+                      QString("meas=%1;set=%2").arg(mRateErrorEvents.RlsRate,0,'f',2)
+                                               .arg(mLastSimCfg.rate_error_s_per_day,0,'f',2));
+        if (mBeatErrorEvents.RollBeatError->CurrentSize()>0) {
+            double measBE = mBeatErrorEvents.RollBeatError->GetAverage();
+            double setBE  = qAbs(mLastSimCfg.beat_error_ms);   // cfg 는 부호 반전 저장 → 크기 비교
+            Perf::log("G-1","QA-CO-01","beaterr_err_ms", measBE - setBE, "ms",
+                      QString("meas=%1;set=%2").arg(measBE,0,'f',3).arg(setBE,0,'f',3));
+        }
+        if (mAmplitudeEvents.RollAmplitude->CurrentSize()>0) {
+            double measAmp = mAmplitudeEvents.RollAmplitude->GetAverage();
+            Perf::log("G-1","QA-CO-01","amp_err_deg", measAmp - mLastSimCfg.watch_amplitude_degrees, "deg",
+                      QString("meas=%1;set=%2").arg(measAmp,0,'f',1).arg(mLastSimCfg.watch_amplitude_degrees,0,'f',1));
+        }
+        // [§G-2 · QA-AC-01] 검출률 분모(정답 비트 누적 수). a_match/c_match 합과 비교해 검출률 산출.
+        Perf::log("G-2","QA-AC-01","gt_total", (double)mLocalGtTotal, "beats","");
+    }
 }
 double MainWindow::Amplitude(double LiftAngle,double T1,double BPH)
 {
@@ -834,6 +935,19 @@ void MainWindow::HandleInputData(TMasterAudioDataRaw *SharedDataPtr)
         SharedDataPtr->Mutex.lock();
         mLocalWriteIndex=SharedDataPtr->WriteIndex;
         mLocalTotalSamplesWritten=SharedDataPtr->TotalSamplesWritten;
+        // [PERF 계측 · §A-1/A-2 · QA-LT-01] 동일 Mutex 안에서 최신 블록 캡처 시각/드롭 추정을
+        //   원자적으로 스냅샷. (이후 ProcessSamples에서 표시 시각과 비교해 지연 산출)
+        mLocalLastBlockCaptureMs=SharedDataPtr->LastBlockCaptureMs;
+        mLocalDroppedSamples=SharedDataPtr->DroppedSampleEstimate;
+        // [PERF 계측 · §E/§G-2] Sim 모드에서만 정답(GT) 이벤트 링을 동일 Mutex 안에서 스냅샷
+        if (ui->ModeComboBox->currentIndex()==SIM) {
+            memcpy(mLocalGt, SharedDataPtr->GtBeats, sizeof(mLocalGt));
+            mLocalGtHead  = SharedDataPtr->GtHead;
+            mLocalGtTotal = SharedDataPtr->GtTotal;
+            mLocalGtValid = true;
+        } else {
+            mLocalGtValid = false;
+        }
         SharedDataPtr->Mutex.unlock();
 
         ProcessSamples(SharedDataPtr);
@@ -889,6 +1003,7 @@ void MainWindow::HandlePlaybackDoneReadingFile()
 }
 void MainWindow::HandleSimDone()
 {
+    mSimActive=false;   // [PERF 계측 · §G-1] Sim 측정 종료 → 측정값 비교 중단
     SetGuiStopMode();
     if (ui->ModeComboBox->currentIndex()==SIM)
     {
@@ -913,6 +1028,19 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
     }
     if (SamplesToAdd>0)
     {
+        // ── [PERF 계측 · §A-2 · QA-LT-01] 처리 단계 시작 시각 + 백로그 ─────────────
+        //  backlog_samples = 이번 호출 시점에 아직 처리 못한 누적 샘플 수(대기량).
+        //  cap2proc_latency_ms = (처리 시작 - 최신 블록 캡처 시각) = 캡처→처리 지연(Live).
+        //  ※ Live 모드에서만 캡처 시각이 의미 있음(Playback/Sim 은 인위적 타이밍).
+        const double perfProcStartMs = Perf::nowMs();
+        const bool   perfIsLive      = (ui->ModeComboBox->currentIndex()==LIVE);
+        Perf::log("A-2","QA-LT-01","backlog_samples",(double)SamplesToAdd,"samp",
+                  perfIsLive ? "mode=Live" : "mode=PlaybackOrSim");
+        if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
+            Perf::log("A-2","QA-LT-01","cap2proc_latency_ms",
+                      perfProcStartMs - mLocalLastBlockCaptureMs, "ms",
+                      QString("backlog=%1;drop_est=%2").arg(SamplesToAdd).arg(mLocalDroppedSamples));
+
         while (SamplesToAdd>0)
         {
          if ( SamplesToAdd>DETECTOR_NUMBER_OF_SAMPLES) slice= DETECTOR_NUMBER_OF_SAMPLES;
@@ -934,6 +1062,14 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
               qInfo()<<"tg_process failed";
               return ;
           }
+
+          // ── [PERF 계측 · §A-4 · QA-AC-04/US-01/LT-03] 결함/관측 이벤트 발생 시각 ──
+          //  sync_lost=동기 상실(신호 손실·과잡음 신호), detector_reset=신호 레짐 급변.
+          //  결함 주입 시각과 이 로그 시각의 차이로 '결함→인지 지연(≤2초)'을 산출한다.
+          //  (드롭/누락 카운터의 화면 반영(≤5초)은 §B-1 로그가 2초 주기로 관찰 보장)
+          if (r.sync_lost_event)      Perf::log("A-4","QA-US-01","fault_sync_lost", 1, "event","");
+          if (r.sync_acquired_event)  Perf::log("A-4","QA-US-01","sync_acquired",   1, "event","");
+          if (r.detector_reset_event) Perf::log("A-4","QA-US-01","detector_reset",  1, "event","");
 
           double threshhold=r.onset_threshold;
           for (int i=0;i<r.processed_pcm_len;i++)
@@ -967,6 +1103,22 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                     mLastA=val;
                     mHaveLastA=true;
                     A_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
+                    // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 A(onset) vs 정답 A 대조 ──
+                    //  검출된 A 샘플위치와 가장 가까운 정답 A 의 차이 = onset 식별 오차(ms).
+                    //  허용창(반 비트) 안이면 검출 성공(a_match), 아니면 a_unmatched(검출률/FP 계산용).
+                    if (mLocalGtValid && mLastSimCfg.bph>0.0) {
+                        double tol = 0.5 * ((double)mCurrentSamplesPerSecond * 3600.0 / mLastSimCfg.bph);
+                        double bestErr=0.0; bool found=false;
+                        for (unsigned k=0;k<GT_EVENT_RING;k++){
+                            uint64_t a=mLocalGt[k].a_sample; if(a==0) continue;
+                            double e=val-(double)a;
+                            if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
+                        }
+                        if (found && qAbs(bestErr)<tol){
+                            Perf::log("E-2","QA-AC-02","onset_err_ms", bestErr*1000.0/mCurrentSamplesPerSecond,"ms","");
+                            Perf::log("G-2","QA-AC-01","a_match",1,"event","");
+                        } else Perf::log("G-2","QA-AC-01","a_unmatched",1,"event","");
+                    }
                     if (mSoundRenderHasBPH)
                     {
                      mSoundRenderer.markAEventAbsoluteSampleIndex(val, qRgba(0, 255, 0, 255), SND_PIXEL_SIZE);
@@ -1006,10 +1158,25 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                    AddText(ui->ScopePlot,val+INWARD_MARKER_LENGTH,r.events[i].peak_value,text,Qt::black,Qt::AlignLeft | Qt::AlignTop);
 
                    C_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
+                   // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 C vs 정답 C 대조 ──
+                   //  검출된 C 샘플위치(onset 또는 peak)와 가장 가까운 정답 C 의 차이 = 식별 오차(ms).
+                   if (mLocalGtValid && mLastSimCfg.bph>0.0) {
+                       double tol = 0.5 * ((double)mCurrentSamplesPerSecond * 3600.0 / mLastSimCfg.bph);
+                       double bestErr=0.0; bool found=false;
+                       for (unsigned k=0;k<GT_EVENT_RING;k++){
+                           uint64_t c=mLocalGt[k].c_sample; if(c==0) continue;
+                           double e=val-(double)c;
+                           if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
+                       }
+                       if (found && qAbs(bestErr)<tol){
+                           Perf::log("E-2","QA-AC-02","peak_err_ms", bestErr*1000.0/mCurrentSamplesPerSecond,"ms","");
+                           Perf::log("G-2","QA-AC-01","c_match",1,"event","");
+                       } else Perf::log("G-2","QA-AC-01","c_unmatched",1,"event","");
+                   }
                    if (mSoundRenderHasBPH)
                    {
                     mSoundRenderer.markCEventAbsoluteSampleIndex(val, qRgba(0, 0, 255,255), SND_PIXEL_SIZE);
-                   } 
+                   }
                }
                else qInfo()<< "Unkown Event Type";
 
@@ -1026,6 +1193,23 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
         ui->ScopePlot->replot(QCustomPlot::rpQueuedReplot);
         ui->SoundImage->DrawImage();
 
+        // ── [PERF 계측 · §A-2/§A-1 · QA-LT-01] 표시 완료 시각 → 지연 산출 ──────────
+        //  proc2disp_latency_ms = (표시 완료 - 처리 시작) = 처리→표시(그래프 replot) 지연.
+        //  e2e_latency_ms       = (표시 완료 - 최신 블록 캡처) = 종단간 지연(Live, ≤50ms 목표).
+        const double perfDispMs = Perf::nowMs();
+        Perf::log("A-2","QA-LT-01","proc2disp_latency_ms", perfDispMs - perfProcStartMs, "ms","");
+        if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
+            Perf::log("A-1","QA-LT-01","e2e_latency_ms", perfDispMs - mLocalLastBlockCaptureMs, "ms",
+                      QString("set_sps=%1").arg(mCurrentSamplesPerSecond));
+
+        // [PERF 계측 · §A-1/A-2] 이 replot 요청 시점·캡처시각을 보관 → afterReplot(OnScopeReplotted)에서
+        //  실제 페인트 완료 시각과 비교해 disp_paint_ms·e2e_full_ms 산출.
+        mPerfReplotRequestMs    = perfDispMs;
+        mPerfCaptureForReplotMs = mLocalLastBlockCaptureMs;
+        mPerfReplotLive         = perfIsLive;
+        mPerfReplotPending      = true;
+        mReplotReqCount++;   // [F-1] replot 요청 수(코얼레싱 대비 paint 수와 비교)
+
         mForegroundFrameCount++;
         double CurrentTime;
         CurrentTime = mForegroundTimer.elapsed()/1000.0;
@@ -1040,6 +1224,12 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
             mForegroundLastTime=CurrentTime;
             mForegroundFrameCount=0;
             mForegroundSampleCount=0;
+
+            // [PERF 계측 · §B-3/§A-3 · QA-RT-01] 전경(핸들러+렌더) 실효 처리량/프레임율.
+            //  fg_fps 가 떨어지면 렌더 부하로 표시가 밀린다는 신호(§F-1과 연계).
+            Perf::log("B-3","QA-RT-01","fg_sps", mForegroundSPS, "samp/s","");
+            Perf::log("B-3","QA-RT-01","fg_fps", mForegroundFPS, "frame/s","");
+            Perf::log("B-3","QA-RT-01","fg_spf", mForegroundSPF, "samp/frame","");
         }
     }
 }
@@ -1396,6 +1586,9 @@ void   MainWindow::SimStart(void)
     {
         qInfo()<< "SetAudioRate Failed";
     }
+    // [PERF 계측 · §G-1 · QA-CO-01] Sim 정답 설정값 보관 — DisplayResults에서 측정값과 대비.
+    mLastSimCfg = cfg;
+    mSimActive  = true;
     StartSimThread(cfg);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
