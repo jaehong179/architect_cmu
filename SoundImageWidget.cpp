@@ -7,7 +7,11 @@ SoundImageWidget::SoundImageWidget(QWidget *parent)
 
 void  SoundImageWidget::CreateImage(void)
 {
-    image=new QImage(size(), QImage::Format_ARGB32);
+    delete image;
+    image = nullptr;
+    if (width() <= 0 || height() <= 0) return;
+    image = new QImage(size(), QImage::Format_ARGB32);
+    image->fill(Qt::white);
 }
 
 QImage * SoundImageWidget::GetImage(void)
@@ -35,12 +39,26 @@ void  SoundImageWidget::DrawImage(void)
 
 }
 
+void SoundImageWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    // Recreate image to match new widget size.
+    // Note: the SoundImageRenderer must be re-initialized via Reset() after a resize.
+    delete image;
+    image = nullptr;
+    if (width() > 0 && height() > 0) {
+        image = new QImage(size(), QImage::Format_ARGB32);
+        image->fill(Qt::white);
+    }
+}
+
 void SoundImageWidget::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
-
-
+    if (!image || image->isNull()) {
+        painter.fillRect(rect(), Qt::white);
+        return;
+    }
     // 3. Draw the image to the widget
     QRect targetRect = rect();
-    //painter.drawImage(0, 0, image);
     painter.drawImage(targetRect, *image);
 }

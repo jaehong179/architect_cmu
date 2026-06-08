@@ -1088,6 +1088,8 @@ void MainWindow::Reset(void)
 
     mSoundRenderHasBPH=false;
 
+    ui->SoundImage->CreateImage(); // Ensure image matches current widget size before initializing renderer
+
     if (!mSoundRenderer.initialize(ui->SoundImage->GetImage(), SoundImageCfg)) {
         qCritical() << "Failed to initialize SoundImageRenderer.";
         throw std::runtime_error("Failed to initialize SoundImageRenderer.");

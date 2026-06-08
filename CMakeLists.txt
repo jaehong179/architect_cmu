@@ -130,6 +130,12 @@ set_target_properties(TimeGrapher PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+if(APPLE)
+    set_target_properties(TimeGrapher PROPERTIES
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
+    )
+endif()
+
 include(GNUInstallDirs)
 install(TARGETS TimeGrapher
     BUNDLE DESTINATION .
