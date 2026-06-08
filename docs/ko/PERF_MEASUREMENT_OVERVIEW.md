@@ -151,17 +151,17 @@ flowchart LR
 
 | 주기 | 측정 항목(metric) | 의미 | 코드 위치 |
 |------|-------------------|------|-----------|
-| **1초** (타이머) | `cpu_percent` · `rss_bytes` · `throttled_flag` | 1초마다 프로세스 자원 1회 표본 | 타이머 [MainWindow.cpp:136](../MainWindow.cpp#L136) `start(1000)` → [MainWindow.cpp:192](../MainWindow.cpp#L192) `SamplePerfResources` |
-| **1초** (윈도우 집계) | `dsp_hpf/env/detect/sync/total_ms` | 매 호출 누적 → 1초마다 **평균(value)+최대(`extra max=`)** 만 압축 emit | [Timegrapher.cpp:668](../Timegrapher.cpp#L668) `if(now-lastEmit >= 1000.0)` |
-| **1초** (윈도우 집계) | `paint_fps` (+`extra replot_req`) | 1초 동안 실제 paint 수를 세어 fps 계산 | [MainWindow.cpp:169](../MainWindow.cpp#L169) `if (now - mPaintLastEmitMs >= 1000.0)` |
-| **0.1초** (타이머) | `ui_loop_lag_ms` | 100ms 하트비트의 초과 지연 = UI 비응답 시간 | 타이머 [MainWindow.cpp:144](../MainWindow.cpp#L144) `start(100)` → [MainWindow.cpp:179](../MainWindow.cpp#L179) `SamplePerfUiResponsiveness` |
+| **1초** (타이머) | `cpu_percent` · `rss_bytes` · `throttled_flag` | 1초마다 프로세스 자원 1회 표본 | 타이머 [MainWindow.cpp:136](../../MainWindow.cpp#L136) `start(1000)` → [MainWindow.cpp:192](../../MainWindow.cpp#L192) `SamplePerfResources` |
+| **1초** (윈도우 집계) | `dsp_hpf/env/detect/sync/total_ms` | 매 호출 누적 → 1초마다 **평균(value)+최대(`extra max=`)** 만 압축 emit | [Timegrapher.cpp:668](../../Timegrapher.cpp#L668) `if(now-lastEmit >= 1000.0)` |
+| **1초** (윈도우 집계) | `paint_fps` (+`extra replot_req`) | 1초 동안 실제 paint 수를 세어 fps 계산 | [MainWindow.cpp:169](../../MainWindow.cpp#L169) `if (now - mPaintLastEmitMs >= 1000.0)` |
+| **0.1초** (타이머) | `ui_loop_lag_ms` | 100ms 하트비트의 초과 지연 = UI 비응답 시간 | 타이머 [MainWindow.cpp:144](../../MainWindow.cpp#L144) `start(100)` → [MainWindow.cpp:179](../../MainWindow.cpp#L179) `SamplePerfUiResponsiveness` |
 | **2초** (블록) | `capture_gap_samples/growth` · `audio_xrun` · `bg_*` | 2초 캡처 블록마다 드롭 추정·처리량 | AudioWorker.cpp `ProcessAudioInput` |
-| **이벤트마다** | `cap2proc` · `proc2disp` · `e2e_latency` · `backlog` · `fg_*` | 오디오 블록을 처리할 때마다 1줄 | [MainWindow.cpp](../MainWindow.cpp) `ProcessSamples` |
-| **이벤트마다** | `disp_paint_ms` · **`e2e_full_ms`** | 실제 화면이 그려질(afterReplot) 때마다 1줄 | [MainWindow.cpp:155](../MainWindow.cpp#L155) `OnScopeReplotted` |
+| **이벤트마다** | `cap2proc` · `proc2disp` · `e2e_latency` · `backlog` · `fg_*` | 오디오 블록을 처리할 때마다 1줄 | [MainWindow.cpp](../../MainWindow.cpp) `ProcessSamples` |
+| **이벤트마다** | `disp_paint_ms` · **`e2e_full_ms`** | 실제 화면이 그려질(afterReplot) 때마다 1줄 | [MainWindow.cpp:155](../../MainWindow.cpp#L155) `OnScopeReplotted` |
 | **이벤트마다** | `onset_err_ms` · `peak_err_ms` · `rate/beat/amp_err` · `a_match`/`c_match` | 검출/연산이 일어날 때마다(Sim) | MainWindow.cpp `ProcessSamples` · `DisplayResults` |
 | **결함 주입 시** | `fault_sync_lost` · `detector_reset` | 동기 상실/검출기 리셋이 감지될 때만 | MainWindow.cpp `ProcessSamples` (tg_process 직후) |
 
-> **왜 1초로 묶나?** `dsp_*`·`paint_fps`는 초당 수백~수천 번 일어나 매번 남기면 로그가 폭주한다. 그래서 **1초 윈도우의 평균+최대만** 남긴다([Timegrapher.cpp:657-658](../Timegrapher.cpp#L657) 주석). 반대로 `e2e_full`·`onset_err` 같은 **합격 판정의 핵심값은 분포(중앙값·p95)가 중요**하므로 이벤트마다 원본을 남긴다.
+> **왜 1초로 묶나?** `dsp_*`·`paint_fps`는 초당 수백~수천 번 일어나 매번 남기면 로그가 폭주한다. 그래서 **1초 윈도우의 평균+최대만** 남긴다([Timegrapher.cpp:657-658](../../Timegrapher.cpp#L657) 주석). 반대로 `e2e_full`·`onset_err` 같은 **합격 판정의 핵심값은 분포(중앙값·p95)가 중요**하므로 이벤트마다 원본을 남긴다.
 
 ---
 
@@ -240,7 +240,7 @@ echo "검출률 = $(grep -c ',a_match,' perf_log.csv) / $(grep ',gt_total,' perf
 > ⚠️ 끄는 것은 **'기록'만**이다 — 제품 동작·연산은 그대로다. **컴파일타임 스위치라 값을 바꾸면 다시 빌드**해야 적용된다.
 
 ### 어디서 바꾸나
-[PerfInstrumentation.h](../PerfInstrumentation.h) 상단 "로그 ON/OFF 설정" 블록의 매크로를 `1`(기록) / `0`(끔)로 바꾸고 **리빌드**:
+[PerfInstrumentation.h](../../PerfInstrumentation.h) 상단 "로그 ON/OFF 설정" 블록의 매크로를 `1`(기록) / `0`(끔)로 바꾸고 **리빌드**:
 
 ```cpp
 #define PERF_MASTER_ENABLE   1   // 0 = 전체 로그 OFF (아래 전부 무시)
@@ -274,7 +274,7 @@ echo "검출률 = $(grep -c ',a_match,' perf_log.csv) / $(grep ',gt_total,' perf
 | `PERF_GRP_ACCURACY` | G-1/G-2 | `rate_err`·`amp_err`·`beat_err`·`a_match`·`c_match`·`gt_total` |
 
 ### 작동 원리 (한 줄)
-`Perf::log(section, …)` 진입부에서 `section`("A-1" 등)을 그룹으로 매핑해, 그 그룹이 `0`이면 **즉시 반환**한다([PerfInstrumentation.cpp](../PerfInstrumentation.cpp) `sectionEnabled()` → `log()`). 끈 그룹은 기록도, 포맷·flush 비용도 없다. 호출부 코드는 전혀 손대지 않는다.
+`Perf::log(section, …)` 진입부에서 `section`("A-1" 등)을 그룹으로 매핑해, 그 그룹이 `0`이면 **즉시 반환**한다([PerfInstrumentation.cpp](../../PerfInstrumentation.cpp) `sectionEnabled()` → `log()`). 끈 그룹은 기록도, 포맷·flush 비용도 없다. 호출부 코드는 전혀 손대지 않는다.
 
 ### 자주 쓰는 조합 (예)
 - **종단간 지연만 깨끗하게**(부하/관측자효과 최소): `LATENCY`·`FRAME`만 1, 나머지 0.

@@ -123,7 +123,7 @@ AudioWorker/SimWorker                 MainWindow
 | 스로틀 | `readThrottled()` | **Pi**: vcgencmd / **Win**: N/A |
 | 시작/종료 | `Main.cpp:28 / :61` | `Perf::init/shutdown` |
 
-> 헤더 [PerfInstrumentation.h](../PerfInstrumentation.h) 상단에 전체 태그↔문서 매핑표 있음.
+> 헤더 [PerfInstrumentation.h](../../PerfInstrumentation.h) 상단에 전체 태그↔문서 매핑표 있음.
 
 ---
 

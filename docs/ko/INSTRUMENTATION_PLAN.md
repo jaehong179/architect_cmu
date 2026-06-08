@@ -13,7 +13,7 @@
 - CSV 컬럼: `t_ms , section , qa , metric , value , unit , extra`
   - `t_ms` = 프로그램 시작 이후 단조시계(ms). 지연 계산의 공통 기준.
   - `section`(예 `A-1`) / `qa`(예 `QA-LT-01`) 로 **가이드·M1 문서와 1:1 연결**.
-- 계측 모듈: [PerfInstrumentation.h](../PerfInstrumentation.h) / [.cpp](../PerfInstrumentation.cpp)
+- 계측 모듈: [PerfInstrumentation.h](../../PerfInstrumentation.h) / [.cpp](../../PerfInstrumentation.cpp)
   (헤더 상단에 전체 태그↔문서 매핑표 있음). CPU·메모리·스로틀만 OS별 `#if` 분기.
 - **로그 그룹별 ON/OFF**: 헤더의 `PERF_GRP_*` / `PERF_MASTER_ENABLE` 매크로를 `1`/`0`으로 바꿔
   리빌드하면 그룹 단위로 기록을 켜고 끌 수 있다(끄면 flush 오버헤드도 제거 → 관측자 효과↓).

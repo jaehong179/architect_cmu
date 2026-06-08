@@ -1,0 +1,19 @@
+// Periodic timer measurements (independent of the beat flow; run on the main thread at fixed intervals)
+// Render: dot -Tpng perf_timers.dot -o perf_timers.png
+digraph timers {
+  rankdir=LR;
+  graph [fontname="Arial", fontsize=13, labelloc=t,
+         label="Periodic timer measurements (resources & UI responsiveness, logged at fixed intervals)"];
+  node  [fontname="Arial", fontsize=11, shape=box, style="rounded,filled"];
+  edge  [fontname="Arial", fontsize=10, style=dashed, color="#c2185b"];
+
+  T1 [label="QTimer 1Hz\nSamplePerfResources", fillcolor="#bbdefb", color="#1565c0"];
+  T2 [label="QTimer 0.1s\nSamplePerfUiResponsiveness", fillcolor="#bbdefb", color="#1565c0"];
+
+  node [shape=note, fillcolor="#fce4ec", color="#c2185b"];
+  R1 [label="cpu_percent (C-1)\nrss_bytes (D-1)\nthrottled_flag (C-2, Pi)"];
+  R2 [label="ui_loop_lag_ms (A-3)\n-> is the UI ever blocked?"];
+
+  T1 -> R1;
+  T2 -> R2;
+}
