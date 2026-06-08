@@ -11,6 +11,8 @@
 #include <QThread>
 #include <QDateTime>
 #include <QDebug>
+#include <QCoreApplication>   // applicationDirPath() — 실행파일 옆에 CSV 고정
+#include <QDir>
 #include <chrono>
 
 #if defined(Q_OS_WIN)
@@ -78,10 +80,13 @@ void init(const QString &sessionTag)
 {
     QMutexLocker lock(&gLogMutex);
     gStart = std::chrono::steady_clock::now();
-    // 현재 작업 디렉터리에 CSV 생성(매 실행 새로 씀). 분석 시 grep/스프레드시트로 사용.
-    gLogFile.setFileName("perf_log.csv");
+    // 실행파일이 있는 디렉터리에 CSV 생성(매 실행 새로 씀). 실행한 작업 디렉터리(cwd)와
+    // 무관하게 항상 같은 위치(바이너리 옆)에 남으므로, Qt Creator·셸·직접 실행 등
+    // 어떤 경로로 띄워도 perf_log.csv 위치가 일정하다. 분석 시 grep/스프레드시트로 사용.
+    const QString csvPath = QDir(QCoreApplication::applicationDirPath()).filePath("perf_log.csv");
+    gLogFile.setFileName(csvPath);
     if (!gLogFile.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        qWarning() << "[PERF] perf_log.csv 열기 실패 — 콘솔(qDebug)로만 기록";
+        qWarning() << "[PERF] CSV 열기 실패 — 콘솔(qDebug)로만 기록:" << csvPath;
         gReady = false;
         return;
     }
@@ -101,7 +106,7 @@ void init(const QString &sessionTag)
     gLogStream << "t_ms,section,qa,metric,value,unit,extra\n";
     gLogStream.flush();
     gReady = true;
-    qInfo() << "[PERF] 계측 로그 시작 → perf_log.csv";
+    qInfo() << "[PERF] 계측 로그 시작 →" << csvPath;
 }
 
 void shutdown()
