@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QMainWindow>
 #include <QComboBox>
+#include <vector>
 #include "qcustomplot.h"
 #include "AudioWorker.h"
 #include "PlaybackWorker.h"
@@ -13,6 +14,8 @@
 #include "SoundImageRenderer.h"
 #include "RollingAverage.h"
 #include "WatchSynthStream.h"
+#include "MfccExtractor.h"
+#include "TfliteRunner.h"
 
 
 QT_BEGIN_NAMESPACE
@@ -177,6 +180,11 @@ private:
     float                     *mInputBlock = nullptr;
     SoundImageRenderer         mSoundRenderer;
     bool                       mSoundRenderHasBPH=false;
+    MfccExtractor              mMfccExtractor;
+    static constexpr int       kMfccNumFrames = 49;
+    static constexpr int       kMfccNumCoeffs = 13;
+    std::vector<float>         mMfccFrameBuffer; // accumulates kMfccNumFrames * kMfccNumCoeffs floats
+    TfliteRunner*              mTfliteRunner = nullptr;
     double                     mLastA;
     bool                       mHaveLastA=false;
     double                     mBackgroundLastFPS=0.0;

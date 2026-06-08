@@ -2,6 +2,7 @@
 #include "MainWindow.h"
 #include "./ui_MainWindow.h"
 #include "WaveHeader.h"
+#include "TfliteConfig.h"
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -118,6 +119,47 @@ MainWindow::MainWindow(QWidget *parent)
 
     //QFont fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     //ui->Results->setFont(fixedFont);
+
+    // MFCC extractor setup
+    MfccConfig mfccCfg;
+    mfccCfg.sampleRate      = mCurrentSamplesPerSecond;
+    mfccCfg.frameLengthMs   = 25.0f;
+    mfccCfg.frameHopMs      = 10.0f;
+    mfccCfg.numMelFilters   = 26;
+    mfccCfg.numCoefficients = 13;
+    mMfccExtractor.reconfigure(mfccCfg);
+
+    // TFLite runner
+    mTfliteRunner = new TfliteRunner(TFLITE_MODEL_PATH);
+    if (!mTfliteRunner->isValid())
+        qWarning() << "TfliteRunner: model failed to load from" << TFLITE_MODEL_PATH;
+
+    mMfccExtractor.setCallback([this](const std::vector<float>& mfcc) {
+        // Accumulate frames into the sliding window buffer
+        mMfccFrameBuffer.insert(mMfccFrameBuffer.end(), mfcc.begin(), mfcc.end());
+
+        // Run inference once we have kMfccNumFrames complete frames
+        const int required = kMfccNumFrames * kMfccNumCoeffs;
+        if (static_cast<int>(mMfccFrameBuffer.size()) >= required) {
+            if (mTfliteRunner && mTfliteRunner->isValid()) {
+                std::vector<float> inputWindow(
+                    mMfccFrameBuffer.end() - required, mMfccFrameBuffer.end());
+                std::vector<float> probs = mTfliteRunner->run(inputWindow);
+                if (!probs.empty()) {
+                    qInfo("TFLite inference: [%.4f, %.4f, %.4f, %.4f]",
+                          static_cast<double>(probs[0]),
+                          static_cast<double>(probs[1]),
+                          static_cast<double>(probs[2]),
+                          static_cast<double>(probs[3]));
+                }
+            }
+            // Keep only the last (kMfccNumFrames - 1) frames for the next window
+            const int keep = (kMfccNumFrames - 1) * kMfccNumCoeffs;
+            mMfccFrameBuffer.erase(
+                mMfccFrameBuffer.begin(),
+                mMfccFrameBuffer.begin() + static_cast<int>(mMfccFrameBuffer.size()) - keep);
+        }
+    });
 
     CreateEvents();
     LoadBPH();
@@ -596,6 +638,7 @@ void MainWindow::CreateGraphs(void)
 
 MainWindow::~MainWindow()
 {
+    delete mTfliteRunner;
     delete ui;
 }
 
@@ -928,6 +971,7 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
 
           mSoundRenderer.processSamples(mInputBlock,slice);
 
+          mMfccExtractor.feedSamples(mInputBlock, slice);
 
           tg_result_t r;
           if (tg_process(mCtx,mInputBlock, slice, &r) != 0) {

@@ -73,6 +73,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         LinuxAudio.h
         WindowsAudio.h
         WindowsAudio.cpp
+        MfccExtractor.h
+        MfccExtractor.cpp
+        TfliteRunner.h
+        TfliteRunner.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET TimeGrapher APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -99,6 +103,9 @@ endif()
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
+
+# Generate a config header so the model path doesn't need shell-escaped quoting
+configure_file(TfliteConfig.h.in TfliteConfig.h @ONLY)
 IF(WIN32)
 #DP REMOVED NOT NEED IN THIS VERSION
 #target_link_libraries(TimeGrapher PRIVATE fftw)
