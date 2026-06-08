@@ -1,0 +1,849 @@
+classDiagram
+    class C_0006372026272121092795["std::vector&lt;float&gt;"]
+    class C_0006372026272121092795 {
+    }
+    class C_0004729626594957452603["std::vector&lt;SoundImageRenderer::AnchorColumn&gt;"]
+    class C_0004729626594957452603 {
+    }
+    class C_0003184432839985650155["std::vector&lt;SoundImageRenderer::RenderedColumn&gt;"]
+    class C_0003184432839985650155 {
+    }
+    class C_0004514467557886152784["std::vector&lt;SoundImageRenderer::Marker&gt;"]
+    class C_0004514467557886152784 {
+    }
+    class C_0005615096916452297607["std::deque&lt;double&gt;"]
+    class C_0005615096916452297607 {
+    }
+    class C_0018341276841710692803["&lpar;anonymous_25855402&rpar;"]
+    class C_0018341276841710692803 {
+        +FPS : double
+        +MainThrd_LastTotalSamplesWritten : uint64_t
+        +MainThrd_LastWriteIndex : unsigned int
+        +Mutex : QMutex
+        +NumberOfAudioSamples : int
+        +SPF : double
+        +SPS : double
+        +Samples : float *
+        +TotalSamplesWritten : uint64_t
+        +WriteIndex : unsigned int
+    }
+    class C_0003514945697296102221["TAudioWorker"]
+    class C_0003514945697296102221 {
+        +TAudioWorker() void
+        +~TAudioWorker() void
+        +AudioDataReady() void
+        -ProcessAudioInput() void
+        +SetAudioInputVolume() void
+        +StartAudioRecording() void
+        +StopAudioRecording() void
+        +finished() void
+        +metaObject() [const] const QMetaObject *
+        -qt_create_metaobjectdata<typename>() [constexpr] auto$
+        +qt_metacall() int
+        +qt_metacast() void *
+        -qt_static_metacall() void$
+        -stateChangeAudioInput() void
+        +tr() QString$
+        -FrameCount : uint64_t
+        -LastTime : double
+        -SampleCount : uint64_t
+        -Timer : QElapsedTimer
+        -TimerStarted : bool
+        -mAudioInput : QAudioSource *
+        -mAudioInputDevice : QIODevice *
+        +mRawAudio : TMasterAudioDataRaw *
+        +staticMetaObject : const QMetaObject
+    }
+    class C_0012845075794639732984["TPlaybackWorker"]
+    class C_0012845075794639732984 {
+        +TPlaybackWorker() void
+        +~TPlaybackWorker() void
+        +PlaybackDataReady() void
+        +PlaybackDoneReadingFile() void
+        +StartPlayback() void
+        +cancelled() void
+        +finished() void
+        +metaObject() [const] const QMetaObject *
+        -qt_create_metaobjectdata<typename>() [constexpr] auto$
+        +qt_metacall() int
+        +qt_metacast() void *
+        -qt_static_metacall() void$
+        +tr() QString$
+        -mDataIn : char *
+        -mDataInSize : int
+        -mFrameCount : uint64_t
+        -mLastTime : double
+        +mRawAudio : TMasterAudioDataRaw *
+        -mSampleCount : uint64_t
+        -mSamplesPerSecond : int
+        -mTimer : QElapsedTimer
+        -mTimerStarted : bool
+        +staticMetaObject : const QMetaObject
+    }
+    class C_0011507264127100730300["WatchSynthEventKind"]
+    class C_0011507264127100730300 {
+        <<enumeration>>
+        WATCH_SYNTH_EVENT_TICK
+        WATCH_SYNTH_EVENT_TOCK
+    }
+    class C_0013966846487837752920["WatchSynthStreamConfig"]
+    class C_0013966846487837752920 {
+        +amplitude_drift_depth : double
+        +amplitude_drift_period_s : double
+        +beat_error_ms : double
+        +bph : double
+        +bph_wander_depth_us : double
+        +bph_wander_step_us : double
+        +c_peak_anchor_gain : double
+        +c_peak_anchor_width_s : double
+        +enable_amplitude_drift : int
+        +enable_bandlimited_noise : int
+        +enable_bph_wander : int
+        +enable_c_peak_lock : int
+        +enable_packet_shape_variation : int
+        +enable_realistic_packet : int
+        +enable_sensor_resonance : int
+        +enable_tick_tock_spectral_diff : int
+        +lift_angle_degrees : double
+        +manual_a_to_c_time_s : double
+        +max_a_to_c_time_s : double
+        +min_a_to_c_time_s : double
+        +noise_high_hz : double
+        +noise_low_hz : double
+        +noise_peak_amplitude : double
+        +packet_gain_variation : double
+        +packet_tail_after_c_s : double
+        +pcm_peak_amplitude : double
+        +post_c_lobe_scale : double
+        +rate_error_s_per_day : double
+        +sample_rate_hz : uint32_t
+        +seed : uint64_t
+        +sensor_resonance1_gain : double
+        +sensor_resonance1_hz : double
+        +sensor_resonance1_q : double
+        +sensor_resonance2_gain : double
+        +sensor_resonance2_hz : double
+        +sensor_resonance2_q : double
+        +shape_decay_jitter : double
+        +shape_delay_jitter_us : double
+        +shape_frequency_jitter : double
+        +start_time_s : double
+        +timing_jitter_us : double
+        +use_watch_amplitude_for_a_to_c : int
+        +watch_amplitude_degrees : double
+    }
+    class C_0007657416440895044090["WatchSynthStreamEvent"]
+    class C_0007657416440895044090 {
+        +a_to_c_time_s : double
+        +applied_interval_offset_us : double
+        +beat_index : uint64_t
+        +bph_wander_us : double
+        +interval_from_previous_us : double
+        +kind : WatchSynthEventKind
+        +lift_angle_degrees : double
+        +packet_gain : double
+        +sample_index : uint64_t
+        +time_s : double
+        +timing_jitter_us : double
+        +watch_amplitude_degrees : double
+    }
+    class C_0004275610225850585866["WatchSynthStreamFillResult"]
+    class C_0004275610225850585866 {
+        +events_dropped : size_t
+        +events_written : size_t
+        +first_sample_index : uint64_t
+        +next_sample_index : uint64_t
+        +samples_written : size_t
+    }
+    class C_0008979469593608893354["WatchSynthLobe"]
+    class C_0008979469593608893354 {
+        +delay_s : double
+        +freq_hz : double
+        +rel_amp : double
+        +tau_s : double
+    }
+    class C_0009674289618173443152["WatchSynthActivePacket"]
+    class C_0009674289618173443152 {
+        +active : int
+        +c_anchor_delay_s : double
+        +c_anchor_enabled : int
+        +c_anchor_gain : double
+        +c_anchor_width_s : double
+        +end_sample_index : uint64_t
+        +kind : WatchSynthEventKind
+        +lobe_count : size_t
+        +lobes : WatchSynthLobe[12]
+        +packet_gain : double
+        +polarity : double
+        +start_sample_index : uint64_t
+    }
+    class C_0004780606889660929550["WatchSynthStream"]
+    class C_0004780606889660929550 {
+        +absolute_sample_index : uint64_t
+        +active_packets : WatchSynthActivePacket[16]
+        +adjusted_interval_s : double
+        +beat_index : uint64_t
+        +cfg : WatchSynthStreamConfig
+        +current_bph_wander_us : double
+        +last_event_time_s : double
+        +next_event_sample_index : uint64_t
+        +next_event_time_s : double
+        +next_interval_jitter_us : double
+        +next_interval_offset_us : double
+        +noise_hp_low_state : double
+        +noise_lp_state : double
+        +resonator1_s1 : double
+        +resonator1_s2 : double
+        +resonator2_s1 : double
+        +resonator2_s2 : double
+        +rng_state : uint64_t
+    }
+    class C_0006105450037351729596["TSimWorker"]
+    class C_0006105450037351729596 {
+        +TSimWorker() void
+        +~TSimWorker() void
+        +SimDataReady() void
+        +SimDone() void
+        +StartSim() void
+        +cancelled() void
+        +finished() void
+        +metaObject() [const] const QMetaObject *
+        -qt_create_metaobjectdata<typename>() [constexpr] auto$
+        +qt_metacall() int
+        +qt_metacast() void *
+        -qt_static_metacall() void$
+        +tr() QString$
+        -mDataIn : float *
+        -mDataInSize : int
+        -mFrameCount : uint64_t
+        -mLastTime : double
+        +mRawAudio : TMasterAudioDataRaw *
+        -mSampleCount : uint64_t
+        -mSamplesPerSecond : int
+        -mTimer : QElapsedTimer
+        -mTimerStarted : bool
+        +staticMetaObject : const QMetaObject
+    }
+    class C_0014465606772005614692["QList&lt;float&gt;"]
+    class C_0014465606772005614692 {
+    }
+    class C_0013674577502253798638["WavStreamWriter"]
+    class C_0013674577502253798638 {
+        +WavStreamWriter() void
+        +~WavStreamWriter() void
+        +channels() [const] int
+        +close() bool
+        +framesWritten() [const] quint64
+        +isOpen() [const] bool
+        +open() bool
+        -patchHeader() bool
+        +sampleRate() [const] int
+        +write() bool
+        +write() bool
+        -writeHeader() bool
+        -k_headerSize : const int
+        -m_bytesWritten : quint64
+        -m_channels : int
+        -m_file : QFile
+        -m_sampleRate : int
+        -m_stream : QDataStream
+    }
+    class C_0013171110419049150986["tg_bph_mode_t"]
+    class C_0013171110419049150986 {
+        <<enumeration>>
+        TG_BPH_MODE_AUTO
+        TG_BPH_MODE_MANUAL
+    }
+    class C_0017170938391287155718["tg_sync_status_t"]
+    class C_0017170938391287155718 {
+        <<enumeration>>
+        TG_SYNC_NOT_SYNCED
+        TG_SYNC_SYNCED
+        TG_SYNC_MISMATCH
+    }
+    class C_0006673525286215695575["tg_event_type_t"]
+    class C_0006673525286215695575 {
+        <<enumeration>>
+        TG_EVENT_UNKNOWN
+        TG_EVENT_A
+        TG_EVENT_C
+    }
+    class C_0007451545542570326545["tg_c_placement_t"]
+    class C_0007451545542570326545 {
+        <<enumeration>>
+        TG_C_PLACEMENT_PEAK
+        TG_C_PLACEMENT_ONSET
+    }
+    class C_0010373500122233123172["&lpar;anonymous_25865864&rpar;"]
+    class C_0010373500122233123172 {
+        +auto_detect_seconds : double
+        +bph_mode : tg_bph_mode_t
+        +c_placement : tg_c_placement_t
+        +envelope_smooth_ms : double
+        +event_min_separation_ms : double
+        +hpf_cutoff_hz : double
+        +manual_bph : int
+        +min_peak_fraction_init : double
+        +onset_fraction_init : double
+        +pll_ac_gain : double
+        +pll_period_gain : double
+        +sample_rate : double
+        +suppress_pre_sync_events : int
+        +sync_loss_misses : int
+        +sync_tolerance_pct : double
+    }
+    class C_0005430325895141257011["&lpar;anonymous_25866255&rpar;"]
+    class C_0005430325895141257011 {
+        +is_pre_sync : int
+        +onset_sample_index : uint64_t
+        +onset_sub_sample_offset : double
+        +onset_time_seconds : double
+        +onset_valid : int
+        +peak_value : float
+        +sample_index : uint64_t
+        +sub_sample_offset : double
+        +time_seconds : double
+        +type : tg_event_type_t
+    }
+    class C_0009748950066013791772["&lpar;anonymous_25866472&rpar;"]
+    class C_0009748950066013791772 {
+        +detected_bph : int
+        +detector_reset_event : int
+        +events : tg_event_t *
+        +measured_period_s : double
+        +min_peak_threshold : float
+        +noise_floor : float
+        +num_events : size_t
+        +onset_threshold : float
+        +processed_pcm : float *
+        +processed_pcm_len : size_t
+        +processed_pcm_start_sample : uint64_t
+        +reference_peak : float
+        +sync_acquired_event : int
+        +sync_lost_event : int
+        +sync_status : tg_sync_status_t
+    }
+    class C_0000875047278026566845["RollingLeastSquares"]
+    class C_0000875047278026566845 {
+        +RollingLeastSquares() void
+        +~RollingLeastSquares() void
+        +AddPoint() void
+        -Allocate() void
+        -Deallocate() void
+        +GetRate() bool
+        +Reset() void
+        +Resize() void
+        -capacity : int
+        -head : int
+        -size : int
+        -sumX : double
+        -sumX2 : double
+        -sumXY : double
+        -sumY : double
+        -x_buf : double *
+        -y_buf : double *
+    }
+    class C_0011100371619726364978["SoundImageRenderer"]
+    class C_0011100371619726364978 {
+        +SoundImageRenderer() void
+        +~SoundImageRenderer() [default] void
+        -addPersistentMarkerFromAbsoluteSample() void
+        -applyVerticalOffset() [const] int
+        -argmaxSmoothed5() int$
+        +bandCenterLocked() [const] bool
+        +bphValid() [const] bool
+        -bucketToY() [const] int
+        -clearColumn() void
+        -clearCurrentBuckets() void
+        -clearRenderStateKeepingSampleCounter() void
+        -clearRenderedColumnStorage() void
+        -clearWholeImage() void
+        -columnBoundarySample() [const] quint64
+        -commitAnchorColumn() void
+        +currentBeatIndex() [const] qint64
+        +currentBph() [const] double
+        +currentColumn() [const] int
+        +currentVerticalOffsetRows() [const] int
+        -drawCenteredMarkerBlock() void
+        -drawCenteredMarkerContributionToColumn() void
+        -finalizeCurrentColumnAndAdvance() void
+        -flushBufferedAnchorColumns() void
+        +imageHeight() [const] int
+        +imageWidth() [const] int
+        +initialize() bool
+        +lastCompletedColumn() [const] int
+        -lerpColor() QRgb$
+        -lookupRenderedColumnBySampleIndex() [const] int
+        -mapRenderedSampleToPixel() [const] bool
+        +markAEventAbsoluteSampleIndex() void
+        +markCEventAbsoluteSampleIndex() void
+        -markerRadiusColumnsFromSide() int$
+        -maxSupportedMarkerRadiusColumns() int$
+        +nextInputAbsoluteSampleIndex() [const] quint64
+        -normalizeMarkerSidePixels() int$
+        +processSamples() void
+        +processedSamplesSinceReset() [const] quint64
+        -pruneOldMarkers() void
+        -reapplyMarkersForColumn() void
+        -rebuildColumnNeighborhood() void
+        -recomputeDerived() void
+        -renderBinsToColumn() void
+        -renderCurrentColumnToImage() void
+        -renderedBinsPtr() [const] const float *
+        -renderedBinsPtr() float *
+        +reset() void
+        +reset() void
+        -resetStateOnly() void
+        +restart() void
+        +restart() void
+        -sampleToBucketInRange() [const] int
+        +samplesPerColumnExact() [const] double
+        +setBackgroundColor() void
+        +setBph() void
+        +setSampleRate() void
+        +setSoundColor() void
+        +setVerticalTimeDirection() void
+        -startActiveColumn() void
+        +streamOriginSampleIndex() [const] quint64
+        +verticalTimeDirection() [const] VerticalTimeDirection
+        -active_column_index_ : qint64
+        -active_end_sample_ : quint64
+        -active_markers_ : std::vector&lt;Marker&gt;
+        -active_start_sample_ : quint64
+        -anchor_columns_buffer_ : std::vector&lt;float&gt;
+        -anchor_columns_meta_ : std::vector&lt;AnchorColumn&gt;
+        -anchor_sum_ : std::vector&lt;float&gt;
+        -anchor_used_ : int
+        -bph_int_ : quint64
+        -bph_valid_ : bool
+        -center_locked_ : bool
+        -cfg_ : Config
+        -current_column_ : std::vector&lt;float&gt;
+        -dc_alpha_ : double
+        -dc_mean_ : double
+        -have_active_column_ : bool
+        -height_ : int
+        -image_ : QImage *
+        -internal_vertical_offset_rows_ : int
+        -last_completed_column_ : int
+        -peak_env_ : float
+        -processed_samples_since_reset_ : quint64
+        -render_epoch_sample_index_ : quint64
+        -rendered_bins_ : std::vector&lt;float&gt;
+        -rendered_columns_ : std::vector&lt;RenderedColumn&gt;
+        -sample_rate_int_ : quint64
+        -samples_per_column_exact_ : double
+        -stream_origin_sample_index_ : quint64
+        -warmup_columns_consumed_ : int
+        -width_ : int
+        -write_column_ : int
+    }
+    class C_0008688611780339859524["SoundImageRenderer::VerticalTimeDirection"]
+    class C_0008688611780339859524 {
+        <<enumeration>>
+        TimeStartsAtBottomMovesUp
+        TimeStartsAtTopMovesDown
+    }
+    class C_0001138075701142164558["SoundImageRenderer::Config"]
+    class C_0001138075701142164558 {
+        +anchor_columns : int
+        +background_color : QRgb
+        +bph : double
+        +dc_time_constant_sec : double
+        +gamma : float
+        +live_preview_current_column : bool
+        +peak_decay : float
+        +sample_rate_hz : double
+        +sound_color : QRgb
+        +vertical_time_direction : VerticalTimeDirection
+        +warmup_columns : int
+    }
+    class C_0006992351083540644410["SoundImageRenderer::Marker"]
+    class C_0006992351083540644410 {
+        +absolute_sample_index : quint64
+        +color : QRgb
+        +side : int
+    }
+    class C_0012004340364218517595["SoundImageRenderer::RenderedColumn"]
+    class C_0012004340364218517595 {
+        +column_index : qint64
+        +end_sample : quint64
+        +start_sample : quint64
+        +valid : bool
+        +vertical_offset_rows : int
+    }
+    class C_0016362481145567804315["SoundImageRenderer::AnchorColumn"]
+    class C_0016362481145567804315 {
+        +column_index : qint64
+        +end_sample : quint64
+        +start_sample : quint64
+        +valid : bool
+    }
+    class C_0010599990684046357089["RollingAverage"]
+    class C_0010599990684046357089 {
+        +RollingAverage() void
+        +Add() double
+        +CurrentSize() int
+        +GetAverage() [const] double
+        +Reset() void
+        +Resize() void
+        -maxSize : size_t
+        -runningSum : double
+        -window : std::deque&lt;double&gt;
+    }
+    class C_0005461363864585996070["Ui::MainWindow"]
+    class C_0005461363864585996070 {
+    }
+    class C_0016748352342159670929["QList&lt;double&gt;"]
+    class C_0016748352342159670929 {
+    }
+    class C_0001614498767824101049["&lpar;anonymous_26057759&rpar;"]
+    class C_0001614498767824101049 {
+        +BPH : int
+        +BPH_Valid : bool
+        +HaveStartTime : bool
+        +HaveZeroOffset : bool
+        +MaxTicTocDataPoints : int
+        +RlsRate : double
+        +RlsRateValid : bool
+        +RlsTicRate : RollingLeastSquares *
+        +RlsTocRate : RollingLeastSquares *
+        +StartTime : double
+        +TicTocBeatNumber : uint64_t
+        +WatchHertz : int
+        +ZeroOffsetValue : double
+        +xTic : QVector&lt;double&gt;
+        +xTicIndex : int
+        +xToc : QVector&lt;double&gt;
+        +xTocIndex : int
+        +yTic : QVector&lt;double&gt;
+        +yToc : QVector&lt;double&gt;
+    }
+    class C_0015691703395616736936["&lpar;anonymous_26058324&rpar;"]
+    class C_0015691703395616736936 {
+        +BeatErrorIdx : int
+        +BeatErrorMs : double
+        +BeatErrorTimes : double[3]
+        +RollBeatError : RollingAverage *
+    }
+    class C_0012459950536522532919["&lpar;anonymous_26058464&rpar;"]
+    class C_0012459950536522532919 {
+        +Amplitude_Tic : double
+        +Amplitude_Tic_Valid : bool
+        +Amplitude_Toc : double
+        +Have_A_Event : bool
+        +Last_A_Event : double
+        +RollAmplitude : RollingAverage *
+    }
+    class C_0002740842316660907467["QFlags&lt;Qt::AlignmentFlag&gt;"]
+    class C_0002740842316660907467 {
+    }
+    class C_0002900986228388971956["MainWindow"]
+    class C_0002900986228388971956 {
+        +MainWindow() void
+        +~MainWindow() void
+        -A_Event() void
+        -AddHorizontalMarkerInward() void
+        -AddHorizontalMarkerOutward() void
+        -AddOrOverwrite() void
+        -AddText() void
+        -AddVerticalMarker() void
+        -Amplitude() double
+        -AudioCloseCheck() void
+        -C_Event() void
+        -ComputeAmplitude() void
+        -ComputeBeatError() void
+        -ComputeRateError() void
+        -ConfigureSoundCard() void
+        -CreateDectectors() void
+        -CreateEvents() void
+        -CreateGraphs() void
+        -DeleteDectectors() void
+        -DisplayResults() void
+        -EventsReset() void
+        -GetAudioDevice() void
+        -GetAudioRate() void
+        +HandleAudioInput() void
+        -HandleInputData() void
+        +HandlePlaybackDoneReadingFile() void
+        +HandlePlaybackInput() void
+        +HandleSimDone() void
+        +HandleSimInput() void
+        -LiveStart() void
+        -LoadAudioDevices() void
+        -LoadAverageingPeriod() void
+        -LoadBPH() void
+        -LoadMode() void
+        -LoadSimBPH() void
+        +LocalSetAudioInputVolume() void
+        +LocalStartAudio() void
+        +LocalStartPlayback() void
+        +LocalStartSim() void
+        +LocalStopAudio() void
+        -OpenFile() bool
+        -PlaybackStart() void
+        -PopulateSampleRates() void
+        -ProcessSamples() void
+        -PurgeHistory() void
+        -RecordSessionCheck() bool
+        -RemoveMarkersAndText() void
+        -Reset() void
+        -SetAudioDevice() bool
+        -SetAudioRate() bool
+        -SetGuiRunMode() void
+        -SetGuiStopMode() void
+        -SimStart() void
+        -StartAudioThread() void
+        -StartPlaybackThread() void
+        -StartSimThread() void
+        -StopAudioThread() void
+        -StopPlaybackThread() void
+        -StopSimThread() void
+        -WrapInToRange() double
+        +metaObject() [const] const QMetaObject *
+        -on_AveragingPeriodComboBox_currentIndexChanged() void
+        -on_InputDeviceComboBox_currentIndexChanged() void
+        -on_LiftAngleSpinBox_valueChanged() void
+        -on_MicrophoneHorizontalSlider_sliderMoved() void
+        -on_ModeComboBox_currentTextChanged() void
+        -on_RefreshPushButton_clicked() void
+        -on_SampleRatesComboBox_currentIndexChanged() void
+        -on_StartPushButton_clicked() void
+        -on_StopPushButton_clicked() void
+        -qt_create_metaobjectdata<typename>() [constexpr] auto$
+        +qt_metacall() int
+        +qt_metacast() void *
+        -qt_static_metacall() void$
+        +tr() QString$
+        -mAmplitudeEvents : TAmplitudeErrorEvents
+        -mAudioWorker : TAudioWorker *
+        -mAudioWorkerThread : QThread *
+        -mAvalableRates : int[5]
+        -mAveragingPeriod : int
+        -mBackgroundLastFPS : double
+        -mBackgroundLastSPF : double
+        -mBackgroundLastSPS : double
+        -mBeatErrorEvents : TBeatErrorEvents
+        -mCfg : tg_config_t
+        -mCtx : tg_context_t *
+        -mCurrentDir : QDir
+        -mCurrentSamplesPerSecond : int
+        -mDeviceNameBeforePlaybackOrSim : QString
+        -mForegroundFPS : double
+        -mForegroundFrameCount : uint64_t
+        -mForegroundLastFPS : double
+        -mForegroundLastSPF : double
+        -mForegroundLastSPS : double
+        -mForegroundLastTime : double
+        -mForegroundSPF : double
+        -mForegroundSPS : double
+        -mForegroundSampleCount : uint64_t
+        -mForegroundTimer : QElapsedTimer
+        -mForegroundTimerStarted : bool
+        -mHaveLastA : bool
+        -mInputBlock : float *
+        -mLastA : double
+        -mLiftAngle : double
+        -mLocalGraphTicks : uint64_t
+        -mLocalTotalSamplesWritten : uint64_t
+        -mLocalWriteIndex : unsigned int
+        -mNumberofRates : int
+        -mPlaybackWorker : TPlaybackWorker *
+        -mPlaybackWorkerThread : QThread *
+        -mRateBeforePlaybackOrSim : int
+        -mRateErrorEvents : TRateErrorEvents
+        -mRawAudio : TMasterAudioDataRaw *
+        -mSimWorker : TSimWorker *
+        -mSimWorkerThread : QThread *
+        -mSoundRenderHasBPH : bool
+        -mSoundRenderer : SoundImageRenderer
+        -mWavWriter : WavStreamWriter *
+        +staticMetaObject : const QMetaObject
+        -ui : Ui::MainWindow *
+    }
+    class C_0005408719662679357488["tg_context"]
+    class C_0005408719662679357488 {
+    }
+    class C_0011772155085268942889["SoundImageWidget"]
+    class C_0011772155085268942889 {
+        +SoundImageWidget() void
+        +CreateImage() void
+        +DrawImage() void
+        +GetImage() QImage *
+        +metaObject() [const] const QMetaObject *
+        +paintEvent() void
+        -qt_create_metaobjectdata<typename>() [constexpr] auto$
+        +qt_metacall() int
+        +qt_metacast() void *
+        -qt_static_metacall() void$
+        +tr() QString$
+        -image : QImage *
+        +staticMetaObject : const QMetaObject
+    }
+    class C_0008416453855301937033["Ui_MainWindow"]
+    class C_0008416453855301937033 {
+        +retranslateUi() void
+        +setupUi() void
+        +AveragingPeriodComboBox : QComboBox *
+        +AveragingPeriodLabel : QLabel *
+        +BPHComboBox : QComboBox *
+        +CentralWidget : QWidget *
+        +GainLabel : QLabel *
+        +GraphicsTabWidget : QTabWidget *
+        +HighLineEdit : QLineEdit *
+        +HighPassLabel : QLabel *
+        +InputDeviceComboBox : QComboBox *
+        +LiftAngleLabel : QLabel *
+        +LiftAngleSpinBox : QSpinBox *
+        +MicrophoneHorizontalSlider : QSlider *
+        +MiscFrame : QFrame *
+        +MiscLabel : QLabel *
+        +ModeComboBox : QComboBox *
+        +ModeLabel : QLabel *
+        +RatePlot : QCustomPlot *
+        +RateTab : QWidget *
+        +RealisticCheckBox : QCheckBox *
+        +RefreshPushButton : QPushButton *
+        +Results : QLabel *
+        +RunFrame : QFrame *
+        +RunParamLabel : QLabel *
+        +SampleRateLabel : QLabel *
+        +SampleRatesComboBox : QComboBox *
+        +ScopePlot : QCustomPlot *
+        +ScopeScaleLabel : QLabel *
+        +ScopeScaleSpinBox : QSpinBox *
+        +SimAmpLabel : QLabel *
+        +SimAmplitudeSpinBox : QSpinBox *
+        +SimBPHComboBox : QComboBox *
+        +SimBeatErrorLabel : QLabel *
+        +SimBeatErrorSpinBox : QDoubleSpinBox *
+        +SimBphLabel : QLabel *
+        +SimErrorRateLabel : QLabel *
+        +SimErrorRateSpinBox : QSpinBox *
+        +SimFrame : QFrame *
+        +SimParamLabel : QLabel *
+        +SoundImage : SoundImageWidget *
+        +SoundTab : QWidget *
+        +StartPushButton : QPushButton *
+        +StopPushButton : QPushButton *
+        +UseConsetCheckBox : QCheckBox *
+        +WatchBphLabel : QLabel *
+        +WatchFrame : QFrame *
+        +WatchParamLabel : QLabel *
+        +menubar : QMenuBar *
+        +statusbar : QStatusBar *
+    }
+    class C_0004549815789373633747["&lpar;anonymous_27011138&rpar;"]
+    class C_0004549815789373633747 {
+        +audioFormat : uint16_t
+        +bitsPerSample : uint16_t
+        +blockAlign : uint16_t
+        +byteRate : uint32_t
+        +dataId : char[4]
+        +dataSize : uint32_t
+        +fileSize : uint32_t
+        +fmtId : char[4]
+        +fmtSize : uint32_t
+        +numChannels : uint16_t
+        +riffId : char[4]
+        +sampleRate : uint32_t
+        +waveId : char[4]
+    }
+    class C_0010133309999140091783["&lpar;anonymous_9019767&rpar;"]
+    class C_0010133309999140091783 {
+        +FPS : double
+        +MainThrd_LastTotalSamplesWritten : uint64_t
+        +MainThrd_LastWriteIndex : unsigned int
+        +Mutex : QMutex
+        +NumberOfAudioSamples : int
+        +SPF : double
+        +SPS : double
+        +Samples : float *
+        +TotalSamplesWritten : uint64_t
+        +WriteIndex : unsigned int
+    }
+    class C_0006290598116537460203["&lpar;anonymous_10234063&rpar;"]
+    class C_0006290598116537460203 {
+        +FPS : double
+        +MainThrd_LastTotalSamplesWritten : uint64_t
+        +MainThrd_LastWriteIndex : unsigned int
+        +Mutex : QMutex
+        +NumberOfAudioSamples : int
+        +SPF : double
+        +SPS : double
+        +Samples : float *
+        +TotalSamplesWritten : uint64_t
+        +WriteIndex : unsigned int
+    }
+    class C_0001208890139450479942["&lpar;anonymous_10236248&rpar;"]
+    class C_0001208890139450479942 {
+        +audioFormat : uint16_t
+        +bitsPerSample : uint16_t
+        +blockAlign : uint16_t
+        +byteRate : uint32_t
+        +dataId : char[4]
+        +dataSize : uint32_t
+        +fileSize : uint32_t
+        +fmtId : char[4]
+        +fmtSize : uint32_t
+        +numChannels : uint16_t
+        +riffId : char[4]
+        +sampleRate : uint32_t
+        +waveId : char[4]
+    }
+    C_0003514945697296102221 ..> C_0018341276841710692803 : 
+    C_0012845075794639732984 ..> C_0018341276841710692803 : 
+    C_0007657416440895044090 o-- C_0011507264127100730300 : +kind
+    C_0009674289618173443152 o-- C_0011507264127100730300 : +kind
+    C_0009674289618173443152 o-- "12" C_0008979469593608893354 : +lobes
+    C_0004780606889660929550 o-- C_0013966846487837752920 : +cfg
+    C_0004780606889660929550 o-- "16" C_0009674289618173443152 : +active_packets
+    C_0006105450037351729596 ..> C_0018341276841710692803 : 
+    C_0006105450037351729596 ..> C_0013966846487837752920 : 
+    C_0013674577502253798638 ..> C_0014465606772005614692 : 
+    C_0010373500122233123172 o-- C_0013171110419049150986 : +bph_mode
+    C_0010373500122233123172 o-- C_0007451545542570326545 : +c_placement
+    C_0005430325895141257011 o-- C_0006673525286215695575 : +type
+    C_0009748950066013791772 o-- C_0017170938391287155718 : +sync_status
+    C_0011100371619726364978 ..> C_0008688611780339859524 : 
+    C_0011100371619726364978 ..> C_0012004340364218517595 : 
+    C_0011100371619726364978 ..> C_0016362481145567804315 : 
+    C_0011100371619726364978 o-- C_0001138075701142164558 : -cfg_
+    C_0011100371619726364978 o-- C_0006372026272121092795 : -current_column_
+    C_0011100371619726364978 o-- C_0006372026272121092795 : -anchor_sum_
+    C_0011100371619726364978 o-- C_0006372026272121092795 : -anchor_columns_buffer_
+    C_0011100371619726364978 o-- C_0004729626594957452603 : -anchor_columns_meta_
+    C_0011100371619726364978 o-- C_0003184432839985650155 : -rendered_columns_
+    C_0011100371619726364978 o-- C_0006372026272121092795 : -rendered_bins_
+    C_0011100371619726364978 o-- C_0004514467557886152784 : -active_markers_
+    C_0011100371619726364978 ()-- C_0008688611780339859524 : 
+    C_0011100371619726364978 ()-- C_0001138075701142164558 : 
+    C_0001138075701142164558 o-- C_0008688611780339859524 : +vertical_time_direction
+    C_0011100371619726364978 ()-- C_0006992351083540644410 : 
+    C_0011100371619726364978 ()-- C_0012004340364218517595 : 
+    C_0011100371619726364978 ()-- C_0016362481145567804315 : 
+    C_0010599990684046357089 o-- C_0005615096916452297607 : -window
+    C_0008416453855301937033 <|-- C_0005461363864585996070 : 
+    C_0001614498767824101049 o-- C_0016748352342159670929 : +xTic
+    C_0001614498767824101049 o-- C_0016748352342159670929 : +xToc
+    C_0001614498767824101049 o-- C_0016748352342159670929 : +yTic
+    C_0001614498767824101049 o-- C_0016748352342159670929 : +yToc
+    C_0001614498767824101049 --> C_0000875047278026566845 : +RlsTicRate
+    C_0001614498767824101049 --> C_0000875047278026566845 : +RlsTocRate
+    C_0015691703395616736936 --> C_0010599990684046357089 : +RollBeatError
+    C_0012459950536522532919 --> C_0010599990684046357089 : +RollAmplitude
+    C_0002900986228388971956 ..> C_0013966846487837752920 : 
+    C_0002900986228388971956 ..> C_0016748352342159670929 : 
+    C_0002900986228388971956 ..> C_0002740842316660907467 : 
+    C_0002900986228388971956 ..> C_0018341276841710692803 : 
+    C_0002900986228388971956 --> C_0005461363864585996070 : -ui
+    C_0002900986228388971956 --> C_0013674577502253798638 : -mWavWriter
+    C_0002900986228388971956 --> C_0003514945697296102221 : -mAudioWorker
+    C_0002900986228388971956 --> C_0012845075794639732984 : -mPlaybackWorker
+    C_0002900986228388971956 --> C_0006105450037351729596 : -mSimWorker
+    C_0002900986228388971956 --> C_0005408719662679357488 : -mCtx
+    C_0002900986228388971956 o-- C_0011100371619726364978 : -mSoundRenderer
+    C_0008416453855301937033 --> C_0011772155085268942889 : +SoundImage
+
+%% Generated with clang-uml, version 0.6.2
+%% LLVM version clang version 20.1.7 (https://github.com/llvm/llvm-project.git 6146a88f60492b520a36f8f8f3231e15f3cc6082)
