@@ -14,17 +14,7 @@
 #include <QCoreApplication>   // applicationDirPath() — 실행파일 옆에 CSV 고정
 #include <QDir>
 #include <chrono>
-
-#if defined(Q_OS_WIN)
-  #include <windows.h>
-  #include <psapi.h>            // GetProcessMemoryInfo (§D-1, Windows 분기)
-#elif defined(Q_OS_LINUX)
-  #include <unistd.h>           // sysconf, _SC_CLK_TCK, _SC_PAGESIZE
-  #include <cstdio>             // fopen, fgets, fscanf (/proc 읽기)
-  #include <cstring>            // strrchr, strtok (/proc/self/stat 파싱)
-  #include <cstdlib>            // strtoul
-  #include <QProcess>           // vcgencmd 호출 (§C-2, Pi 분기)
-#endif
+//  자원(CPU/메모리/스로틀)은 외부 도구로 측정하므로 OS별 /proc·WinAPI·vcgencmd include 불필요.
 
 namespace {
 // --- 로그 파일/동기화 (워커 스레드 + 메인 스레드 + 1Hz 타이머가 함께 기록) ---
@@ -33,6 +23,14 @@ QFile              gLogFile;
 QTextStream        gLogStream;
 bool               gReady = false;
 std::chrono::steady_clock::time_point gStart;   // nowMs() 의 기준점
+qint64             gEpochMsAtT0 = 0;            // t_ms=0(=gStart) 순간의 벽시계 epoch(ms). 외부 로그와 시간 정렬용.
+
+// --- 관측자 효과 최소화 ---
+//  ① 콘솔 echo(qDebug)는 기본 OFF: 측정 중 매 줄 추가 QString 포맷·stderr I/O 제거. (디버깅 시 setConsoleEcho(true))
+//  ② flush 는 매 줄이 아니라 주기적으로: 핫패스(초당 수십 회)에서 write 시스템콜 제거. 크래시 손실은 최대 kFlushIntervalMs.
+bool               gConsoleEcho = false;
+double             gLastFlushMs = 0.0;
+constexpr double   kFlushIntervalMs = 1000.0;   // 1초마다 flush
 
 // --- 로그 그룹 ON/OFF 게이트 (스위치는 PerfInstrumentation.h 의 PERF_GRP_* 매크로) ---
 //  section 태그("A-1","B-4"…)를 그룹으로 매핑해, 그 그룹이 0이면 기록을 건너뛴다.
@@ -80,6 +78,10 @@ void init(const QString &sessionTag)
 {
     QMutexLocker lock(&gLogMutex);
     gStart = std::chrono::steady_clock::now();
+    // gStart(단조시계 0점)와 같은 순간의 벽시계 epoch(ms)를 즉시 포착 → 외부 epoch 로그와 정렬 기준.
+    //  (두 호출 사이 간격은 µs 수준이라 초 단위로 움직이는 외부 자원 로그 정렬엔 무시 가능)
+    gEpochMsAtT0 = QDateTime::currentMSecsSinceEpoch();
+    gLastFlushMs = 0.0;   // 주기적 flush 기준점 리셋
     // 실행파일이 있는 디렉터리에 CSV 생성(매 실행 새로 씀). 실행한 작업 디렉터리(cwd)와
     // 무관하게 항상 같은 위치(바이너리 옆)에 남으므로, Qt Creator·셸·직접 실행 등
     // 어떤 경로로 띄워도 perf_log.csv 위치가 일정하다. 분석 시 grep/스프레드시트로 사용.
@@ -95,6 +97,7 @@ void init(const QString &sessionTag)
     gLogStream << "# PERF measurement log — see docs/PERF_VERIFICATION_GUIDE.md\n";
     gLogStream << "# session=" << sessionTag
                << " start=" << QDateTime::currentDateTime().toString(Qt::ISODate)
+               << " epoch_ms_t0=" << gEpochMsAtT0   // ★ t_ms=0 의 벽시계 epoch(ms): event_epoch_ms = epoch_ms_t0 + t_ms
 #if defined(Q_OS_WIN)
                << " os=Windows"
 #elif defined(Q_OS_LINUX)
@@ -128,13 +131,19 @@ void log(const char *section, const char *qa, const char *metric,
                    << section << ',' << qa << ',' << metric << ','
                    << QString::number(value, 'f', 4) << ',' << unit << ','
                    << extra << '\n';
-        gLogStream.flush();   // 크래시/스로틀 상황에서도 데이터 보존
+        // [관측자 효과↓] 매 줄 flush 안 함 — 1초 주기로만 디스크에 내림(핫패스 write 시스템콜 제거).
+        if (t - gLastFlushMs >= kFlushIntervalMs) { gLogStream.flush(); gLastFlushMs = t; }
     }
-    // 콘솔에도 남겨 실시간 관찰 가능 (문서 태그 [section/qa] 그대로 노출)
-    qDebug().noquote() << QString("[PERF %1/%2] %3=%4 %5 %6")
-                              .arg(section).arg(qa).arg(metric)
-                              .arg(value, 0, 'f', 3).arg(unit).arg(extra);
+    // [관측자 효과↓] 콘솔 echo 는 기본 OFF (켜면 매 줄 QString 포맷·stderr I/O 발생).
+    if (gConsoleEcho) {
+        qDebug().noquote() << QString("[PERF %1/%2] %3=%4 %5 %6")
+                                  .arg(section).arg(qa).arg(metric)
+                                  .arg(value, 0, 'f', 3).arg(unit).arg(extra);
+    }
 }
+
+// 콘솔 echo on/off (기본 OFF). 측정 중엔 OFF 권장, 실시간 디버깅 시에만 ON.
+void setConsoleEcho(bool on) { QMutexLocker lock(&gLogMutex); gConsoleEcho = on; }
 
 int cpuCoreCount()
 {
@@ -143,125 +152,14 @@ int cpuCoreCount()
 }
 
 // ---------------------------------------------------------------------------
-//  CPU% — §C-1 (QA-EE-01 "평균 CPU ≤70%").
-//  '직전 호출 이후' 평균을 전 코어 기준(0~100)으로 환산한다.
-//  ★1Hz 타이머 등 단일 스레드에서만 호출★ (정적 상태 사용).
+//  CPU% · RSS(메모리) · 서멀 스로틀 — 앱 내부에서 측정하지 않는다.
+//  이유: 프로세스 안에서 /proc 을 파싱하고 매 샘플 디스크에 flush 하면, 그 측정 행위
+//        자체가 CPU·메모리를 소비해 측정 대상(자원 사용량)을 오염시킨다(관측자 효과).
+//  대신 앱을 건드리지 않는 외부 도구로 측정한다 (런북: PERF_VERIFICATION_GUIDE.md):
+//        psrecord $(pidof TimeGrapher) --interval 1 --plot perf_ext.png
+//        pidstat  -r -u -p $(pidof TimeGrapher) 1     # CPU% + RSS
+//        watch -n1 vcgencmd get_throttled             # Pi 스로틀
+//  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
 // ---------------------------------------------------------------------------
-#if defined(Q_OS_WIN)
-double sampleProcessCpuPercent()
-{
-    static bool      have = false;
-    static ULONGLONG prevProc100ns = 0;   // 커널+유저 누적 (100ns 단위)
-    static ULONGLONG prevWall100ns = 0;
-
-    FILETIME ftC, ftE, ftK, ftU, ftNow;
-    if (!GetProcessTimes(GetCurrentProcess(), &ftC, &ftE, &ftK, &ftU)) return -1.0;
-    GetSystemTimeAsFileTime(&ftNow);
-    ULONGLONG k = ((ULONGLONG)ftK.dwHighDateTime << 32) | ftK.dwLowDateTime;
-    ULONGLONG u = ((ULONGLONG)ftU.dwHighDateTime << 32) | ftU.dwLowDateTime;
-    ULONGLONG proc = k + u;
-    ULONGLONG wall = ((ULONGLONG)ftNow.dwHighDateTime << 32) | ftNow.dwLowDateTime;
-
-    double pct = 0.0;
-    if (have && wall > prevWall100ns) {
-        double dProc = (double)(proc - prevProc100ns);
-        double dWall = (double)(wall - prevWall100ns);
-        pct = (dProc / (dWall * cpuCoreCount())) * 100.0;   // 전 코어 정규화
-    }
-    prevProc100ns = proc; prevWall100ns = wall; have = true;
-    return pct;
-}
-#elif defined(Q_OS_LINUX)
-double sampleProcessCpuPercent()
-{
-    static bool   have = false;
-    static double prevProcSec = 0.0;
-    static double prevWallMs  = 0.0;
-
-    // /proc/self/stat 필드 14(utime)+15(stime), clock tick 단위 → 초로 환산
-    long ticks = sysconf(_SC_CLK_TCK); if (ticks <= 0) ticks = 100;
-    FILE *f = fopen("/proc/self/stat", "r");
-    if (!f) return -1.0;
-    // 14,15번째 필드만 필요. comm 필드에 공백/괄호가 있을 수 있어 ')' 이후부터 파싱.
-    char buf[1024];
-    if (!fgets(buf, sizeof(buf), f)) { fclose(f); return -1.0; }
-    fclose(f);
-    char *p = strrchr(buf, ')');
-    if (!p) return -1.0;
-    p += 2; // ") " 다음 = state 필드 시작
-    unsigned long utime = 0, stime = 0;
-    int field = 3; // state=3 부터 카운트 (pid=1, comm=2)
-    char *tok = strtok(p, " ");
-    while (tok) {
-        if (field == 14) utime = strtoul(tok, nullptr, 10);
-        else if (field == 15) { stime = strtoul(tok, nullptr, 10); break; }
-        tok = strtok(nullptr, " ");
-        field++;
-    }
-    double procSec = (double)(utime + stime) / (double)ticks;
-    double wallMs  = nowMs();
-
-    double pct = 0.0;
-    if (have && wallMs > prevWallMs) {
-        double dProc = procSec - prevProcSec;
-        double dWall = (wallMs - prevWallMs) / 1000.0;
-        pct = (dProc / (dWall * cpuCoreCount())) * 100.0;   // 전 코어 정규화
-    }
-    prevProcSec = procSec; prevWallMs = wallMs; have = true;
-    return pct;
-}
-#else
-double sampleProcessCpuPercent() { return -1.0; }
-#endif
-
-// ---------------------------------------------------------------------------
-//  RSS(상주 메모리) — §D-1 (QA-RT-03 "30분 후 증가 ≤200 MB·누수 없음")
-// ---------------------------------------------------------------------------
-#if defined(Q_OS_WIN)
-qint64 sampleProcessRssBytes()
-{
-    PROCESS_MEMORY_COUNTERS pmc;
-    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
-        return (qint64)pmc.WorkingSetSize;   // Windows: Working Set = RSS 상당
-    return -1;
-}
-#elif defined(Q_OS_LINUX)
-qint64 sampleProcessRssBytes()
-{
-    // /proc/self/statm 의 2번째 값 = resident pages → × 페이지 크기
-    FILE *f = fopen("/proc/self/statm", "r");
-    if (!f) return -1;
-    long pages_total = 0, pages_res = 0;
-    if (fscanf(f, "%ld %ld", &pages_total, &pages_res) != 2) { fclose(f); return -1; }
-    fclose(f);
-    long pageSize = sysconf(_SC_PAGESIZE); if (pageSize <= 0) pageSize = 4096;
-    return (qint64)pages_res * (qint64)pageSize;
-}
-#else
-qint64 sampleProcessRssBytes() { return -1; }
-#endif
-
-// ---------------------------------------------------------------------------
-//  서멀 스로틀 — §C-2 (QA-EE-01). Pi 전용. Windows 는 N/A(false).
-// ---------------------------------------------------------------------------
-#if defined(Q_OS_LINUX)
-bool readThrottled(unsigned &outFlag)
-{
-    // `vcgencmd get_throttled` → "throttled=0x50000" 형태. bit0=현재저전압, bit2=현재스로틀 등.
-    QProcess proc;
-    proc.start("vcgencmd", QStringList() << "get_throttled");
-    if (!proc.waitForFinished(500)) { return false; }   // vcgencmd 없으면 측정 불가
-    QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-    int eq = out.indexOf('=');
-    if (eq < 0) return false;
-    bool ok = false;
-    unsigned v = out.mid(eq + 1).toUInt(&ok, 0);   // 0x.. 자동 인식
-    if (!ok) return false;
-    outFlag = v;
-    return true;
-}
-#else
-bool readThrottled(unsigned &outFlag) { outFlag = 0; return false; }   // Windows: N/A
-#endif
 
 } // namespace Perf

@@ -85,8 +85,6 @@ private slots:
     void on_AveragingPeriodComboBox_currentIndexChanged(int index);
     void on_ModeComboBox_currentTextChanged(const QString &arg1);
 
-    // [PERF 계측 · §C-1/C-2/D-1] CPU%·RSS·스로틀을 1초 주기로 표본화하는 슬롯
-    void SamplePerfResources();
     // [PERF 계측 · §A-3 · QA-RT-01] UI 이벤트 루프 응답성(지연) 표본화 슬롯(0.1초 주기)
     void SamplePerfUiResponsiveness();
     // [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 그리기 완료(afterReplot) 시점 계측 → 진짜 종단간
@@ -204,7 +202,6 @@ private:
     // ── [PERF 계측] docs/PERF_VERIFICATION_GUIDE.md 측정용 멤버 (제품 기능 아님) ──
     double                     mLocalLastBlockCaptureMs=0.0; // [A-1/A-2] HandleInputData에서 Mutex로 읽은 최신 블록 캡처 시각
     uint64_t                   mLocalDroppedSamples=0;       // [B-1] 드롭 추정 스냅샷
-    QTimer                    *mPerfResourceTimer=nullptr;   // [C/D] CPU·메모리 1Hz 표본화 타이머
     QTimer                    *mPerfUiTimer=nullptr;         // [A-3] UI 응답성 0.1s 하트비트 타이머
     double                     mPerfUiLastMs=0.0;            // [A-3] 직전 하트비트 시각
     bool                       mPerfUiHave=false;            // [A-3] 첫 회(워밍업) 제외 플래그

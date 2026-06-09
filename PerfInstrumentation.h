@@ -97,20 +97,19 @@ void   shutdown();
 // 단조 증가 시계(ms). 크로스플랫폼(std::chrono::steady_clock). 모든 지연 계산의 기준.
 double nowMs();
 
-// 한 줄 측정 기록 (CSV + qDebug). section/qa 로 문서와 연결된다.
+// 한 줄 측정 기록 (CSV). section/qa 로 문서와 연결된다.
+//  관측자 효과↓: flush 는 1초 주기, 콘솔 echo 는 기본 OFF (아래 setConsoleEcho).
 void   log(const char *section, const char *qa, const char *metric,
            double value, const char *unit, const QString &extra = QString());
 
-// 프로세스 CPU% — 직전 호출 이후의 평균(전 코어 기준 0~100). ★1개 스레드에서만 호출★ (§C-1)
-double sampleProcessCpuPercent();
+// 콘솔 echo(qDebug) on/off — 기본 OFF. 측정 중엔 OFF(관측자 효과 제거), 디버깅 시에만 ON.
+void   setConsoleEcho(bool on);
 
-// 프로세스 RSS(상주 메모리) 바이트. Windows/Linux 분기. (§D-1)
-qint64 sampleProcessRssBytes();
+// CPU%·RSS(메모리)·스로틀 같은 '자원' 지표는 앱 내부에서 측정하지 않는다.
+//  관측자 효과를 피하려고 외부 도구(psrecord/pidstat/vcgencmd)로 측정한다.
+//  런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
-// Raspberry Pi 스로틀 플래그(vcgencmd get_throttled). Windows 는 항상 false 반환(N/A). (§C-2)
-bool   readThrottled(unsigned &outFlag);
-
-// 논리 코어 수 (CPU% 정규화에 사용).
+// 논리 코어 수 (세션 헤더 기록용).
 int    cpuCoreCount();
 
 } // namespace Perf

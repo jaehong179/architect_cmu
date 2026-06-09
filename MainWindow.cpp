@@ -128,12 +128,13 @@ MainWindow::MainWindow(QWidget *parent)
     LoadAverageingPeriod();
     DisplayResults();
 
-    // ── [PERF 계측 · §C-1/C-2/D-1 · QA-EE-01/QA-RT-03] CPU·메모리·스로틀 1Hz 표본화 ──
-    //  실행 내내 1초 주기로 프로세스 CPU%·RSS(메모리)·Pi 스로틀 플래그를 perf_log.csv 에 기록.
-    //  (Windows/Pi 분기는 PerfInstrumentation 내부에서 처리)
-    mPerfResourceTimer = new QTimer(this);
-    connect(mPerfResourceTimer, &QTimer::timeout, this, &MainWindow::SamplePerfResources);
-    mPerfResourceTimer->start(1000);
+    // ── [PERF 계측] CPU·메모리·스로틀(자원)은 앱 내부에서 측정하지 않는다 ──
+    //  관측자 효과(측정 자체가 CPU/메모리를 먹어 결과 오염)를 피하기 위해 외부 도구로 측정한다.
+    //    예) psrecord $(pidof TimeGrapher) --interval 1 --plot perf_ext.png
+    //        pidstat -r -u -p $(pidof TimeGrapher) 1     # CPU% + RSS
+    //        watch -n1 vcgencmd get_throttled            # Pi 스로틀
+    //  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
+    //  자세한 외부 측정 런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
     // ── [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 0.1초 하트비트 ──
     //  100ms 주기 타이머가 '얼마나 늦게' 실제로 불리는지를 측정한다. ProcessSamples/
@@ -188,22 +189,6 @@ void MainWindow::SamplePerfUiResponsiveness()
     mPerfUiHave = true;
 }
 
-// [PERF 계측 · §C-1/C-2/D-1] 1초마다 호출: 자원 사용량을 문서 태그와 함께 기록
-void MainWindow::SamplePerfResources()
-{
-    // §C-1 (QA-EE-01 "평균 CPU ≤70%") — 기능 추가 여유(헤드룸) 판단용
-    double cpu = Perf::sampleProcessCpuPercent();
-    if (cpu >= 0.0) Perf::log("C-1","QA-EE-01","cpu_percent", cpu, "%",
-                              QString("cores=%1").arg(Perf::cpuCoreCount()));
-    // §D-1 (QA-RT-03 "30분 후 증가 ≤200MB·누수 없음") — RSS 추세로 누수/증가 판단
-    qint64 rss = Perf::sampleProcessRssBytes();
-    if (rss >= 0) Perf::log("D-1","QA-RT-03","rss_bytes", (double)rss, "bytes","");
-    // §C-2 (QA-EE-01 스로틀) — Pi 에서만 유효, Windows 는 N/A 로 건너뜀
-    unsigned thr = 0;
-    if (Perf::readThrottled(thr))
-        Perf::log("C-2","QA-EE-01","throttled_flag", (double)thr, "bitmask",
-                  QString("hex=0x%1").arg(thr,0,16));
-}
 void   MainWindow::ConfigureSoundCard(void)
 {
 #if defined(Q_OS_LINUX)
