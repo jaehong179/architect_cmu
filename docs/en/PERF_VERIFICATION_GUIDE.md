@@ -77,6 +77,46 @@ Format of each item:
 
 ## C. CPU · Thermal (computational resources)
 
+> ⚠️ **The resource metrics in this section (C) and the next (D) — CPU, memory, throttle — are NOT written to `perf_log.csv`.**
+> Measuring them from inside the process means the measurement itself consumes CPU/memory and contaminates
+> the result (observer effect), so they are measured with **external tools that don't touch the app**.
+> In-app instrumentation only covers the semantic metrics that can't be seen from outside
+> (latency A · accuracy G · FPS F · backlog E · event-loop lag A-3).
+>
+> **External measurement runbook (Raspberry Pi / Linux):**
+>
+> Memory (D-1 · D-2) + thermal (C-2) — **no install required**, a combined `/proc/smaps_rollup`+`vcgencmd` sampler:
+> ```bash
+> tools/resource_sample.sh            # auto-finds TimeGrapher, 1s interval → resource_ext.csv
+> tools/resource_sample.sh -i 2 -o run1.csv
+> ```
+> - **Watch PSS, not RSS.** RSS counts shared libraries (Qt) in full and is inflated; PSS divides
+>   shared pages by the number of sharers → the app's *real* share. PSS is the accurate absolute footprint.
+> - **For leaks (growth trend), `Private_Dirty`** is the cleanest signal (the app's own heap). RSS is logged
+>   alongside for cross-check.
+> - CSV (combined): `epoch_s,pss_kb,pss_mb,private_dirty_kb,rss_kb,temp_c,arm_mhz,throttled_hex,now_throttling,ever_throttled`
+>
+> CPU (C-1) — quick view via `htop` (F4 filter `TimeGrapher`, `RES`/`CPU%` columns). For a time series/plot,
+> install a tool: `pip install psrecord` → `psrecord $(pidof TimeGrapher) --interval 1 --plot perf_ext.png`,
+> or `sudo apt install sysstat` → `pidstat -r -u -p $(pidof TimeGrapher) 1`.
+>
+> Thermal · throttle (C-2) — the `resource_sample.sh` above also logs thermal into `resource_ext.csv` (no separate run needed).
+> - `get_throttled` bits: bit0–3 = **current state** (bit2 = currently throttling), bit16–19 = **occurred-since-boot history** (bit18 = throttling occurred).
+>   `0x0` means fully clean. **History bits clear on reboot** → start measurement from a clean 0x0 after a reboot.
+> - Quick one-shot: `vcgencmd measure_temp` / `vcgencmd get_throttled`
+>
+> **External ↔ internal time alignment (automated):**
+> Internal `t_ms` is a monotonic clock (app start = 0); external `epoch_s` is wall-clock — different axes.
+> The `epoch_ms_t0` field in the `perf_log.csv` header (= wall-clock epoch[ms] at t_ms=0) is the conversion
+> anchor: `event_epoch_ms = epoch_ms_t0 + t_ms`. A tool does this automatically:
+> ```bash
+> # merge into long format (epoch_ms,t_ms,source,metric,value)
+> tools/perf_join.py build/perf_log.csv --mem mem_ext.csv --thermal thermal_ext.csv -o joined.csv
+> # attach the temp/memory at each internal event's time (e.g. did latency spikes coincide with heat?)
+> tools/perf_join.py build/perf_log.csv --thermal thermal_ext.csv --correlate e2e_full_ms --tolerance 1500 -o corr.csv
+> ```
+> (Old CSVs without `epoch_ms_t0` can't be aligned → re-measure after adding the anchor. Python stdlib only.)
+
 ### C-1. CPU utilization
 - 📍 **QA-RT-01 / QA-EE-01** ("average CPU ≤70%"), **EXP-06**
 - 🎯 Confirm whether there is "room (headroom) to add more features." The 70% target is based on **securing 30% peak/scheduling margin** (Pi 5, 4 cores).

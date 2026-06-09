@@ -77,6 +77,44 @@
 
 ## C. CPU · 발열 (연산 자원)
 
+> ⚠️ **이 절(C)과 다음 절(D)의 자원 지표(CPU·메모리·스로틀)는 `perf_log.csv` 에 기록되지 않습니다.**
+> 프로세스 안에서 측정하면 측정 행위 자체가 CPU·메모리를 먹어 결과를 오염시키므로(관측자 효과),
+> **앱을 건드리지 않는 외부 도구로 측정**합니다. 앱 내부 계측은 밖에서 못 보는 의미론적 지표
+> (지연 A·정확도 G·FPS F·백로그 E·이벤트루프 지연 A-3)만 담당합니다.
+>
+> **외부 측정 런북 (Raspberry Pi / Linux):**
+>
+> 메모리(D-1·D-2) + 발열(C-2) — **설치 불필요**, `/proc/smaps_rollup`+`vcgencmd` 합본 샘플러:
+> ```bash
+> tools/resource_sample.sh            # TimeGrapher 자동 탐색, 1초 주기 → resource_ext.csv
+> tools/resource_sample.sh -i 2 -o run1.csv
+> ```
+> - **RSS 가 아니라 PSS 를 본다.** RSS 는 공유 라이브러리(Qt)를 통째로 세어 부풀려지고,
+>   PSS 는 공유 페이지를 공유 프로세스 수로 나눠 배분 → 앱이 '진짜' 차지하는 몫. 절대 footprint는 PSS가 정확.
+> - **누수(증가 추세)는 `Private_Dirty`** 가 가장 깨끗(앱 고유 힙). RSS는 CSV에 교차검증용으로 함께 기록.
+> - CSV(합본): `epoch_s,pss_kb,pss_mb,private_dirty_kb,rss_kb,temp_c,arm_mhz,throttled_hex,now_throttling,ever_throttled`
+>
+> CPU(C-1) — 간단히는 `htop`(F4로 `TimeGrapher` 필터, `RES`/`CPU%` 열). 시계열·그래프가 필요하면
+> 도구 설치 후: `pip install psrecord` → `psrecord $(pidof TimeGrapher) --interval 1 --plot perf_ext.png`,
+> 또는 `sudo apt install sysstat` → `pidstat -r -u -p $(pidof TimeGrapher) 1`.
+>
+> 발열·스로틀(C-2) — 위 `resource_sample.sh` 가 발열도 함께 `resource_ext.csv` 에 기록한다(별도 실행 불필요).
+> - `get_throttled` 비트: bit0~3=**현재 상태**(bit2=현재 스로틀), bit16~19=**부팅 후 발생 이력**(bit18=스로틀 이력).
+>   `0x0` 이면 완전 정상. **이력 비트(0x..0000)는 재부팅 시 클리어** → 측정은 재부팅 후 0x0에서 시작 권장.
+> - 빠른 단발 확인: `vcgencmd measure_temp` / `vcgencmd get_throttled`
+>
+> **외부 ↔ 내부 시간 정렬 (자동):**
+> 내부 `t_ms` 는 단조시계(앱 시작=0), 외부 `epoch_s` 는 벽시계라 축이 다르다. `perf_log.csv` 헤더의
+> `epoch_ms_t0`(= t_ms=0 의 벽시계 epoch[ms])가 변환 앵커다: `event_epoch_ms = epoch_ms_t0 + t_ms`.
+> 이 변환을 자동으로 해 주는 도구:
+> ```bash
+> # 통합 롱포맷(epoch_ms,t_ms,source,metric,value)으로 합치기
+> tools/perf_join.py build/perf_log.csv --mem mem_ext.csv --thermal thermal_ext.csv -o joined.csv
+> # 내부 지표 이벤트마다 '그 시각의' 온도/메모리를 최근접 첨부 (예: 지연 스파이크가 발열과 겹쳤나)
+> tools/perf_join.py build/perf_log.csv --thermal thermal_ext.csv --correlate e2e_full_ms --tolerance 1500 -o corr.csv
+> ```
+> (구버전 CSV에 `epoch_ms_t0` 가 없으면 정렬 불가 → 앵커 추가 후 재측정 필요. python 표준 라이브러리만 사용.)
+
 ### C-1. CPU 사용률
 - 📍 **QA-RT-01 / QA-EE-01** ("평균 CPU ≤70%"), **EXP-06**
 - 🎯 "기능을 더 얹을 여유(헤드룸)"가 있는지 확인. 70% 목표는 **피크·스케줄 여유 30% 확보**(Pi 5 4코어) 근거.
