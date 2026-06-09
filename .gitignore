@@ -10,3 +10,10 @@ docs-tools/cdb/
 .claude/
 record_file/
 perf_log.csv
+
+# 측정 산출 CSV (로컬 — 커밋 제외)
+resource_ext.csv
+mem_ext.csv
+thermal_ext.csv
+joined.csv
+corr.csv
