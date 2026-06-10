@@ -1,8 +1,5 @@
-# TimeGrapher Sprint Plan — M2/M3 Execution Schedule
+# TimeGrapher Sprint Plan 
 
-> Based on `Time_Grapher_M1_v16_QA_Taxonomy_EN.docx` (Milestone 1 deliverable).
-> All work is categorized into **Test Experiment / Implementation / Verification**.
-> Principle: every task finishes **before** the final demo — 07/01 (M3) is demo-only. Code freeze: 06/29.
 
 ## Sprint Calendar
 
