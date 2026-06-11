@@ -1,0 +1,183 @@
+<mxfile host="65bd71144e">
+    <diagram id="module-view-as-is" name="Module View - AS-IS">
+        <mxGraphModel dx="469" dy="901" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="Module View - AS-IS (current code)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=28;fontColor=#5E5E5E;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="20" width="600" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="audioWorker" value="AudioWorker&lt;br&gt;(live capture)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#888888;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="120" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="simWorker" value="SimWorker&lt;br&gt;(synthetic)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#888888;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="245" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="playbackWorker" value="PlaybackWorker&lt;br&gt;(file)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#888888;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="370" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="sharedBuffer" value="Shared Audio&lt;br&gt;Buffer&lt;br&gt;(TMasterAudioDataRaw)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECECEC;strokeColor=#8A8A8A;strokeWidth=3;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="240" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="mainWindow" value="MainWindow (God Object: too many responsibilities)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE7DF;strokeColor=#C76A4A;strokeWidth=3;fontSize=22;fontStyle=1;verticalAlign=top;spacingTop=18;" parent="1" vertex="1">
+                    <mxGeometry x="905" y="77.5" width="980" height="870" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw1" value="[Domain] calls tg_process()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="150" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw2" value="[UI] all 12+ plot tabs (QCustomPlot)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="150" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw3" value="[Math] Rolling avg / least-squares" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="250" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw4" value="[IO] WAV save (WavStreamWriter)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="250" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw5" value="[Rendering] SoundImageRenderer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="350" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="mw6" value="[Platform] platform select (#ifdef)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="350" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="core" value="Timegrapher core&lt;br&gt;(libtimegrapher)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="470" width="450" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="dsp" value="Dsp - Detector - Bph" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="470" width="450" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="linuxAudio" value="LinuxAudio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="590" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="windowsAudio" value="WindowsAudio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="590" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="perf" value="PerfInstrumentation (performance monitor)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="700" width="910" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="problem" value="Problem: MainWindow mixes 6+ responsibility types (UI, domain, math, IO,&lt;br&gt;rendering, platform). Any change can ripple across unrelated concerns&lt;br&gt;-&gt; lower testability, higher regression risk, slower feature delivery." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEFEA;strokeColor=#B85C3E;strokeWidth=2;fontSize=16;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="790" width="910" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="e1" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="audioWorker" target="sharedBuffer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e2" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="simWorker" target="sharedBuffer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e3" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="playbackWorker" target="sharedBuffer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e4" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;fontSize=16;entryX=0.005;entryY=0.418;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="sharedBuffer" target="mainWindow" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e5" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="core" target="dsp" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-3" value="Module View - AS-IS (current code)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=28;fontColor=#5E5E5E;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="20" width="600" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-4" value="AudioWorker&lt;br&gt;(live capture)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="120" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-5" value="SimWorker&lt;br&gt;(synthetic)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="245" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-6" value="PlaybackWorker&lt;br&gt;(file)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="20" y="370" width="350" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-7" value="Shared Audio&lt;br&gt;Buffer&lt;br&gt;(TMasterAudioDataRaw)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECECEC;strokeColor=#8A8A8A;strokeWidth=3;fontSize=20;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="240" width="300" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-8" value="MainWindow (God Object: too many responsibilities)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE7DF;strokeColor=#C76A4A;strokeWidth=3;fontSize=22;fontStyle=1;verticalAlign=top;spacingTop=18;" parent="1" vertex="1">
+                    <mxGeometry x="905" y="77.5" width="980" height="870" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-9" value="[Domain] calls tg_process()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="150" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-10" value="[UI] all 12+ plot tabs (QCustomPlot)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="150" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-11" value="[Math] Rolling avg / least-squares" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="250" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-12" value="[IO] WAV save (WavStreamWriter)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="250" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-13" value="[Rendering] SoundImageRenderer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="350" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-14" value="[Platform] platform select (#ifdef)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="350" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-15" value="&lt;span style=&quot;background-color: rgb(242, 242, 242);&quot;&gt;Timegrapher core&lt;/span&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="470" width="450" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-16" value="Dsp - Detector - Bph" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="470" width="450" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-17" value="LinuxAudio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="590" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-18" value="WindowsAudio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="590" width="450" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-19" value="PerfInstrumentation (performance monitor)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;fontSize=18;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="700" width="910" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-20" value="Problem: MainWindow mixes 6+ responsibility types (UI, domain, math, IO,&lt;br&gt;rendering, platform). Any change can ripple across unrelated concerns&lt;br&gt;-&gt; lower testability, higher regression risk, slower feature delivery." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEFEA;strokeColor=#B85C3E;strokeWidth=2;fontSize=16;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="940" y="790" width="910" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-21" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="5TIQX38p1oCGQqtz69-D-4" target="5TIQX38p1oCGQqtz69-D-7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-22" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="5TIQX38p1oCGQqtz69-D-5" target="5TIQX38p1oCGQqtz69-D-7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-23" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="5TIQX38p1oCGQqtz69-D-6" target="5TIQX38p1oCGQqtz69-D-7" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-24" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;fontSize=16;entryX=0.005;entryY=0.418;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="5TIQX38p1oCGQqtz69-D-7" target="5TIQX38p1oCGQqtz69-D-8" edge="1">
+                    <mxGeometry x="0.0027" relative="1" as="geometry">
+                        <mxPoint as="offset"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="5TIQX38p1oCGQqtz69-D-25" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" parent="1" source="5TIQX38p1oCGQqtz69-D-15" target="5TIQX38p1oCGQqtz69-D-16" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendBox" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F7F7F7;strokeColor=#9A9A9A;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+                    <mxGeometry x="20" y="670" width="840" height="300" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendTitle" value="Legend" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=22;fontColor=#5E5E5E;" vertex="1" parent="1">
+                    <mxGeometry x="45" y="690" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendSampleInput" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F2F2F2;strokeColor=#7A7A7A;strokeWidth=2;" vertex="1" parent="1">
+                    <mxGeometry x="50" y="735" width="80" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendTextInput" value="General module" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;" vertex="1" parent="1">
+                    <mxGeometry x="145" y="740" width="310" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendSampleMain" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE7DF;strokeColor=#C76A4A;strokeWidth=2;" vertex="1" parent="1">
+                    <mxGeometry x="50" y="790" width="80" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendTextMain" value="MainWindow container (God Object warning)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+                    <mxGeometry x="145" y="795" width="310" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendSampleResp" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7F4;strokeColor=#C98E79;strokeWidth=2;" vertex="1" parent="1">
+                    <mxGeometry x="50" y="845" width="80" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendTextResp" value="[UI]/[Domain]/... = responsibility type inside MainWindow" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;" vertex="1" parent="1">
+                    <mxGeometry x="145" y="850" width="560" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="legendFlowArrow" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#8A8A8A;" edge="1" parent="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="50" y="905" as="sourcePoint"/>
+                        <mxPoint x="130" y="905" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="legendFlowText" value="Data Flow" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=16;" vertex="1" parent="1">
+                    <mxGeometry x="145" y="890" width="180" height="30" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
