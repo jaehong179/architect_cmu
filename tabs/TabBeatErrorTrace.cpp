@@ -8,25 +8,41 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Beat Error / Diagnostic Trace</b> — 비트마다 Eₙ = T측정 − (T시작 + n·I목표) 를 점으로 표시(±10ms 랩). "
-        "수평=정시, 상승=빠름, 하강=느림, 두 점-라인의 간격=beat error. (FR-BED)"), this));
+        "<b>Beat Error — 똑(Tic)·딱(Toc) Trace</b> — 두 선의 <b>기울기=보율</b>(상승=빠름, 하강=느림), "
+        "두 선의 <b>세로 간격=비트오차</b>(좁을수록 정확). 비트마다 Eₙ=T측정−(T시작+n·I목표), ±10ms 랩. (FR-BED)"), this));
     mAlert = new QLabel(this); mAlert->setWordWrap(true);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
     lay->addWidget(mAlert);
 
     mPlot = new QCustomPlot(this);
-    mPlot->addGraph();   // 위상 0 (짝수 비트)
-    mPlot->graph(0)->setLineStyle(QCPGraph::lsNone);
+    // 두 선 모델(문서 §탭5): 짝수 비트=Tic 선, 홀수 비트=Toc 선. 점을 선으로 이어 두 trace 로 보이게 함.
+    mPlot->addGraph();   // Tic (짝수 비트)
+    mPlot->graph(0)->setLineStyle(QCPGraph::lsLine);
+    mPlot->graph(0)->setPen(QPen(QColor(40,80,200), 1));
     mPlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(40,80,200), 3));
-    mPlot->graph(0)->setName(QStringLiteral("phase 1"));
-    mPlot->addGraph();   // 위상 1 (홀수 비트)
-    mPlot->graph(1)->setLineStyle(QCPGraph::lsNone);
+    mPlot->graph(0)->setName(QStringLiteral("Tic (똑)"));
+    mPlot->addGraph();   // Toc (홀수 비트)
+    mPlot->graph(1)->setLineStyle(QCPGraph::lsLine);
+    mPlot->graph(1)->setPen(QPen(QColor(200,40,40), 1));
     mPlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200,40,40), 3));
-    mPlot->graph(1)->setName(QStringLiteral("phase 2"));
+    mPlot->graph(1)->setName(QStringLiteral("Toc (딱)"));
     mPlot->xAxis->setLabel(QStringLiteral("beat #"));
-    mPlot->yAxis->setLabel(QStringLiteral("Eₙ wrap (ms) — 수평=이상적"));
+    mPlot->yAxis->setLabel(QStringLiteral("타이밍 오차 (ms) · 두 선 간격 = 비트오차"));
     mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);
     mPlot->legend->setVisible(true);
+
+    // 최신 비트의 Tic↔Toc 간격(=beat error)을 보여주는 초록 양방향 화살표 + ms 라벨.
+    mGapLine = new QCPItemLine(mPlot);
+    mGapLine->setHead(QCPLineEnding::esSpikeArrow);
+    mGapLine->setTail(QCPLineEnding::esSpikeArrow);
+    mGapLine->setPen(QPen(QColor(0,150,0), 1.5));
+    mGapLine->setVisible(false);
+    mGapText = new QCPItemText(mPlot);
+    mGapText->setColor(QColor(0,120,0));
+    mGapText->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    mGapText->setPadding(QMargins(4,0,0,0));
+    mGapText->setVisible(false);
+
     lay->addWidget(mPlot, 1);
     onResetSession();
 }
@@ -89,19 +105,43 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         mPlot->graph(1)->data()->removeBefore(cut);
     }
 
+    // 최신 Tic·Toc 점 사이 간격(=beat error)을 양방향 화살표로 표시.
+    //  (랩 경계로 두 점이 갈라진 경우는 시각 왜곡 방지를 위해 숨김.)
+    {
+        auto d0 = mPlot->graph(0)->data();
+        auto d1 = mPlot->graph(1)->data();
+        bool shown = false;
+        if (mAnchored && mBeatErrValid && d0->size() > 0 && d1->size() > 0) {
+            const double x0 = (d0->constEnd()-1)->key, y0 = (d0->constEnd()-1)->value;
+            const double x1 = (d1->constEnd()-1)->key, y1 = (d1->constEnd()-1)->value;
+            const double xr = qMax(x0, x1);
+            if (std::fabs(y0 - y1) <= kWrapMs / 2.0) {
+                mGapLine->start->setCoords(xr, y0);
+                mGapLine->end->setCoords(xr, y1);
+                mGapText->position->setCoords(xr, (y0 + y1) / 2.0);
+                mGapText->setText(QString("간격=비트오차 %1 ms").arg(mBeatErrMs, 0, 'f', 2));
+                shown = true;
+            }
+        }
+        mGapLine->setVisible(shown);
+        mGapText->setVisible(shown);
+    }
+
     if (mAnchored && mHavePrevE) {
         // 트레이스 기울기 각도 — 화면 스케일 정의: 1비트(가로) ↔ 1ms(세로) 등가.
         //  45° = 비트당 1ms 오차 증가(≈691 s/d @28800bph) → major fault 기준(문서화된 스케일).
         //  표시 부호 = −ΔE (양의 rate ↔ 양의 기울기).
         const double slopeDeg = std::atan2(-mSlopeAvg, 1.0) * 180.0 / M_PI;
         const double rateSd = -(mSlopeAvg / iTargetMs) * 86400.0;   // E6: R = −(m/I_target)·86400
+        const QString gapTxt = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
         QStringList warn;
         if (mBeatErrValid && mBeatErrMs > kGoodMs)
-            warn << QString("⚠ 두 라인 간격(beat error) 과대: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
+            warn << QString("⚠ 비트오차(두 선 간격) 과대: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
         if (std::fabs(slopeDeg) > 45.0)
             warn << QString("⚠ MAJOR FAULT — 기울기 %1° (>45°)").arg(slopeDeg, 0, 'f', 0);
         if (warn.isEmpty()) {
-            mAlert->setText(QString("양호 — 기울기 %1°  (≈ %2 s/d)").arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
+            mAlert->setText(QString("양호 — 비트오차(두 선 간격) %1 · 기울기 %2° (≈ %3 s/d)")
+                                .arg(gapTxt).arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
             mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;"));
         } else {
             mAlert->setText(warn.join(QStringLiteral("    ")));
@@ -125,5 +165,7 @@ void TabBeatErrorTrace::onResetSession()
     mBeatErrMs = 0.0; mBeatErrValid = false;
     mAlert->setText(QStringLiteral("측정 대기 중…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mBar) mBar->update(MeasurementSnapshot{});
+    if (mGapLine) mGapLine->setVisible(false);
+    if (mGapText) mGapText->setVisible(false);
     if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->graph(1)->data()->clear(); mPlot->replot(); }
 }

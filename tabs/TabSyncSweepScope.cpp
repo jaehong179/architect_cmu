@@ -3,7 +3,9 @@
 #include "qcustomplot.h"
 #include <QComboBox>
 #include <QSpinBox>
+#include <QCheckBox>
 #include <QHBoxLayout>
+#include <QGridLayout>
 #include <algorithm>
 #include <cmath>
 
@@ -56,6 +58,54 @@ static void movingAverage(const QVector<double> &in, int K, QVector<double> &out
     }
 }
 
+// 평균 제거된 rawFull 에 필터(mode)를 적용 → filt. bipolar = 미러(양/음) 표시 여부.
+static void applyFilter(const QVector<double> &rawFull, int mode, int K, int sr,
+                        QVector<double> &filt, bool &bipolar)
+{
+    bipolar = false;
+    switch (mode) {
+    case 0:                                            // F0: 원신호(평균 기준 미러, 바이폴라)
+        filt = rawFull; bipolar = true; break;
+    case 1: {                                          // F1: |F0| 이동평균 → 평활 엔벨로프
+        QVector<double> rect(rawFull.size());
+        for (int i = 0; i < rawFull.size(); ++i) rect[i] = std::fabs(rawFull[i]);
+        movingAverage(rect, K, filt); break;
+    }
+    case 2: {                                          // F2: F1 + 상승 기울기 강조·하강 감쇠
+        QVector<double> rect(rawFull.size()), y1v;
+        for (int i = 0; i < rawFull.size(); ++i) rect[i] = std::fabs(rawFull[i]);
+        movingAverage(rect, K, y1v);
+        const double beta = 0.95;
+        filt.resize(y1v.size());
+        double acc = 0.0, prev = 0.0;
+        for (int i = 0; i < y1v.size(); ++i) {
+            const double d = std::max(0.0, y1v[i] - prev);
+            acc = d + beta * acc; prev = y1v[i]; filt[i] = acc;
+        }
+        break;
+    }
+    case 3: {                                          // F3: 평균 위 상단부 + 상승 에지 강조
+        const double gamma = 1.0;
+        filt.resize(rawFull.size());
+        double prevU = 0.0;
+        for (int i = 0; i < rawFull.size(); ++i) {
+            const double u = std::max(0.0, rawFull[i]);
+            filt[i] = u + gamma * std::max(0.0, u - prevU); prevU = u;
+        }
+        break;
+    }
+    default: {                                         // BP 2~10kHz (view-only)
+        Biquad bq; bq.bandpass(4472.0, 0.56, sr);
+        QVector<double> yb; biquadRun(bq, rawFull, yb);
+        filt.resize(yb.size());
+        for (int i = 0; i < yb.size(); ++i) filt[i] = std::fabs(yb[i]);
+        break;
+    }
+    }
+}
+
+static const char *kFilterShort[5] = {"F0 원신호", "F1 이동평균", "F2 상승강조", "F3 상단+에지", "BP 2~10kHz"};
+
 TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
@@ -74,6 +124,10 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     ctl->addWidget(new QLabel(QStringLiteral("  sweep(beats):"), this));
     mBeats = new QSpinBox(this); mBeats->setRange(1, 4); mBeats->setValue(1);
     ctl->addWidget(mBeats);
+    mQuadMode = new QCheckBox(QStringLiteral("F0~F3 4-패널"), this);   // FR-SFM: 동시 비교
+    ctl->addWidget(mQuadMode);
+    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);          // 화면 정지(스코프 모드)
+    ctl->addWidget(mPause);
     ctl->addStretch(1);
     mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -87,8 +141,28 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     mPlot->yAxis->setLabel(QStringLiteral("filtered signal"));
     lay->addWidget(mPlot, 1);
 
+    // 4-패널 컨테이너(F0~F3 가로 1×4) — 같은 sweep 창을 네 필터로 동시 표시(T1~T3 식별 비교).
+    mQuadBox = new QWidget(this);
+    auto *grid = new QGridLayout(mQuadBox);
+    grid->setContentsMargins(0, 0, 0, 0);
+    for (int k = 0; k < 4; ++k) {
+        mQuad[k] = new QCustomPlot(mQuadBox);
+        mQuad[k]->addGraph();
+        mQuad[k]->xAxis->setLabel(QStringLiteral("ms"));
+        grid->addWidget(mQuad[k], 0, k);           // 가로 1×4 배치(사양: F0|F1|F2|F3 나란히)
+    }
+    mQuadBox->setVisible(false);
+    lay->addWidget(mQuadBox, 1);
+
+    auto onMode = [this]{
+        const bool quad = mQuadMode->isChecked();
+        mQuadBox->setVisible(quad); mPlot->setVisible(!quad);
+        mFilter->setEnabled(!quad);                  // 4-패널에선 개별 필터 선택 비활성
+        if (isVisible()) render();
+    };
     connect(mFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ if (isVisible()) render(); });
     connect(mBeats,  QOverload<int>::of(&QSpinBox::valueChanged),         this, [this](int){ if (isVisible()) render(); });
+    connect(mQuadMode, &QCheckBox::toggled, this, onMode);
 }
 
 void TabSyncSweepScope::onMeasurement(const MeasurementSnapshot &s) { if (mBar) mBar->update(s); }
@@ -114,7 +188,7 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
         for (int i = 0; i < w.numEvents; ++i)
             if (w.events[i].type == 1) { mSweepAnchor = w.events[i].sample; mHaveAnchor = true; break; }
     }
-    if (isVisible()) render();
+    if (isVisible() && !(mPause && mPause->isChecked())) render();   // Pause 시 화면 정지
 }
 
 void TabSyncSweepScope::render()
@@ -143,67 +217,36 @@ void TabSyncSweepScope::render()
     double mean = 0; for (double v : rawFull) mean += v; mean /= std::max(1, (int)rawFull.size());
     for (double &v : rawFull) v -= mean;               // 평균 제거(F0 의 "평균 기준" 정의)
 
-    const int mode = mFilter->currentIndex();
+    if (mQuadMode && mQuadMode->isChecked()) {         // FR-SFM: F0~F3 4-패널 동시 비교
+        for (int k = 0; k < 4; ++k) drawPanel(mQuad[k], k, rawFull, warm, sweep, sr, from, true);
+    } else {
+        drawPanel(mPlot, mFilter->currentIndex(), rawFull, warm, sweep, sr, from, false);
+    }
+    mInfo->setText(QString("%1  sweep=%2 beat≈%3ms  bph=%4 %5")
+        .arg(mQuadMode && mQuadMode->isChecked() ? QStringLiteral("F0~F3 비교") : mFilter->currentText())
+        .arg(mBeats->value()).arg(1000.0*sweep/sr,0,'f',1)
+        .arg(mRawBuf.bph()).arg(mHaveAnchor && mRawBuf.synced() ? "[free-run]" : "[unsynced]"));
+}
+
+// 한 패널에 지정 필터로 sweep 창 + A/C 마커를 그린다(단일 보기/4-패널 공용).
+void TabSyncSweepScope::drawPanel(QCustomPlot *p, int mode, const QVector<double> &rawFull,
+                                  int warm, int sweep, int sr, uint64_t from, bool quadLabel)
+{
+    if (!p) return;
     const int K = std::max(1, (int)(0.0007 * sr));     // F1 이동평균 창 ≈ 0.7 ms
     bool bipolar = false;
     QVector<double> filt;
-    switch (mode) {
-    case 0: {                                          // F0: 원신호(평균 기준 미러, 바이폴라)
-        filt = rawFull;
-        bipolar = true;
-        break;
-    }
-    case 1: {                                          // F1: |F0| 이동평균 → 평활 엔벨로프
-        QVector<double> rect(rawFull.size());
-        for (int i = 0; i < rawFull.size(); ++i) rect[i] = std::fabs(rawFull[i]);
-        movingAverage(rect, K, filt);
-        break;
-    }
-    case 2: {                                          // F2: F1 + 상승 기울기 강조·하강 감쇠
-        QVector<double> rect(rawFull.size()), y1v;
-        for (int i = 0; i < rawFull.size(); ++i) rect[i] = std::fabs(rawFull[i]);
-        movingAverage(rect, K, y1v);
-        const double beta = 0.95;                       // 상승 후 감쇠(가이드 [PROPOSAL])
-        filt.resize(y1v.size());
-        double acc = 0.0, prev = 0.0;
-        for (int i = 0; i < y1v.size(); ++i) {
-            const double d = std::max(0.0, y1v[i] - prev);
-            acc = d + beta * acc;
-            prev = y1v[i];
-            filt[i] = acc;
-        }
-        break;
-    }
-    case 3: {                                          // F3: 평균 위 상단부 + 상승 에지 강조
-        const double gamma = 1.0;
-        filt.resize(rawFull.size());
-        double prevU = 0.0;
-        for (int i = 0; i < rawFull.size(); ++i) {
-            const double u = std::max(0.0, rawFull[i]);          // 상단부만(하단은 위로 접지 않고 상단 사용)
-            filt[i] = u + gamma * std::max(0.0, u - prevU);      // 상승 에지 강조
-            prevU = u;
-        }
-        break;
-    }
-    default: {                                         // BP 2~10kHz (view-only)
-        Biquad bq; bq.bandpass(4472.0, 0.56, sr);      // center=√(2k·10k), Q=fc/BW
-        QVector<double> yb; biquadRun(bq, rawFull, yb);
-        filt.resize(yb.size());
-        for (int i = 0; i < yb.size(); ++i) filt[i] = std::fabs(yb[i]);
-        break;
-    }
-    }
+    applyFilter(rawFull, mode, K, sr, filt, bipolar);
 
     // 워밍업 구간 제거 → 표시 윈도우.
     QVector<double> y(sweep), x(sweep);
-    for (int i = 0; i < sweep; ++i) { y[i] = filt[warm + i]; x[i] = 1000.0 * i / sr; }
-    mPlot->graph(0)->setData(x, y, true);
+    for (int i = 0; i < sweep; ++i) { y[i] = (warm + i < filt.size() ? filt[warm + i] : 0.0); x[i] = 1000.0 * i / sr; }
+    p->graph(0)->setData(x, y, true);
 
-    if (bipolar) { mPlot->graph(0)->setPen(QPen(QColor(150, 40, 130))); mPlot->graph(0)->setBrush(Qt::NoBrush); }
-    else         { mPlot->graph(0)->setPen(QPen(QColor(120, 110, 0)));  mPlot->graph(0)->setBrush(QColor(235, 215, 0, 150)); }
+    if (bipolar) { p->graph(0)->setPen(QPen(QColor(150, 40, 130))); p->graph(0)->setBrush(Qt::NoBrush); }
+    else         { p->graph(0)->setPen(QPen(QColor(120, 110, 0)));  p->graph(0)->setBrush(QColor(235, 215, 0, 150)); }
 
-    // A/C 마커.
-    mPlot->clearItems();
+    p->clearItems();
     double ymax = 0.0, ymin = 0.0;
     for (double v : y) { if (v > ymax) ymax = v; if (v < ymin) ymin = v; }
     if (ymax <= 0.0 && ymin >= 0.0) ymax = 1.0;
@@ -211,18 +254,23 @@ void TabSyncSweepScope::render()
     const QVector<WaveEvent> evs = mBuf.eventsInRange(from, from + (uint64_t)sweep);
     for (const WaveEvent &e : evs) {
         const double xm = 1000.0 * (double)(e.sample - from) / sr;
-        auto *ln = new QCPItemLine(mPlot);
+        auto *ln = new QCPItemLine(p);
         ln->start->setCoords(xm, bipolar ? -top : 0);
         ln->end->setCoords(xm, bipolar ? top : ymax);
         ln->setPen(QPen(e.type == 1 ? QColor(0,170,0) : QColor(220,0,0), 1, Qt::DashLine));
     }
-    mPlot->xAxis->setRange(0, 1000.0 * sweep / sr);
-    if (bipolar) mPlot->yAxis->setRange(-top * 1.12, top * 1.12);
-    else         mPlot->yAxis->setRange(0, (ymax > 0 ? ymax : 1.0) * 1.12);
-    mInfo->setText(QString("%1  sweep=%2 beat≈%3ms  bph=%4 %5")
-        .arg(mFilter->currentText()).arg(mBeats->value()).arg(1000.0*sweep/sr,0,'f',1)
-        .arg(mRawBuf.bph()).arg(mHaveAnchor && mRawBuf.synced() ? "[free-run]" : "[unsynced]"));
-    mPlot->replot(QCustomPlot::rpQueuedReplot);
+    if (quadLabel) {                                   // 4-패널 식별 라벨(F0~F3)
+        auto *t = new QCPItemText(p);
+        t->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+        t->position->setType(QCPItemPosition::ptAxisRectRatio);
+        t->position->setCoords(0.02, 0.02);
+        t->setText(QString::fromUtf8(kFilterShort[mode < 0 || mode > 4 ? 0 : mode]));
+        t->setColor(QColor(60, 60, 60));
+    }
+    p->xAxis->setRange(0, 1000.0 * sweep / sr);
+    if (bipolar) p->yAxis->setRange(-top * 1.12, top * 1.12);
+    else         p->yAxis->setRange(0, (ymax > 0 ? ymax : 1.0) * 1.12);
+    p->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void TabSyncSweepScope::onResetSession()
@@ -232,4 +280,5 @@ void TabSyncSweepScope::onResetSession()
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
     if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->clearItems(); mPlot->replot(); }
+    for (QCustomPlot *p : mQuad) if (p) { p->graph(0)->data()->clear(); p->clearItems(); p->replot(); }
 }

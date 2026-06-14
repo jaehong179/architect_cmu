@@ -27,7 +27,7 @@ public:
         mEnd = 0;
         mHave = false;
         mEvents.clear();
-        mSampleRate = 0; mBph = 0; mSynced = false;
+        mSampleRate = 0; mBph = 0; mSynced = false; mOnsetThresh = 0.0f;
     }
 
     void clear()
@@ -40,6 +40,7 @@ public:
     int      sampleRate() const { return mSampleRate; }
     int      bph()        const { return mBph; }
     bool     synced()     const { return mSynced; }
+    float    onsetThreshold() const { return mOnsetThresh; }   // 검출기 onset 임계(엔벨로프 레벨)
     bool     hasData()    const { return mHave; }
     uint64_t latestAbs()  const { return mEnd; }                 // 마지막+1 절대 인덱스
     uint64_t oldestAbs()  const { return mEnd > (uint64_t)mCap ? mEnd - mCap : 0; }
@@ -47,7 +48,7 @@ public:
     // 한 파형 블록을 적재.
     void push(const WaveBlock &w)
     {
-        mSampleRate = w.sampleRateHz; mBph = w.bph; mSynced = w.synced;
+        mSampleRate = w.sampleRateHz; mBph = w.bph; mSynced = w.synced; mOnsetThresh = w.onsetThreshold;
         if (mCap <= 1 && w.sampleRateHz > 0) configure(w.sampleRateHz / 2); // 기본 0.5초
         for (int i = 0; i < w.n; ++i) {
             const uint64_t a = w.startSample + (uint64_t)i;
@@ -115,6 +116,7 @@ private:
     int                mSampleRate = 0;
     int                mBph = 0;
     bool               mSynced = false;
+    float              mOnsetThresh = 0.0f;
 };
 
 #endif // WAVEBUFFER_H

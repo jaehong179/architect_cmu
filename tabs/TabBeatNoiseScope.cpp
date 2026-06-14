@@ -46,21 +46,23 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mScope1->xAxis->setLabel(QStringLiteral("time (ms)"));
     lay->addWidget(mScope1, 3);
 
-    lay->addWidget(new QLabel(QStringLiteral("최근 비트 스트립 (클릭 → Scope1 확대, 재클릭 → 라이브) →"), this));
-    mStrips = miniPlot(this, QString(), 70);
-    mStrips->xAxis->setTickLabels(false);
-    connect(mStrips, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripClicked);
-    lay->addWidget(mStrips, 1);
-
+    // ② 듀얼-트레이스 평균(똑/딱 두 축) — 메인 바로 아래(사양 레이아웃 순서).
     // Plan: tic/tac 대응을 단정하지 않고 "두 평균 비트-노이즈 트레이스"로 표기.
     lay->addWidget(new QLabel(QStringLiteral("<b>Scope 2</b> — 두 수평축 평균 듀얼-트레이스 (고정 20 ms, Σ 사이클 = 50+50 간격)"), this));
     mCycle = new QLabel(QStringLiteral("Σ 0/50 · 0/50"), this);
     mCycle->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mCycle);
-    mTr1 = miniPlot(this, QStringLiteral("trace 1"), 70);
-    mTr2 = miniPlot(this, QStringLiteral("trace 2"), 70);
+    mTr1 = miniPlot(this, QStringLiteral("평균 ① (똑/tic)"), 70);
+    mTr2 = miniPlot(this, QStringLiteral("평균 ② (딱/toc)"), 70);
     lay->addWidget(mTr1, 1);
     lay->addWidget(mTr2, 1);
+
+    // ③ 하단: 최근 비트 스트립(클릭 → 확대) — 화면 맨 아래(사양).
+    lay->addWidget(new QLabel(QStringLiteral("최근 비트 스트립 (클릭 → Scope1 확대, 재클릭 → 라이브) →"), this));
+    mStrips = miniPlot(this, QString(), 70);
+    mStrips->xAxis->setTickLabels(false);
+    connect(mStrips, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripClicked);
+    lay->addWidget(mStrips, 1);
 
     connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible()) renderScope1(); });
     connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible()) renderScope2(); });
@@ -153,12 +155,27 @@ void TabBeatNoiseScope::renderScope1()
         QVector<double> x(beat.size());
         for (int i = 0; i < beat.size(); ++i) x[i] = 1000.0 * i / sr;
         double ymax = 0.0; for (double v : beat) if (v > ymax) ymax = v;
+        if (ymax <= 0.0) ymax = 1.0;
         mScope1->clearItems();
         mScope1->graph(0)->setData(x, beat, true);
         mScope1->xAxis->setRange(0, beat.isEmpty() ? 1.0 : x.last());
-        mScope1->yAxis->setRange(0, (ymax > 0 ? ymax : 1.0) * 1.1);
-        mInfo->setText(QString("[선택 비트 #%1]  lift=%2°  bph=%3")
-            .arg(mSelStrip + 1).arg(mLiftAngle).arg(mBuf.bph()));
+        mScope1->yAxis->setRange(0, ymax * 1.1);
+        // A(녹색)=비트 시작(index 0), C(빨강)=엔벨로프 피크 + C 시각 라벨 (라이브 뷰와 동일 마커).
+        int pk = 0; for (int i = 1; i < beat.size(); ++i) if (beat[i] > beat[pk]) pk = i;
+        auto *aln = new QCPItemLine(mScope1);
+        aln->start->setCoords(0, 0); aln->end->setCoords(0, ymax);
+        aln->setPen(QPen(QColor(0, 170, 0), 1, Qt::DashLine));
+        const double cMs = 1000.0 * pk / sr;
+        auto *cln = new QCPItemLine(mScope1);
+        cln->start->setCoords(cMs, 0); cln->end->setCoords(cMs, ymax);
+        cln->setPen(QPen(QColor(220, 0, 0), 1, Qt::DashLine));
+        auto *ct = new QCPItemText(mScope1);
+        ct->position->setCoords(cMs, ymax * 0.9);
+        ct->setText(QString("C %1 ms").arg(cMs, 0, 'f', 1));
+        ct->setColor(Qt::black);
+        ct->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        mInfo->setText(QString("[선택 비트 #%1]  A→C=%2ms  lift=%3°  bph=%4")
+            .arg(mSelStrip + 1).arg(cMs, 0, 'f', 1).arg(mLiftAngle).arg(mBuf.bph()));
         mScope1->replot(QCustomPlot::rpQueuedReplot);
         return;
     }

@@ -13,6 +13,8 @@ class QCustomPlot;
 class QComboBox;
 class QSpinBox;
 class QLabel;
+class QCheckBox;
+class QWidget;
 class ReadoutBar;
 
 class TabSyncSweepScope : public TabView
@@ -28,10 +30,17 @@ protected:
     void onShown() override;
 private:
     void render();
+    // 한 패널에 지정 필터(mode 0=F0…3=F3, 4=BP)로 sweep 창을 그림(단일/4-패널 공용).
+    void drawPanel(QCustomPlot *p, int mode, const QVector<double> &rawFull,
+                   int warm, int sweep, int sr, uint64_t from, bool quadLabel);
     ReadoutBar  *mBar    = nullptr;
-    QCustomPlot *mPlot   = nullptr;
+    QCustomPlot *mPlot   = nullptr;     // 단일 보기
     QComboBox   *mFilter = nullptr;
     QSpinBox    *mBeats  = nullptr;
+    QCheckBox   *mQuadMode = nullptr;   // FR-SFM: F0~F3 4-패널 동시 비교
+    QCheckBox   *mPause    = nullptr;   // Pause/Scope: 화면 정지
+    QWidget     *mQuadBox  = nullptr;   // 4-패널 컨테이너
+    QCustomPlot *mQuad[4]  = {nullptr,nullptr,nullptr,nullptr};
     QLabel      *mInfo   = nullptr;
     WaveBuffer   mBuf;       // 엔벨로프(이벤트/마커/동기용)
     WaveBuffer   mRawBuf;    // 원신호(F0~F3 필터 뷰용)

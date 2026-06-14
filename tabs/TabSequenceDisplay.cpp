@@ -35,7 +35,10 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     ctl->addWidget(mPos);
     mCapture = new QPushButton(QStringLiteral("현재값 캡처"), this);
     mClear   = new QPushButton(QStringLiteral("초기화"), this);
-    ctl->addWidget(mCapture); ctl->addWidget(mClear); ctl->addStretch(1);
+    ctl->addWidget(mCapture); ctl->addWidget(mClear);
+    mComplete = new QLabel(this);   // 완료 인디케이터(녹색 Ok)
+    mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
+    ctl->addWidget(mComplete); ctl->addStretch(1);
     lay->addLayout(ctl);
 
     mLive = new QLabel(QStringLiteral("현재: 측정 대기 중…"), this);
@@ -128,6 +131,28 @@ void TabSequenceDisplay::recomputeSummary()
                 if (unbal) it->setToolTip(QStringLiteral("수직 포지션 rate 산포 과대 → 밸런스 휠 불균형 의심"));
             }
         } else setCell(3,c,"--");
+    }
+    updateComplete();
+}
+
+void TabSequenceDisplay::updateComplete()
+{
+    // 6개 핵심 포지션(CH·CB·9H·6H·3H·12H)이 모두 캡처되면 녹색 "Ok" 표시.
+    static const char *core[6] = {"CH", "CB", "9H", "6H", "3H", "12H"};
+    bool have[6] = {false,false,false,false,false,false};
+    for (int r = 0; mTable && r < mTable->rowCount(); ++r) {
+        const QString pos = mTable->item(r,0) ? mTable->item(r,0)->text() : QString();
+        for (int k = 0; k < 6; ++k)
+            if (pos.startsWith(QString::fromLatin1(core[k]))) have[k] = true;
+    }
+    int n = 0; for (bool b : have) if (b) ++n;
+    if (!mComplete) return;
+    if (n >= 6) {
+        mComplete->setText(QStringLiteral("✓ 시퀀스 완료 (Ok)"));
+        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#0a8a0a;"));
+    } else {
+        mComplete->setText(QStringLiteral("진행 %1/6 포지션").arg(n));
+        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888;"));
     }
 }
 

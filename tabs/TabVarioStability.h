@@ -24,7 +24,7 @@ private:
         double avg()   const { return n ? sum / n : 0.0; }
         double sigma() const;
     };
-    void drawBar(QCustomPlot *p, const Stat &st, double bandLo, double bandHi);
+    void drawBar(QCustomPlot *p, const Stat &st, double bandLo, double bandHi, double dispLo, double dispHi);
     void refresh();
     Stat         mRate, mAmp;
     double       mT0 = 0.0; bool mHaveT0 = false; double mElapsed = 0.0;
@@ -33,5 +33,7 @@ private:
     QCustomPlot *mRateBar = nullptr, *mAmpBar = nullptr;
     static constexpr double kRateBandLo = -7.0,  kRateBandHi = 7.0;    // rate 양호 밴드(s/d)
     static constexpr double kAmpBandLo  = 270.0, kAmpBandHi  = 300.0;  // amplitude 양호 밴드(°)
+    static constexpr double kRateDispLo = -10.0, kRateDispHi = 15.0;   // rate 게이지 기본 스케일(사양)
+    static constexpr double kAmpDispLo  = 180.0, kAmpDispHi  = 330.0;  // amplitude 게이지 기본 스케일(사양)
 };
 #endif // TABVARIOSTABILITY_H

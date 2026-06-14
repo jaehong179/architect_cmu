@@ -20,8 +20,12 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     lay->addWidget(mDerived);
 
     mRate = new QCustomPlot(this);
-    mRate->addGraph(); mRate->graph(0)->setPen(QPen(QColor(150,150,60)));            // raw (yellow-ish)
-    mRate->addGraph(); mRate->graph(1)->setPen(QPen(QColor(120,120,0), 2));          // smoothed
+    // 보율 그래프: 스냅샷의 스칼라 RlsRate(현재 보율)를 시간축으로 누적해 추세를 그린다.
+    //  (문서 §1.3의 xTic/yTic·xToc/yToc 점 표현은 Rate/Scope 탭 것이고, 본 탭은 스냅샷
+    //   아키텍처상 스칼라 RlsRate만 게시받아 raw+smoothed 두 선으로 표시 — 의도된 설계.)
+    //  색 대비: raw=옅은 회색(배경 추세), smoothed=진한 파랑(FR-TD-2 "진한선=스무딩").
+    mRate->addGraph(); mRate->graph(0)->setPen(QPen(QColor(180,180,180)));           // raw (옅은 회색)
+    mRate->addGraph(); mRate->graph(1)->setPen(QPen(QColor(20,60,160), 2));          // smoothed (진한 파랑)
     mRate->yAxis->setLabel(QStringLiteral("rate s/d"));
     mRate->xAxis->setTickLabels(false);
 
@@ -58,6 +62,12 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
         mRate->graph(1)->addData(x, smoothed);
     }
     if (s.amplitudeValid) { mAmp->graph(0)->addData(x, s.amplitudeDeg); mAmpSum += s.amplitudeDeg; ++mAmpN; }
+
+    // 무한 누적 방지: 최근 kHistorySec 구간만 유지(누적 평균/통계는 그대로 유지됨).
+    const double cutoff = x - kHistorySec;
+    mRate->graph(0)->data()->removeBefore(cutoff);
+    mRate->graph(1)->data()->removeBefore(cutoff);
+    mAmp->graph(0)->data()->removeBefore(cutoff);
 
     // ── 파생 측정 (Plan §Expected Enhancements / Chour) ─────────────────────
     //  비트당 주기 편차(ms) = rate(s/d) × I_target / 86400 × 1000,  I_target = 3600/BPH (E1).

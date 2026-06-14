@@ -7,6 +7,8 @@
 //  |기울기|>45°(시간-오차 평면, ΔE/I_target 기준) → major fault, 간격>0.6ms → 경고.
 #include "TabView.h"
 class QCustomPlot;
+class QCPItemLine;
+class QCPItemText;
 class QLabel;
 class ReadoutBar;
 
@@ -25,6 +27,9 @@ private:
     ReadoutBar  *mBar  = nullptr;
     QCustomPlot *mPlot = nullptr;
     QLabel      *mAlert= nullptr;
+    // 최신 비트에서 Tic·Toc 두 선 사이 간격(=beat error)을 표시하는 양방향 화살표 + 라벨.
+    QCPItemLine *mGapLine = nullptr;
+    QCPItemText *mGapText = nullptr;
     // E2 앵커: 측정 시작 후 첫 유효 A 비트.
     bool     mAnchored = false;
     uint64_t mTstart   = 0;      // T_start (절대 샘플)

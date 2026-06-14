@@ -55,14 +55,14 @@ static void addArrow(QCustomPlot *p, double x, double yTop, double yBot, const Q
     ln->setHead(QCPLineEnding(QCPLineEnding::esSpikeArrow, 8, 10));
 }
 
-void TabVarioStability::drawBar(QCustomPlot *p, const Stat &st, double bandLo, double bandHi)
+void TabVarioStability::drawBar(QCustomPlot *p, const Stat &st, double bandLo, double bandHi,
+                                double dispLo, double dispHi)
 {
     p->clearItems();
-    if (st.n == 0) { p->replot(); return; }
-    // 표시 범위: 측정 min/max 와 허용밴드를 모두 포함 + 여백.
-    double lo = std::min(st.min, bandLo), hi = std::max(st.max, bandHi);
-    const double pad = std::max(1.0, (hi - lo) * 0.15);
-    lo -= pad; hi += pad;
+    if (st.n == 0) { p->xAxis->setRange(dispLo, dispHi); p->replot(); return; }
+    // 표시 범위: 사양 기본 스케일(dispLo..dispHi)을 기준으로 하되 측정 min/max 가 벗어나면 확장.
+    double lo = std::min(dispLo, std::min(st.min, bandLo));
+    double hi = std::max(dispHi, std::max(st.max, bandHi));
     p->xAxis->setRange(lo, hi);
 
     // 녹색 허용영역.
@@ -90,17 +90,16 @@ void TabVarioStability::drawBar(QCustomPlot *p, const Stat &st, double bandLo, d
 
 void TabVarioStability::refresh()
 {
-    mRateLbl->setText(QString("RATE   min=%1  max=%2  avg=%3  σ=%4  cur=%5  (n=%6) s/d")
-        .arg(mRate.min,0,'f',1).arg(mRate.max,0,'f',1).arg(mRate.avg(),0,'f',1)
-        .arg(mRate.sigma(),0,'f',2).arg(mRate.last,0,'f',1).arg(mRate.n));
-    mAmpLbl->setText(QString("AMP    min=%1  max=%2  avg=%3  σ=%4  cur=%5  (n=%6) °")
-        .arg(mAmp.min,0,'f',0).arg(mAmp.max,0,'f',0).arg(mAmp.avg(),0,'f',0)
-        .arg(mAmp.sigma(),0,'f',2).arg(mAmp.last,0,'f',0).arg(mAmp.n));
+    // 사양 수치줄 순서: Min · X(평균) · σ · Max.
+    mRateLbl->setText(QString("RATE   Min=%1   X=%2   σ=%3   Max=%4   s/d")
+        .arg(mRate.min,0,'f',1).arg(mRate.avg(),0,'f',1).arg(mRate.sigma(),0,'f',2).arg(mRate.max,0,'f',1));
+    mAmpLbl->setText(QString("AMP    Min=%1   X=%2   σ=%3   Max=%4   °")
+        .arg(mAmp.min,0,'f',0).arg(mAmp.avg(),0,'f',0).arg(mAmp.sigma(),0,'f',2).arg(mAmp.max,0,'f',0));
     // Witschi Vario 표기(예: 1:16)와 동일한 분:초 형식.
     const int es = (int)mElapsed;
     mElapsedLbl->setText(QString("ELAPSED  %1:%2").arg(es / 60).arg(es % 60, 2, 10, QLatin1Char('0')));
-    drawBar(mRateBar, mRate, kRateBandLo, kRateBandHi);
-    drawBar(mAmpBar,  mAmp,  kAmpBandLo,  kAmpBandHi);
+    drawBar(mRateBar, mRate, kRateBandLo, kRateBandHi, kRateDispLo, kRateDispHi);
+    drawBar(mAmpBar,  mAmp,  kAmpBandLo,  kAmpBandHi,  kAmpDispLo,  kAmpDispHi);
 }
 
 void TabVarioStability::onMeasurement(const MeasurementSnapshot &s)

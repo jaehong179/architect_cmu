@@ -11,6 +11,7 @@ class QCustomPlot;
 class QCPColorMap;
 class QComboBox;
 class QLabel;
+class QProgressBar;
 
 class TabSpectrogram : public TabView
 {
@@ -27,6 +28,8 @@ private:
     QCustomPlot *mPlot = nullptr;
     QCPColorMap *mMap  = nullptr;
     QComboBox   *mWindowSel = nullptr;   // Last Beat / 0.5s / 1s / 2s
+    QLabel       *mPeak = nullptr;       // True Peak 수치(dBFS)
+    QProgressBar *mPeakBar = nullptr;    // True Peak 녹색 레벨바
     QLabel      *mInfo = nullptr;
     WaveBuffer   mBuf;       // 원신호(raw) 저장
     WaveBuffer   mEvtBuf;    // 이벤트(Last Beat 의 A 위치)용 엔벨로프 버퍼

@@ -7,6 +7,7 @@ class QCustomPlot;
 class ReadoutBar;
 class QCPItemRect;
 class QCPItemStraightLine;
+class QComboBox;
 
 class TabLongTermPerformance : public TabView
 {
@@ -24,8 +25,10 @@ private:
                   void add(double x,double v); double avg() const { return n?sum/n:0; }
                   double sigma() const; };
     void redrawLane(Lane &L, const QColor &bandColor);
+    void applyView();                       // 선택 기간에 맞춰 x축 범위/세로 스케일 갱신
     ReadoutBar *mBar = nullptr;
+    QComboBox *mPeriod = nullptr;           // FR-LTP-1.5: 보기 기간 선택
     Lane mRate, mAmp, mBe;
-    double mT0=0.0; bool mHaveT0=false; long mTick=0;
+    double mT0=0.0; bool mHaveT0=false; long mTick=0; double mCurX=0.0;
 };
 #endif // TABLONGTERMPERFORMANCE_H

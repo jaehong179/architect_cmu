@@ -1248,6 +1248,7 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
               wb.raw          = mInputBlock;       // 정류 전 원신호(F0~F3 필터 뷰용)
               wb.rawN         = slice;
               wb.rawStart     = mInputAbsSample;
+              wb.onsetThreshold = r.onset_threshold;   // Escapement threshold 선 출처
               mTabManager->broadcastWave(wb);
           }
           mInputAbsSample += (uint64_t)slice;      // 다음 슬라이스의 원신호 시작 인덱스

@@ -30,5 +30,7 @@ private:
     QSpinBox    *mThresh = nullptr;   // 임계 % (창 최대 대비)
     WaveBuffer   mBuf;
     bool         mConfigured = false;
+    QVector<double> mBeHist;          // beat error(ms) 이력 — 중앙 곡선용
+    bool         mBeValid = false;    // 현재 beat error 유효 여부
 };
 #endif // TABESCAPEMENTANALYZER_H

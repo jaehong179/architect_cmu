@@ -2,6 +2,10 @@
 #include "ReadoutBar.h"
 #include "qcustomplot.h"
 
+#include <QComboBox>
+#include <QPushButton>
+#include <QLabel>
+#include <QHBoxLayout>
 #include <cmath>
 
 void TabLongTermPerformance::Lane::add(double x, double v)
@@ -33,6 +37,25 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
+
+    // FR-LTP-1.5: 보기 기간 선택 + 리셋 버튼.
+    auto *ctl = new QHBoxLayout();
+    ctl->addWidget(new QLabel(QStringLiteral("기간:"), this));
+    mPeriod = new QComboBox(this);
+    mPeriod->addItem(QStringLiteral("전체"), 0.0);
+    mPeriod->addItem(QStringLiteral("최근 1분"),  60.0);
+    mPeriod->addItem(QStringLiteral("최근 5분"),  300.0);
+    mPeriod->addItem(QStringLiteral("최근 15분"), 900.0);
+    mPeriod->addItem(QStringLiteral("최근 1시간"), 3600.0);
+    ctl->addWidget(mPeriod);
+    auto *resetBtn = new QPushButton(QStringLiteral("↻ Reset"), this);
+    ctl->addWidget(resetBtn);
+    ctl->addStretch(1);
+    lay->addLayout(ctl);
+    connect(mPeriod, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]{ applyView();
+        for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot(); });
+    connect(resetBtn, &QPushButton::clicked, this, &TabLongTermPerformance::onResetSession);
+
     mRate.plot = makeLane(this, QStringLiteral("rate s/d"),     QColor(200,40,140), false);
     mAmp.plot  = makeLane(this, QStringLiteral("amplitude °"),  QColor(40,80,200),  false);
     mBe.plot   = makeLane(this, QStringLiteral("beat err ms"),  QColor(30,150,60),  true);
@@ -56,11 +79,24 @@ void TabLongTermPerformance::redrawLane(Lane &L, const QColor &)
     L.band->bottomRight->setCoords(L.xLast, L.avg() - sg);
 }
 
+void TabLongTermPerformance::applyView()
+{
+    const double viewSec = mPeriod ? mPeriod->currentData().toDouble() : 0.0;
+    for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) {
+        if (!p) continue;
+        if (viewSec > 0.0) p->xAxis->setRange(std::max(0.0, mCurX - viewSec), mCurX);
+        else               p->xAxis->rescale();           // 전체 보기
+        p->graph(0)->rescaleValueAxis(false, true);       // 보이는 구간 기준 세로 스케일
+        p->yAxis->scaleRange(1.1, p->yAxis->range().center());
+    }
+}
+
 void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
 {
     mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     const double x = (s.timeMs - mT0) / 1000.0;
+    mCurX = x;
 
     // 데시메이션: 경과(분) 증가 → 점 추가 간격 K 증가(장시간 가독성/효율).
     const long K = 1 + (long)(x / 60.0);
@@ -72,7 +108,8 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
         redrawLane(mRate, {}); redrawLane(mAmp, {}); redrawLane(mBe, {});
     }
     if (isVisible()) {
-        for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) { p->rescaleAxes(); p->replot(QCustomPlot::rpQueuedReplot); }
+        applyView();
+        for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) p->replot(QCustomPlot::rpQueuedReplot);
     }
 }
 
@@ -83,7 +120,7 @@ void TabLongTermPerformance::onShown()
 
 void TabLongTermPerformance::onResetSession()
 {
-    mHaveT0 = false; mTick = 0;
+    mHaveT0 = false; mTick = 0; mCurX = 0.0;
     for (Lane *L : {&mRate, &mAmp, &mBe}) {
         L->sum=0; L->sumSq=0; L->min=0; L->max=0; L->n=0; L->have=false; L->xFirst=L->xLast=0;
         if (L->plot) { L->plot->graph(0)->data()->clear(); L->plot->graph(1)->data()->clear(); }

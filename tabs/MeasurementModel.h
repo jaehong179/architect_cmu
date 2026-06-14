@@ -74,6 +74,8 @@ struct WaveBlock
     const float    *raw        = nullptr; // 원 입력 샘플 [rawN]
     int             rawN       = 0;
     uint64_t        rawStart   = 0;       // raw[0] 의 절대 입력 샘플 인덱스
+    // 검출기 onset 임계(엔벨로프 절대 레벨) — Escapement 탭의 threshold 선 출처(tg_result_t.onset_threshold).
+    float           onsetThreshold = 0.0f;
 };
 
 #endif // MEASUREMENTMODEL_H

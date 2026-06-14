@@ -2,6 +2,7 @@
 #include "qcustomplot.h"
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QProgressBar>
 #include <cmath>
 
 TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
@@ -20,6 +21,19 @@ TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
     mWindowSel->addItem(QStringLiteral("2.0 s"), 2.0);
     mWindowSel->setCurrentIndex(2);
     ctl->addWidget(mWindowSel);
+    ctl->addSpacing(16);
+    ctl->addWidget(new QLabel(QStringLiteral("True Peak"), this));    // FR-TFS: 상단 True Peak 미터(수치 + 녹색 레벨바)
+    mPeak = new QLabel(QStringLiteral("-- dBFS"), this);
+    mPeak->setStyleSheet(QStringLiteral("font-family:monospace; font-weight:bold;"));
+    mPeak->setMinimumWidth(80);
+    ctl->addWidget(mPeak);
+    mPeakBar = new QProgressBar(this);
+    mPeakBar->setRange(0, 100); mPeakBar->setValue(0); mPeakBar->setTextVisible(false);
+    mPeakBar->setMinimumWidth(160);
+    mPeakBar->setStyleSheet(QStringLiteral(
+        "QProgressBar{border:1px solid #444;border-radius:3px;background:#222;}"
+        "QProgressBar::chunk{background:#1faa3c;border-radius:2px;}"));   // 녹색 레벨바
+    ctl->addWidget(mPeakBar, 1);
     ctl->addStretch(1);
     mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -29,14 +43,22 @@ TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
     mPlot = new QCustomPlot(this);
     mMap = new QCPColorMap(mPlot->xAxis, mPlot->yAxis);
     mMap->data()->setSize(kFrames, kBins);
-    mMap->setGradient(QCPColorGradient::gpSpectrum);
     mPlot->xAxis->setLabel(QStringLiteral("time (ms)"));
     mPlot->yAxis->setLabel(QStringLiteral("frequency (Hz)"));
     auto *scale = new QCPColorScale(mPlot);
     mPlot->plotLayout()->addElement(0, 1, scale);
     scale->setType(QCPAxis::atRight);
-    mMap->setColorScale(scale);
+    mMap->setColorScale(scale);                        // ※ 그라디언트는 이 호출 뒤에 설정해야 적용됨
     scale->axis()->setLabel(QStringLiteral("dB"));
+    // 색맵: 사양 컬러바(낮음 파랑 → 초록 → 높음 노랑). 프리셋 스톱 제거 후 커스텀 스톱만.
+    QCPColorGradient grad;
+    grad.clearColorStops();
+    grad.setColorInterpolation(QCPColorGradient::ciRGB);
+    grad.setColorStopAt(0.00, QColor(15, 20, 70));     // 최저(어두운 남색)
+    grad.setColorStopAt(0.30, QColor(30, 90, 200));    // 파랑
+    grad.setColorStopAt(0.62, QColor(40, 175, 80));    // 초록
+    grad.setColorStopAt(1.00, QColor(248, 232, 35));   // 노랑(최고)
+    mMap->setGradient(grad);                           // setColorScale 뒤 → 맵+스케일 모두에 전파
     mMap->setDataRange(QCPRange(kFloorDb, 0.0));     // 고정 −70..0 dB (참조 그림 컬러바)
     lay->addWidget(mPlot, 1);
 
@@ -87,6 +109,23 @@ void TabSpectrogram::recompute()
     if (winN < kFFT) winN = kFFT;
 
     QVector<double> sig; mBuf.copyRange(from, winN, sig);
+
+    // True Peak 레벨 미터: 창 내 최대 샘플 절대값을 dBFS 로 표시(원신호는 ±1.0 풀스케일).
+    double peak = 0.0; for (double v : sig) { const double a = std::fabs(v); if (a > peak) peak = a; }
+    const double peakDb = 20.0 * std::log10(peak + 1e-9);
+    const bool clip = peakDb > -0.1;              // 클리핑 근접 → 빨강 강조
+    if (mPeak) {
+        mPeak->setText(QString("%1 dBFS").arg(peakDb, 0, 'f', 1));
+        mPeak->setStyleSheet(clip ? QStringLiteral("font-family:monospace; font-weight:bold; color:#c00;")
+                                  : QStringLiteral("font-family:monospace; font-weight:bold; color:#063;"));
+    }
+    if (mPeakBar) {                               // -70..0 dBFS → 0..100 녹색 레벨바
+        const int pct = (int)std::max(0.0, std::min(100.0, (peakDb + 70.0) / 70.0 * 100.0));
+        mPeakBar->setValue(pct);
+        mPeakBar->setStyleSheet(QString(
+            "QProgressBar{border:1px solid #444;border-radius:3px;background:#222;}"
+            "QProgressBar::chunk{background:%1;border-radius:2px;}").arg(clip ? "#cc2020" : "#1faa3c"));
+    }
 
     // STFT: kFrames 컬럼, 컬럼당 kFFT 샘플 + Hann 윈도우.
     //  주파수 빈: 0..fs/2 선형 kBins 개 — 임의 주파수 직접 DFT(빈 보간 없이 Hz 축 정합).
@@ -142,4 +181,7 @@ void TabSpectrogram::onResetSession()
     mBuf.clear(); mEvtBuf.clear(); mConfigured = false; mTick = 0;
     if (mMap) { mMap->data()->fill(kFloorDb); if (mPlot) mPlot->replot(); }
     if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mPeak) { mPeak->setText(QStringLiteral("-- dBFS"));
+                 mPeak->setStyleSheet(QStringLiteral("font-family:monospace; font-weight:bold;")); }
+    if (mPeakBar) mPeakBar->setValue(0);
 }
