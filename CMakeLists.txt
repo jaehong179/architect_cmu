@@ -70,6 +70,35 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         WatchSynthStream.h
         PerfInstrumentation.h
         PerfInstrumentation.cpp
+        # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
+        tabs/MeasurementModel.h
+        tabs/TabView.h
+        tabs/TabScaffold.h
+        tabs/WaveBuffer.h
+        tabs/ScopeRender.h
+        tabs/ReadoutBar.h
+        tabs/TabManager.h
+        tabs/TabManager.cpp
+        tabs/TabTraceDisplay.h
+        tabs/TabTraceDisplay.cpp
+        tabs/TabVarioStability.h
+        tabs/TabVarioStability.cpp
+        tabs/TabSequenceDisplay.h
+        tabs/TabSequenceDisplay.cpp
+        tabs/TabBeatNoiseScope.h
+        tabs/TabBeatNoiseScope.cpp
+        tabs/TabBeatErrorTrace.h
+        tabs/TabBeatErrorTrace.cpp
+        tabs/TabLongTermPerformance.h
+        tabs/TabLongTermPerformance.cpp
+        tabs/TabEscapementAnalyzer.h
+        tabs/TabEscapementAnalyzer.cpp
+        tabs/TabSpectrogram.h
+        tabs/TabSpectrogram.cpp
+        tabs/TabWaveformCompare.h
+        tabs/TabWaveformCompare.cpp
+        tabs/TabSyncSweepScope.h
+        tabs/TabSyncSweepScope.cpp
         Splash.qrc
         LinuxAudio.cpp
         LinuxAudio.h
@@ -97,6 +126,9 @@ endif()
 #DP-START REMOVED NOT NEED IN THIS VERSION
 #target_include_directories(TimeGrapher PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/fftw")
 #DP-END
+
+# [탭 모듈] tabs/ 헤더 탐색 경로 (TabView.h 등 형제 include + AUTOMOC)
+target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tabs)
 
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)

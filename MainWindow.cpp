@@ -4,6 +4,20 @@
 #include "WaveHeader.h"
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 
+// [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
+#include <QVarLengthArray>
+#include "tabs/TabManager.h"
+#include "tabs/TabTraceDisplay.h"
+#include "tabs/TabVarioStability.h"
+#include "tabs/TabSequenceDisplay.h"
+#include "tabs/TabBeatNoiseScope.h"
+#include "tabs/TabBeatErrorTrace.h"
+#include "tabs/TabLongTermPerformance.h"
+#include "tabs/TabEscapementAnalyzer.h"
+#include "tabs/TabSpectrogram.h"
+#include "tabs/TabWaveformCompare.h"
+#include "tabs/TabSyncSweepScope.h"
+
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
 #elif defined(Q_OS_WIN)
@@ -148,6 +162,50 @@ MainWindow::MainWindow(QWidget *parent)
     //  replot 은 rpQueuedReplot(지연 렌더)이라, 실제 픽셀이 그려지면 ScopePlot 이 afterReplot 을 낸다.
     //  그 순간을 잡아 (요청→페인트) 구간과 진짜 종단간(캡처→페인트)을 기록한다.
     connect(ui->ScopePlot, &QCustomPlot::afterReplot, this, &MainWindow::OnScopeReplotted);
+
+    // [탭 모듈] 신규 디스플레이 탭들을 생성·등록(기존 2개 + 신규 10개 = 12개). 코어 DSP 불변(QA-MOD-01).
+    RegisterDisplayTabs();
+}
+
+// [탭 모듈 · QA-MOD-01] 기존 2개 탭(RateTab/SoundTab, MainWindow.ui 정의)에 더해 신규 탭
+//  모듈을 TabManager 로 등록한다. 새 탭 추가 = TabView 상속 클래스 1개 + 아래 한 줄.
+//  ("Split module" / "Restrict dependencies" 택틱 — 코어/기존 탭 수정 불필요)
+void MainWindow::RegisterDisplayTabs(void)
+{
+    mTabManager = new TabManager(ui->GraphicsTabWidget, this);
+    mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
+    mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
+    mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
+    mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS
+    mTabManager->registerTab(new TabBeatErrorTrace(this));      // FR-BED
+    mTabManager->registerTab(new TabLongTermPerformance(this)); // FR-LTP
+    mTabManager->registerTab(new TabEscapementAnalyzer(this));  // FR-EAM
+    mTabManager->registerTab(new TabSpectrogram(this));         // FR-TFS
+    mTabManager->registerTab(new TabWaveformCompare(this));     // FR-WCD
+    mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS + FR-SFM(F0~F3)
+}
+
+// [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
+//  이 스냅샷에만 의존한다(QA-MOD-01 / Restrict dependencies).
+void MainWindow::PublishMeasurementToTabs(void)
+{
+    if (!mTabManager) return;
+    MeasurementSnapshot snap;
+    snap.timeMs         = Perf::nowMs();
+    snap.bphValid       = mRateErrorEvents.BPH_Valid;
+    snap.bph            = mRateErrorEvents.BPH;
+    snap.rateValid      = mRateErrorEvents.RlsRateValid;
+    snap.rate           = mRateErrorEvents.RlsRate;
+    snap.beatErrorValid = mBeatErrorEvents.RollBeatError->CurrentSize() > 0;
+    snap.beatErrorMs    = snap.beatErrorValid ? mBeatErrorEvents.RollBeatError->GetAverage() : 0.0;
+    snap.amplitudeValid = mAmplitudeEvents.RollAmplitude->CurrentSize() > 0;
+    snap.amplitudeDeg   = snap.amplitudeValid ? mAmplitudeEvents.RollAmplitude->GetAverage() : 0.0;
+    snap.synced         = mRateErrorEvents.BPH_Valid;
+    snap.sampleRateHz   = mCurrentSamplesPerSecond;
+    snap.totalSamples   = mLocalTotalSamplesWritten;
+    snap.liftAngle      = (int)mLiftAngle;
+    snap.mode           = ui->ModeComboBox->currentIndex();
+    mTabManager->broadcastMeasurement(snap);
 }
 
 // [PERF 계측 · §A-1/A-2 · QA-LT-01] ScopePlot 이 '실제로 다 그려진' 직후 호출됨.
@@ -535,6 +593,9 @@ void MainWindow::DisplayResults(void)
         // [§G-2 · QA-AC-01] 검출률 분모(정답 비트 누적 수). a_match/c_match 합과 비교해 검출률 산출.
         Perf::log("G-2","QA-AC-01","gt_total", (double)mLocalGtTotal, "beats","");
     }
+
+    // [탭 모듈] 현재 측정값을 모든 디스플레이 탭에 스냅샷으로 게시.
+    PublishMeasurementToTabs();
 }
 double MainWindow::Amplitude(double LiftAngle,double T1,double BPH)
 {
@@ -1166,6 +1227,31 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                else qInfo()<< "Unkown Event Type";
 
              }
+
+          // [탭 모듈] 이 슬라이스의 엔벨로프 + 검출 이벤트(A/C)를 스코프 계열 탭에 게시.
+          //  (포인터는 이 호출 동안만 유효 → 각 탭이 WaveBuffer 로 복사)
+          if (mTabManager) {
+              QVarLengthArray<WaveEvent, 32> wevs;
+              for (size_t ei = 0; ei < r.num_events; ++ei)
+                  wevs.append(WaveEvent{ r.events[ei].sample_index,
+                                         (int)r.events[ei].type,
+                                         r.events[ei].peak_value });
+              WaveBlock wb;
+              wb.env          = r.processed_pcm;
+              wb.n            = (int)r.processed_pcm_len;
+              wb.startSample  = r.processed_pcm_start_sample;
+              wb.sampleRateHz = mCurrentSamplesPerSecond;
+              wb.bph          = r.detected_bph;
+              wb.synced       = (r.sync_status == TG_SYNC_SYNCED);
+              wb.events       = wevs.data();
+              wb.numEvents    = wevs.size();
+              wb.raw          = mInputBlock;       // 정류 전 원신호(F0~F3 필터 뷰용)
+              wb.rawN         = slice;
+              wb.rawStart     = mInputAbsSample;
+              mTabManager->broadcastWave(wb);
+          }
+          mInputAbsSample += (uint64_t)slice;      // 다음 슬라이스의 원신호 시작 인덱스
+
         mForegroundSampleCount+=slice;
         SamplesToAdd=SamplesToAdd-slice;
         }
@@ -1270,6 +1356,10 @@ void MainWindow::Reset(void)
     mSoundRenderer.reset();
 
     mLocalGraphTicks=0;
+    mInputAbsSample=0;   // [탭 모듈] 원신호 게시 인덱스 리셋
+
+    // [탭 모듈] 세션 리셋을 모든 디스플레이 탭에 전파(누적 데이터·그래프 비움).
+    if (mTabManager) mTabManager->broadcastReset();
 
     for (int i=0;i<ui->ScopePlot->graphCount();i++)
     {

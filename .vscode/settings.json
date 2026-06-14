@@ -1,0 +1,9 @@
+{
+  // MS C/C++(cpptools) 하나만 사용 — clangd 끔 (두 언어 서버 충돌 방지)
+  "clangd.enable": false,
+  // clangd가 띄우는 "두 확장이 충돌" 경고 끄기 (우리는 cpptools를 의도적으로 사용)
+  "clangd.detectExtensionConflicts": false,
+  "C_Cpp.intelliSenseEngine": "default",
+  // CMake가 생성한 compile_commands.json을 IntelliSense/Go to Definition 근거로 사용
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json"
+}

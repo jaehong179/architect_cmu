@@ -20,6 +20,8 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+class TabManager;   // [탭 모듈] 디스플레이 탭 등록·갱신 브로드캐스트 (tabs/TabManager.h)
+
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
 
@@ -105,6 +107,10 @@ signals:
 
 private:
     Ui::MainWindow *ui;
+    TabManager     *mTabManager = nullptr;   // [탭 모듈] 12개 디스플레이 탭을 등록·갱신(QA-MOD-01)
+    uint64_t        mInputAbsSample = 0;      // [탭 모듈] 원신호(raw) 게시용 0-기반 입력 샘플 인덱스(이벤트/엔벨로프와 동일 좌표)
+    void   RegisterDisplayTabs(void);        // [탭 모듈] 신규 탭 모듈들을 생성·등록
+    void   PublishMeasurementToTabs(void);   // [탭 모듈] 현재 측정값을 스냅샷으로 탭에 게시
     void   StartAudioThread(void);
     void   ConfigureSoundCard(void);
     void   Reset(void);
