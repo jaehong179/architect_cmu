@@ -11,7 +11,9 @@
 class QCustomPlot;
 class QComboBox;
 class QCheckBox;
+class QPushButton;
 class QLabel;
+class QWidget;
 class ReadoutBar;
 class QMouseEvent;
 
@@ -31,21 +33,28 @@ private:
     void renderScope1();
     void renderStrips();
     void renderScope2();
-    void render() { renderScope1(); renderStrips(); renderScope2(); }
+    void applyScopeView();       // Scope1/Scope2 토글에 따른 표시 전환
+    // 활성 스코프만 그리고 스트립은 항상 갱신(스트립은 항상 하단).
+    void render() { if (mShowScope2) renderScope2(); else renderScope1(); renderStrips(); }
     void onStripClicked(QMouseEvent *ev);   // 스트립 클릭 → Scope1 확대
     double beatAmplitudeDeg(uint64_t aSample) const;   // E8: A→C 간격으로 비트 진폭(°)
 
     ReadoutBar  *mBar    = nullptr;
+    QWidget     *mScope1Box = nullptr; // Scope1 컨테이너(라벨+플롯)
+    QWidget     *mScope2Box = nullptr; // Scope2 컨테이너(라벨+사이클+트레이스2)
     QCustomPlot *mScope1 = nullptr;   // 단일 비트
     QCustomPlot *mStrips = nullptr;   // 최근 비트 썸네일
     QCustomPlot *mTr1    = nullptr;   // Scope2 trace 1 (짝수 비트)
     QCustomPlot *mTr2    = nullptr;   // Scope2 trace 2 (홀수 비트)
+    QPushButton *mScopeToggle = nullptr; // Scope1 ↔ Scope2 전환
+    QCheckBox   *mPause  = nullptr;   // 화면 정지(일시정지)
     QComboBox   *mRange  = nullptr;
     QCheckBox   *mAvg    = nullptr;   // Σ 평균 토글
     QLabel      *mInfo   = nullptr;
     QLabel      *mCycle  = nullptr;   // Σ 사이클 진행/완료 + 축별 평균 진폭
     WaveBuffer   mBuf;
     bool         mConfigured = false;
+    bool         mShowScope2 = false; // false=Scope1, true=Scope2
     int          mRangeMs = 20;
     int          mLiftAngle = 52;     // 최근 스냅샷의 lift angle(°) — Scope1 표시용
 
@@ -60,7 +69,7 @@ private:
     double                   mLastCycleAmp1 = 0, mLastCycleAmp2 = 0; bool mHaveCycleResult = false;
     QVector<QVector<double>> mRecent;          // 최근 비트(스트립용)
     int                      mSelStrip = -1;   // 선택된 스트립(-1=라이브)
-    static constexpr int     kStrips = 5;
+    static constexpr int     kStrips = 8;     // 최근 비트 스트립 8개
     static constexpr long    kCycleN = 50;     // Plan: 50 tic + 50 tac 간격에서 사이클 완료
 };
 #endif // TABBEATNOISESCOPE_H

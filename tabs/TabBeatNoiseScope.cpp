@@ -3,6 +3,7 @@
 #include "ScopeRender.h"
 #include <QComboBox>
 #include <QCheckBox>
+#include <QPushButton>
 #include <QHBoxLayout>
 #include <QMouseEvent>
 #include <cmath>
@@ -24,6 +25,10 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
 
     auto *ctl = new QHBoxLayout();
+    mScopeToggle = new QPushButton(QStringLiteral("▶ Scope 2 보기"), this);   // Scope1 ↔ Scope2 전환
+    ctl->addWidget(mScopeToggle);
+    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);                  // 화면 정지
+    ctl->addWidget(mPause);
     ctl->addWidget(new QLabel(QStringLiteral("Scope1 범위:"), this));
     mRange = new QComboBox(this);
     mRange->addItem(QStringLiteral("20 ms"), 20);
@@ -38,34 +43,55 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
 
-    lay->addWidget(new QLabel(QStringLiteral("<b>Scope 1</b> — 단일 비트 파형 (A 녹색 / C 빨강, lift angle 표시)"), this));
-    mScope1 = new QCustomPlot(this);
+    // ── Scope 1 컨테이너(단일 비트 파형) ──
+    mScope1Box = new QWidget(this);
+    auto *s1lay = new QVBoxLayout(mScope1Box); s1lay->setContentsMargins(0, 0, 0, 0);
+    s1lay->addWidget(new QLabel(QStringLiteral("<b>Scope 1</b> — 단일 비트 파형 (A 녹색 / C 빨강, lift angle 표시)"), mScope1Box));
+    mScope1 = new QCustomPlot(mScope1Box);
     mScope1->addGraph();
     mScope1->graph(0)->setPen(QPen(QColor(120, 110, 0)));
     mScope1->graph(0)->setBrush(QColor(235, 215, 0, 150));
     mScope1->xAxis->setLabel(QStringLiteral("time (ms)"));
-    lay->addWidget(mScope1, 3);
+    s1lay->addWidget(mScope1, 1);
+    lay->addWidget(mScope1Box, 3);
 
-    // ② 듀얼-트레이스 평균(똑/딱 두 축) — 메인 바로 아래(사양 레이아웃 순서).
+    // ── Scope 2 컨테이너(두 수평축 평균 듀얼-트레이스) ──
     // Plan: tic/tac 대응을 단정하지 않고 "두 평균 비트-노이즈 트레이스"로 표기.
-    lay->addWidget(new QLabel(QStringLiteral("<b>Scope 2</b> — 두 수평축 평균 듀얼-트레이스 (고정 20 ms, Σ 사이클 = 50+50 간격)"), this));
-    mCycle = new QLabel(QStringLiteral("Σ 0/50 · 0/50"), this);
+    mScope2Box = new QWidget(this);
+    auto *s2lay = new QVBoxLayout(mScope2Box); s2lay->setContentsMargins(0, 0, 0, 0);
+    s2lay->addWidget(new QLabel(QStringLiteral("<b>Scope 2</b> — 두 수평축 평균 듀얼-트레이스 (고정 20 ms, Σ 사이클 = 50+50 간격)"), mScope2Box));
+    mCycle = new QLabel(QStringLiteral("Σ 0/50 · 0/50"), mScope2Box);
     mCycle->setStyleSheet(QStringLiteral("font-family:monospace;"));
-    lay->addWidget(mCycle);
-    mTr1 = miniPlot(this, QStringLiteral("평균 ① (똑/tic)"), 70);
-    mTr2 = miniPlot(this, QStringLiteral("평균 ② (딱/toc)"), 70);
-    lay->addWidget(mTr1, 1);
-    lay->addWidget(mTr2, 1);
+    s2lay->addWidget(mCycle);
+    mTr1 = miniPlot(mScope2Box, QStringLiteral("평균 ① (똑/tic)"), 70);
+    mTr2 = miniPlot(mScope2Box, QStringLiteral("평균 ② (딱/toc)"), 70);
+    s2lay->addWidget(mTr1, 1);
+    s2lay->addWidget(mTr2, 1);
+    lay->addWidget(mScope2Box, 3);
+    mScope2Box->setVisible(false);   // 기본 = Scope 1
 
-    // ③ 하단: 최근 비트 스트립(클릭 → 확대) — 화면 맨 아래(사양).
-    lay->addWidget(new QLabel(QStringLiteral("최근 비트 스트립 (클릭 → Scope1 확대, 재클릭 → 라이브) →"), this));
+    // ③ 하단: 최근 비트 스트립 8개 — Scope1/Scope2 무관 항상 맨 아래.
+    lay->addWidget(new QLabel(QStringLiteral("최근 비트 스트립 8개 (클릭 → Scope1 확대, 재클릭 → 라이브) →"), this));
     mStrips = miniPlot(this, QString(), 70);
     mStrips->xAxis->setTickLabels(false);
     connect(mStrips, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripClicked);
     lay->addWidget(mStrips, 1);
 
-    connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible()) renderScope1(); });
-    connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible()) renderScope2(); });
+    connect(mScopeToggle, &QPushButton::clicked, this, [this]{ mShowScope2 = !mShowScope2; applyScopeView(); });
+    connect(mPause, &QCheckBox::toggled, this, [this](bool paused){ if (!paused && isVisible()) render(); });
+    connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible() && !mShowScope2) renderScope1(); });
+    connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible() && mShowScope2) renderScope2(); });
+}
+
+// Scope1/Scope2 표시 전환(스트립은 항상 하단에 그대로 유지).
+void TabBeatNoiseScope::applyScopeView()
+{
+    if (mScope1Box) mScope1Box->setVisible(!mShowScope2);
+    if (mScope2Box) mScope2Box->setVisible(mShowScope2);
+    if (mScopeToggle) mScopeToggle->setText(mShowScope2 ? QStringLiteral("▶ Scope 1 보기")
+                                                        : QStringLiteral("▶ Scope 2 보기"));
+    if (mRange) mRange->setEnabled(!mShowScope2);   // 범위는 Scope1 전용
+    if (isVisible()) render();
 }
 
 void TabBeatNoiseScope::onMeasurement(const MeasurementSnapshot &s)
@@ -85,7 +111,7 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
     }
     mBuf.push(w);
     processNewBeats();
-    if (isVisible()) render();
+    if (isVisible() && !(mPause && mPause->isChecked())) render();   // Pause 시 화면 정지
 }
 
 // E8 (Equations_v0 Part IV): Amp = 3600·λ / (π·n·t_AC), t_AC = 같은 비트 패킷의 A→C 간격(s).
@@ -240,8 +266,9 @@ void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
     const int idx = (int)(xc / (winMs + 2.0));
     if (idx < 0 || idx >= mRecent.size()) return;
     mSelStrip = (mSelStrip == idx) ? -1 : idx;   // 재클릭 → 라이브 복귀
-    renderScope1();
-    renderStrips();
+    // 선택 비트 확대는 Scope1 에서 — Scope2 보기였다면 Scope1 으로 전환.
+    mShowScope2 = false;
+    applyScopeView();          // render(Scope1) + renderStrips() 수행
 }
 
 static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
