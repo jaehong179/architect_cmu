@@ -1,17 +1,15 @@
 #ifndef TABWAVEFORMCOMPARE_H
 #define TABWAVEFORMCOMPARE_H
-// Waveform Comparison 탭 (FR-WCD) — Marcello Mamino Tg(https://tg.ciovil.li) 스코프 구도 재현.
-//  · 최근 비트들을 각각 독립 패널(스코프)로 위→아래 스택해 비교.
-//  · 각 패널: 검정 배경, 흰 파형을 중심선(y=0) 기준 상·하 대칭 미러(|신호| 위/아래 채움) → 다이아몬드형.
-//  · 왼쪽 도(°) 그리드(E9): x(α) = −t_AC(α) = −3600λ/(π·n·α). 10° 녹색 세선,
-//    150/200/250/300° 빨강 기준선 + 상단 ° 라벨. 측정 진폭 = 파랑 굵은 세선.
-//  · x = ms (0 = C peak), 하단 ms 축. 수치(rate·BE·bph)는 ReadoutBar.
+// Waveform Comparison 탭 (FR-WCD) — Marcello Mamino 의 Tg(vacaboja/tg, tg.ciovil.li) 구도 재현:
+//  [좌] paperstrip — tic/tac onset 을 시간(세로 스크롤)·주기 폴딩(가로)으로 점 표시.
+//  [우-상] tic 평균파형, [우-중] toc 평균파형 — C(pulse) 정렬, 검정 배경 흰 미러 파형,
+//          상단 도(°) 스케일(lift angle), 하단 ms, 진폭 도(°) 격자(10° 녹색·50° 빨강), 파랑=측정 진폭.
+//  [우-하] period — 한 박자 전체(두 버스트) 원신호 + A/C 마커 + 검출창 음영.
 #include "TabView.h"
 #include "WaveBuffer.h"
 #include <QVector>
 class QCustomPlot;
 class QLabel;
-class QSlider;
 class ReadoutBar;
 
 class TabWaveformCompare : public TabView
@@ -27,25 +25,35 @@ protected:
     void onShown() override;
 private:
     void render();
-    QCustomPlot *makePanel();                  // Tg 스코프 패널 1개 생성(배경/축/그래프)
-    void renderPanel(QCustomPlot *p, quint64 c); // C 피크 c 기준 한 비트를 패널에 그림
-    void renderOverview(const QVector<quint64> &cs, int selFrom, int selTo); // 하단 개요(전체 비트 + 선택 강조)
-    void renderStrip();                        // 좌측 세로 trace 스트립(최근 엔벨로프 세로 스크롤)
-    ReadoutBar  *mBar  = nullptr;
-    QLabel      *mInfo = nullptr;
-    QSlider     *mCursorSld = nullptr;         // 파랑 커서 위치(ms) 조절
-    QCustomPlot *mStrip = nullptr;             // 좌측 세로 trace 스트립(개요)
-    QVector<QCustomPlot*> mPanels;             // 최근 비트별 스코프 패널(위=최근)
-    QCustomPlot *mOverview = nullptr;          // 하단 개요 패널(넓은 구간 + 파랑 선택 강조)
-    WaveBuffer   mBuf;       // 엔벨로프 + 이벤트(C 정렬 기준)
-    WaveBuffer   mRawBuf;    // 바이폴라 원신호(표시용)
+    void accumulate(const WaveBlock &w);                 // C 정렬 tic/toc 평균 + A onset 누적
+    QCustomPlot *makeScope();                            // 검정 배경 흰 미러 파형 패널 1개
+    void drawAvgPanel(QCustomPlot *p, const QVector<double> &avg, const QString &title);
+    void drawPeriod();                                  // 하단: 한 박자 전체 파형
+    void drawPaperstrip();                              // 좌측: tic/tac 점
+
+    ReadoutBar  *mBar    = nullptr;
+    QCustomPlot *mPaper  = nullptr;   // 좌측 paperstrip
+    QCustomPlot *mTic    = nullptr;   // tic 평균파형
+    QCustomPlot *mToc    = nullptr;   // toc 평균파형
+    QCustomPlot *mPeriod = nullptr;   // 하단 period 전체파형
+    WaveBuffer   mBuf;        // 엔벨로프 + 이벤트(A/C 정렬·동기)
+    WaveBuffer   mRawBuf;     // 바이폴라 원신호(표시)
     bool         mConfigured = false;
-    int          mLiftAngle = 52;
+    int          mLiftAngle  = 52;
     double       mAmpDeg = 0.0; bool mAmpValid = false;
-    int          mBeatOffset = 0;             // 표시 시작 비트(최근에서 뒤로 N): 비트 선택/정렬
-    double       mCursorMs = -10.0;           // 파랑 커서 위치(ms)
-    static constexpr int    kPanels = 2;      // 비교 패널 A·B (사양: 2개) + 하단 개요
-    static constexpr double kPreMs  = 20.0;   // C 이전 표시(ms) — 도 그리드 영역 (사양 −20)
-    static constexpr double kPostMs = 5.0;    // C 이후 표시(ms) (사양 +5)
+
+    // C 정렬 tic/toc 코히어런트 평균(EMA).
+    QVector<double> mTicAvg, mTocAvg;   // 길이 = mWin (pre+post)
+    int      mWin = 0; bool mTicInit = false, mTocInit = false;
+    uint64_t mLastC = 0; bool mHaveLastC = false; long mCCount = 0;
+
+    // paperstrip 용 최근 A onset 절대샘플.
+    QVector<uint64_t> mAHist; uint64_t mAnchor = 0; bool mHaveAnchor = false;
+
+    static constexpr double kPreMs  = 25.0;   // C 이전(tg NEGATIVE_SPAN)
+    static constexpr double kPostMs = 10.0;   // C 이후(tg POSITIVE_SPAN)
+    static constexpr int    kPaperHist  = 1200;
+    static constexpr double kPaperSecs  = 60.0;   // paperstrip 세로 시간창(1분), 초과 시 자연 스크롤
+    static constexpr double kPaperZoom  = 50.0;   // tg PAPERSTRIP_ZOOM 대응: 폴딩창 = 비트주기/zoom (클수록 beat error 확대)
 };
 #endif // TABWAVEFORMCOMPARE_H

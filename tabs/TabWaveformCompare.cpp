@@ -2,7 +2,6 @@
 #include "ReadoutBar.h"
 #include "qcustomplot.h"
 #include <QPushButton>
-#include <QSlider>
 #include <QHBoxLayout>
 #include <algorithm>
 #include <cmath>
@@ -11,84 +10,107 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Waveform Comparison</b> — Tg 스코프 스타일: 최근 비트들을 검정 배경 위 흰 파형(중심선 상·하 미러)으로 "
-        "패널마다 비교. 왼쪽 녹색 10°/빨강 150·200·250·300° 도 그리드, 파랑=측정 진폭, x=ms(0=C). (FR-WCD)"), this));
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
-    mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
-    lay->addWidget(mInfo);
+    // 접이식 범례(공간 확보): 버튼으로 펼침/접힘.
+    auto *legendBtn = new QPushButton(QStringLiteral("▸ 범례 (펼치기)"), this);
+    legendBtn->setCheckable(true); legendBtn->setChecked(false);
+    legendBtn->setStyleSheet(QStringLiteral("QPushButton{ text-align:left; border:none; font-weight:bold; padding:2px; }"));
+    auto *key = new QLabel(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>Tic·Toc&nbsp;:</b></td><td>"
+        "<font color='#1e78ff'><b>━ 파랑 굵은선</b></font>=측정 진폭 · <font color='#1e78ff'>┊ 파랑(0ms)</font>=C(T3) 시점 · "
+        "<font color='#b43c3c'><b>┊ 빨강+숫자(50°)</b></font>·<font color='#149014'>┊ 녹색(10°)</font>=진폭 도(°) 눈금(상단축) · 하단축=시간(ms)</td></tr>"
+        "<tr><td valign='top'><b>Period&nbsp;:</b></td><td>"
+        "<font color='#00b400'>┊ 녹색</font>=A(T1, 임펄스 핀→팔레트 포크 타격) · "
+        "<font color='#dc2828'>┊ 빨강</font>=C(T3, 이스케이프휠 잠김·포크→뱅킹핀) · "
+        "<font color='#2840c8'>▮ 파랑 음영</font>=A(T1)→C(T3) 구간</td></tr>"
+        "<tr><td valign='top'><b>Paperstrip&nbsp;:</b></td><td>"
+        "<font color='#5080ff'>● 파랑</font>=tic · <font color='#dc4646'>● 빨강</font>=tac · 두 점열 간격=beat error · 기울기=rate · "
+        "<font color='#00b400'>┊ 녹색</font>=wrap 경계</td></tr>"
+        "</table>"), this);
+    key->setWordWrap(true);
+    key->setStyleSheet(QStringLiteral("QLabel{ background:#f6f6f6; border:1px solid #c4c4c4; border-radius:4px; padding:5px; }"));
+    key->setVisible(false);                              // 기본 접힘
+    connect(legendBtn, &QPushButton::toggled, this, [key, legendBtn](bool on){
+        key->setVisible(on); legendBtn->setText(on ? QStringLiteral("▾ 범례 (접기)") : QStringLiteral("▸ 범례 (펼치기)"));
+    });
+    lay->addWidget(legendBtn);
+    lay->addWidget(key);
 
-    // 컨트롤: 비트 선택(이전/다음 정렬) · 파랑 커서 이동 · Clear.
     auto *ctl = new QHBoxLayout();
-    auto *prevBtn = new QPushButton(QStringLiteral("◀ 이전 비트"), this);
-    auto *nextBtn = new QPushButton(QStringLiteral("다음 비트 ▶"), this);
-    ctl->addWidget(prevBtn); ctl->addWidget(nextBtn);
-    ctl->addSpacing(12);
-    ctl->addWidget(new QLabel(QStringLiteral("커서(ms):"), this));
-    mCursorSld = new QSlider(Qt::Horizontal, this);
-    mCursorSld->setRange((int)(-kPreMs * 10), (int)(kPostMs * 10));   // 0.1ms 분해능
-    mCursorSld->setValue((int)(mCursorMs * 10));
-    ctl->addWidget(mCursorSld, 1);
+    ctl->addStretch(1);
     auto *clearBtn = new QPushButton(QStringLiteral("Clear"), this);
     ctl->addWidget(clearBtn);
     lay->addLayout(ctl);
-
-    connect(prevBtn, &QPushButton::clicked, this, [this]{ ++mBeatOffset; render(); });
-    connect(nextBtn, &QPushButton::clicked, this, [this]{ if (mBeatOffset > 0) --mBeatOffset; render(); });
     connect(clearBtn, &QPushButton::clicked, this, &TabWaveformCompare::onResetSession);
-    connect(mCursorSld, &QSlider::valueChanged, this, [this](int v){ mCursorMs = v / 10.0; render(); });
 
-    // 본문: 좌측 세로 trace 스트립 + 우측(비교 패널 스택 + 하단 개요).
+    // ── 좌측 paperstrip (검정 배경, tic 흰점 / tac 청록점, 세로=시간) ──
+    mPaper = new QCustomPlot(this);
+    mPaper->setBackground(QBrush(Qt::black));
+    const QFont paf(QStringLiteral("sans"), 7);
+    for (QCPAxis *ax : {mPaper->xAxis, mPaper->yAxis}) {
+        ax->setBasePen(QPen(Qt::white)); ax->setTickPen(QPen(Qt::white));
+        ax->setSubTickPen(QPen(Qt::white)); ax->setTickLabelColor(Qt::white); ax->setLabelColor(Qt::white);
+        ax->setLabelFont(paf); ax->setTickLabelFont(paf);
+    }
+    mPaper->axisRect()->setMargins(QMargins(2, 2, 2, 2));
+    mPaper->axisRect()->setAutoMargins(QCP::msLeft | QCP::msBottom);
+    mPaper->xAxis->setTickLabels(false); mPaper->xAxis->setRange(0, 1);
+    mPaper->xAxis->setLabel(QStringLiteral("Paperstrip"));   // 그래프 이름
+    mPaper->yAxis->setLabel(QStringLiteral("시간(s) ↑최신"));   // 세로 = 시간
+    mPaper->addGraph();   // graph0 = tic(파랑) — Rate/Scope·Beat Error 관례와 통일
+    mPaper->graph(0)->setLineStyle(QCPGraph::lsNone);
+    mPaper->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(80, 140, 255), 4.5));
+    mPaper->graph(0)->setName(QStringLiteral("tic"));
+    mPaper->addGraph();   // graph1 = tac(빨강)
+    mPaper->graph(1)->setLineStyle(QCPGraph::lsNone);
+    mPaper->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(235, 70, 70), 4.5));
+    mPaper->graph(1)->setName(QStringLiteral("tac"));
+    mPaper->legend->setVisible(true);
+    mPaper->legend->setBrush(QBrush(QColor(0, 0, 0, 190)));
+    mPaper->legend->setBorderPen(QPen(QColor(120, 120, 120)));
+    mPaper->legend->setTextColor(Qt::white);
+    mPaper->legend->setFont(QFont(QStringLiteral("sans"), 7));
+    mPaper->legend->setIconSize(9, 9);
+    mPaper->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);  // 우상단 모서리(데이터 안 가림)
+    mPaper->setMinimumWidth(210); mPaper->setMaximumWidth(290);
+
+    // ── 우측: tic / toc 평균파형 + period ──
+    mTic = makeScope(); mToc = makeScope(); mPeriod = makeScope();
+    mPeriod->xAxis->setLabel(QStringLiteral("ms (0=Tick T1)"));
+    mPeriod->xAxis->setTicker(QSharedPointer<QCPAxisTicker>(new QCPAxisTicker));
+
     auto *body = new QHBoxLayout();
-    mStrip = makePanel();                                  // 좌측 trace 스트립(세로 = 시간)
-    mStrip->xAxis->setTicker(QSharedPointer<QCPAxisTicker>(new QCPAxisTicker));
-    mStrip->xAxis->setTickLabels(false);
-    mStrip->xAxis->setLabel(QStringLiteral("trace"));
-    mStrip->yAxis->setTickLabels(true);
-    mStrip->setMinimumWidth(90); mStrip->setMaximumWidth(150);
-    body->addWidget(mStrip, 0);
-
+    body->addWidget(mPaper, 0);
     auto *right = new QVBoxLayout();
-    for (int i = 0; i < kPanels; ++i) { auto *p = makePanel(); mPanels.push_back(p); right->addWidget(p, 1); }
-    mOverview = makePanel();                               // 하단 개요: 넓은 구간 + 모든 C 마커 + 파랑 선택
-    mOverview->xAxis->setLabel(QStringLiteral("overview — 최근 비트들 (파랑 = 선택)"));
-    mOverview->xAxis->setTicker(QSharedPointer<QCPAxisTicker>(new QCPAxisTicker));
-    right->addWidget(mOverview, 1);
+    right->addWidget(mTic, 2);
+    right->addWidget(mToc, 2);
+    right->addWidget(mPeriod, 2);
     body->addLayout(right, 1);
     lay->addLayout(body, 1);
 }
 
-// Tg 스코프 패널 1개: 검정 배경 + 흰 축, 미러 채움용 그래프 3개(베이스라인 / +mag / −mag).
-QCustomPlot *TabWaveformCompare::makePanel()
+// 검정 배경 흰 미러 파형 패널: graph0=베이스라인, graph1=+|mag|, graph2=−|mag|.
+QCustomPlot *TabWaveformCompare::makeScope()
 {
     auto *p = new QCustomPlot(this);
     p->setBackground(QBrush(Qt::black));
+    const QFont axf(QStringLiteral("sans"), 7);
     for (QCPAxis *ax : {p->xAxis, p->yAxis}) {
-        ax->setBasePen(QPen(Qt::white));
-        ax->setTickPen(QPen(Qt::white));
-        ax->setSubTickPen(QPen(Qt::white));
-        ax->setTickLabelColor(Qt::white);
-        ax->setLabelColor(Qt::white);
+        ax->setBasePen(QPen(Qt::white)); ax->setTickPen(QPen(Qt::white));
+        ax->setSubTickPen(QPen(Qt::white)); ax->setTickLabelColor(Qt::white); ax->setLabelColor(Qt::white);
+        ax->setLabelFont(axf); ax->setTickLabelFont(axf);
     }
-    p->yAxis->setTickLabels(false);
-    p->yAxis->setRange(-1.15, 1.15);
-    p->xAxis->setRange(-kPreMs, kPostMs);
-    p->xAxis->setLabel(QStringLiteral("ms (0 = C peak)"));
-    // 5ms 간격 눈금(레퍼런스 −20…+5ms).
-    QSharedPointer<QCPAxisTickerFixed> ticker(new QCPAxisTickerFixed);
-    ticker->setTickStep(5.0);
-    ticker->setScaleStrategy(QCPAxisTickerFixed::ssNone);
-    p->xAxis->setTicker(ticker);
-    // graph0 = 베이스라인(y=0, 투명) — 채움 기준.  graph1 = +|mag|, graph2 = −|mag| (흰 채움).
+    p->axisRect()->setMargins(QMargins(2, 2, 2, 2));             // 플롯 영역 최대화
+    p->axisRect()->setAutoMargins(QCP::msLeft | QCP::msBottom | QCP::msTop);
+    p->yAxis->setTickLabels(false); p->yAxis->setRange(-1.05, 1.05);
+    p->yAxis->setLabel(QStringLiteral("|진폭|"));
+    p->xAxis->setRange(-kPreMs, kPostMs); p->xAxis->setLabel(QStringLiteral("ms (0=C)"));
+    QSharedPointer<QCPAxisTickerFixed> tk(new QCPAxisTickerFixed);
+    tk->setTickStep(5.0); tk->setScaleStrategy(QCPAxisTickerFixed::ssNone);
+    p->xAxis->setTicker(tk);
     p->addGraph(); p->graph(0)->setPen(Qt::NoPen);
-    p->addGraph();
-    p->graph(1)->setPen(QPen(Qt::white, 1));
-    p->graph(1)->setBrush(QBrush(QColor(255, 255, 255, 230)));
-    p->graph(1)->setChannelFillGraph(p->graph(0));
-    p->addGraph();
-    p->graph(2)->setPen(QPen(Qt::white, 1));
-    p->graph(2)->setBrush(QBrush(QColor(255, 255, 255, 230)));
-    p->graph(2)->setChannelFillGraph(p->graph(0));
+    p->addGraph(); p->graph(1)->setPen(QPen(Qt::white, 1)); p->graph(1)->setBrush(QColor(255,255,255,230)); p->graph(1)->setChannelFillGraph(p->graph(0));
+    p->addGraph(); p->graph(2)->setPen(QPen(Qt::white, 1)); p->graph(2)->setBrush(QColor(255,255,255,230)); p->graph(2)->setChannelFillGraph(p->graph(0));
     return p;
 }
 
@@ -108,202 +130,226 @@ void TabWaveformCompare::onWave(const WaveBlock &w)
         mRawBuf.configure(w.sampleRateHz * 2);
         mConfigured = true;
     }
-    mBuf.push(w);                                       // 엔벨로프 + 이벤트(C 정렬 기준)
-    if (w.raw && w.rawN > 0) {                          // 바이폴라 원신호
+    mBuf.push(w);
+    if (w.raw && w.rawN > 0) {
         WaveBlock rb; rb.env = w.raw; rb.n = w.rawN; rb.startSample = w.rawStart;
         rb.sampleRateHz = w.sampleRateHz; rb.bph = w.bph; rb.synced = w.synced;
         mRawBuf.push(rb);
     }
+    accumulate(w);
     if (isVisible()) render();
 }
 
-// C 피크 c 기준 한 비트를 패널 p 에 그림: 흰 미러 파형 + 도 그리드.
-void TabWaveformCompare::renderPanel(QCustomPlot *p, quint64 c)
+// C 정렬 tic/toc 코히어런트 평균(EMA) + A onset paperstrip 누적.
+void TabWaveformCompare::accumulate(const WaveBlock &)
 {
-    const int sr   = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
+    const int sr = mRawBuf.sampleRate(); if (sr <= 0) return;
     const int pre  = (int)(kPreMs  / 1000.0 * sr);
     const int post = (int)(kPostMs / 1000.0 * sr);
-    const int count = pre + post;
+    if (mWin <= 0) mWin = pre + post;
+    const uint64_t latest = mRawBuf.latestAbs();
+    const QVector<WaveEvent> evs = mBuf.eventsInRange(mBuf.oldestAbs(), latest);
+    for (const WaveEvent &e : evs) {
+        if (e.type == 1) {                                       // A onset → paperstrip
+            if (mAHist.isEmpty() || e.sample > mAHist.last()) {
+                if (!mHaveAnchor) { mAnchor = e.sample; mHaveAnchor = true; }
+                mAHist.push_back(e.sample);
+                while (mAHist.size() > kPaperHist) mAHist.remove(0);
+            }
+        } else if (e.type == 2) {                                // C peak → tic/toc 평균
+            if (mHaveLastC && e.sample <= mLastC) continue;
+            if (e.sample < (uint64_t)pre) continue;
+            if (e.sample + (uint64_t)post > latest) continue;    // 아직 미래 → 다음 블록 대기
+            QVector<double> win; mRawBuf.copyRange(e.sample - (uint64_t)pre, mWin, win);
+            const bool tic = (mCCount % 2 == 0);
+            QVector<double> &avg = tic ? mTicAvg : mTocAvg;
+            bool &init = tic ? mTicInit : mTocInit;
+            if (avg.size() != mWin || !init) { avg = win; init = true; }
+            else { const double a = 0.15; for (int i = 0; i < mWin; ++i) avg[i] = (1.0 - a) * avg[i] + a * win[i]; }
+            mLastC = e.sample; mHaveLastC = true; ++mCCount;
+        }
+    }
+}
 
-    QVector<double> raw; mRawBuf.copyRange(c - (quint64)pre, count, raw);
-    double mean = 0; for (double v : raw) mean += v; mean /= count;
-    QVector<double> mag(count);
-    for (int i = 0; i < count; ++i) mag[i] = std::fabs(raw[i] - mean);
-    // 레인 정규화: 95퍼센타일 |값| 으로 ±1 정규화 + 클램프(스파이크는 상하한에서 잘림).
-    QVector<double> sorted = mag;
-    std::nth_element(sorted.begin(), sorted.begin() + (int)(count * 0.95), sorted.end());
-    double mx = sorted[(int)(count * 0.95)];
-    if (mx < 1e-12) mx = 1e-12;
-
-    QVector<double> x(count), yU(count), yL(count), base(count);
-    for (int i = 0; i < count; ++i) {
-        x[i] = 1000.0 * (i - pre) / sr;          // ms, 0 = C peak
-        double m = mag[i] / mx; if (m > 1.0) m = 1.0;
-        yU[i] = m; yL[i] = -m; base[i] = 0.0;     // 중심선 기준 상·하 대칭
+void TabWaveformCompare::drawAvgPanel(QCustomPlot *p, const QVector<double> &avg, const QString &title)
+{
+    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
+    const int pre = (int)(kPreMs / 1000.0 * sr);
+    const int n = avg.size();
+    if (n < 2) { for (int g = 0; g < 3; ++g) p->graph(g)->data()->clear(); p->clearItems(); p->replot(); return; }
+    QVector<double> mg(n); for (int i = 0; i < n; ++i) mg[i] = std::fabs(avg[i]);
+    QVector<double> s = mg; const int k = std::min(n - 1, (int)(n * 0.90));
+    std::nth_element(s.begin(), s.begin() + k, s.end());
+    const double mx = std::max(1e-9, s[k]);
+    QVector<double> x(n), yU(n), yL(n), base(n);
+    for (int i = 0; i < n; ++i) {
+        x[i] = 1000.0 * (i - pre) / sr;                          // ms, 0 = C
+        const double m = std::min(1.0, mg[i] / mx * 1.0);        // 90퍼센타일을 가득 채움(파형 크게)
+        yU[i] = m; yL[i] = -m; base[i] = 0.0;
     }
     p->graph(0)->setData(x, base, true);
     p->graph(1)->setData(x, yU, true);
     p->graph(2)->setData(x, yL, true);
 
     p->clearItems();
-    // ── 도(°) 그리드 (E9, x = −t_AC(α)) ── 왼쪽(음수 ms)에 표시 ──
-    const int bph = mBuf.bph();
-    auto vline = [&](double xMs, const QColor &col, double w) {
-        if (xMs < -kPreMs || xMs > kPostMs) return;
-        auto *ln = new QCPItemLine(p);
-        ln->start->setCoords(xMs, -1.15); ln->end->setCoords(xMs, 1.15);
-        ln->setPen(QPen(col, w));
+    auto vline = [&](double xm, const QColor &c, double w){
+        if (xm < -kPreMs || xm > kPostMs) return;
+        auto *ln = new QCPItemLine(p); ln->start->setCoords(xm, -1.15); ln->end->setCoords(xm, 1.15);
+        ln->setPen(QPen(c, w));
     };
+    // tg 식 도(°) 격자(시간 격자가 아님): 10°마다 세로선(비선형). x = −t_AC(°) = −3600·lift/(π·bph·°).
+    const int bph = mBuf.bph();
+    auto tAC = [&](double deg){ return -1000.0 * (3600.0 * mLiftAngle) / (M_PI * bph * deg); };
     if (bph > 0) {
-        for (int a = 10; a <= 360; a += 10)                               // 10° 녹색 세선
-            vline(-1000.0 * (3600.0 * mLiftAngle) / (M_PI * bph * a), QColor(0, 150, 0), 1);
-        // 상단 각도(°) 축: ms↔도 비선형 매핑을 텍스트 티커로 ms 좌표 위에 도수 눈금 배치.
         QSharedPointer<QCPAxisTickerText> top(new QCPAxisTickerText);
-        for (int a : {150, 200, 300}) {                                   // 기준 도수(빨강 major) + 상단 축 눈금 (사양: 150/200/300)
-            const double xm = -1000.0 * (3600.0 * mLiftAngle) / (M_PI * bph * a);
-            vline(xm, QColor(200, 0, 0), 1);
-            if (xm > -kPreMs && xm < kPostMs) top->addTick(xm, QString::number(a));
+        for (int a = 100; a <= 360; a += 10) {                   // tg: i=10..360 step 10
+            const double xm = tAC(a);
+            if (xm < -kPreMs || xm > kPostMs) continue;
+            const bool major = (a % 50 == 0);                    // 50° = 빨강 major + 라벨, 그 외 10° = 녹색
+            vline(xm, major ? QColor(150, 40, 40) : QColor(25, 90, 25), 1);
+            if (major) top->addTick(xm, QString::number(a));
         }
-        p->xAxis2->setVisible(true);
-        p->xAxis2->setTickLabels(true);
-        p->xAxis2->setLabel(QStringLiteral("angle (deg)"));
+        p->xAxis2->setVisible(true); p->xAxis2->setTickLabels(true);
         p->xAxis2->setBasePen(QPen(Qt::white)); p->xAxis2->setTickPen(QPen(Qt::white));
         p->xAxis2->setSubTickPen(QPen(Qt::white)); p->xAxis2->setTickLabelColor(Qt::white);
-        p->xAxis2->setLabelColor(Qt::white);
-        p->xAxis2->setRange(p->xAxis->range());                           // 동일 좌표계(ms) 위에 도수 라벨
-        p->xAxis2->setTicker(top);
-        if (mAmpValid && mAmpDeg > 0.0)                                   // 측정 진폭 = 파랑 굵은 선
-            vline(-1000.0 * (3600.0 * mLiftAngle) / (M_PI * bph * mAmpDeg), QColor(40, 110, 255), 3);
+        p->xAxis2->setLabelColor(Qt::white); p->xAxis2->setLabel(QStringLiteral("진폭(°)"));
+        p->xAxis2->setLabelFont(QFont(QStringLiteral("sans"), 7));
+        p->xAxis2->setTickLabelFont(QFont(QStringLiteral("sans"), 7));
+        p->xAxis2->setRange(p->xAxis->range()); p->xAxis2->setTicker(top);
+        if (mAmpValid && mAmpDeg > 0.0) vline(tAC(mAmpDeg), QColor(40, 110, 255), 3);   // 측정 진폭
     }
-    // 파랑 커서 라인(비트 정밀 비교용) — 모든 패널 공통 위치.
-    {
-        auto *cur = new QCPItemLine(p);
-        cur->start->setCoords(mCursorMs, -1.15); cur->end->setCoords(mCursorMs, 1.15);
-        cur->setPen(QPen(QColor(40, 110, 255), 1, Qt::DashLine));
-    }
+    vline(0.0, QColor(60, 120, 255), 1.5);                       // C(pulse) = 파랑(0ms)
+    auto *t = new QCPItemText(p);                                // 그래프 이름(좌상단)
+    t->position->setType(QCPItemPosition::ptAxisRectRatio);
+    t->position->setCoords(0.015, 0.02); t->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+    t->setText(title); t->setColor(Qt::white);
+    t->setFont(QFont(QStringLiteral("sans"), 9, QFont::Bold));
+    t->setBrush(QColor(0, 0, 0, 150)); t->setPadding(QMargins(3, 1, 3, 1));
     p->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// 하단 period: 최신 한 박자(Tick·Tock 두 버스트) 원신호 + A/C 마커 + 검출창 음영.
+void TabWaveformCompare::drawPeriod()
+{
+    if (!mPeriod || !mRawBuf.hasData()) return;
+    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
+    const int beat = mBuf.samplesPerBeat();
+    const QVector<WaveEvent> evs = mBuf.eventsInRange(mBuf.oldestAbs(), mBuf.latestAbs());
+    QVector<uint64_t> as; for (const WaveEvent &e : evs) if (e.type == 1) as.push_back(e.sample);
+    if (as.size() < 2 || beat <= 0) { for (int g = 0; g < 3; ++g) mPeriod->graph(g)->data()->clear(); mPeriod->clearItems(); mPeriod->replot(); return; }
+    const uint64_t ticA = as[as.size() - 2], tocA = as.last();
+    const int pre = (int)(0.005 * sr);
+    const uint64_t from = ticA > (uint64_t)pre ? ticA - pre : 0;
+    const int count = (int)(tocA - from) + (int)(0.012 * sr);
+    if (count <= 1) return;
+    QVector<double> raw; mRawBuf.copyRange(from, count, raw);
+    QVector<double> mg(count); for (int i = 0; i < count; ++i) mg[i] = std::fabs(raw[i]);
+    QVector<double> s = mg; const int k = std::min(count - 1, (int)(count * 0.98));
+    std::nth_element(s.begin(), s.begin() + k, s.end());
+    const double mx = std::max(1e-9, s[k]);
+    const int step = std::max(1, count / 2000);
+    QVector<double> x, yU, yL, base;
+    for (int i = 0; i < count; i += step) {
+        x.push_back(1000.0 * ((double)from + i - (double)ticA) / sr);
+        const double m = std::min(1.0, mg[i] / mx * 0.96);
+        yU.push_back(m); yL.push_back(-m); base.push_back(0.0);
+    }
+    mPeriod->graph(0)->setData(x, base, true);
+    mPeriod->graph(1)->setData(x, yU, true);
+    mPeriod->graph(2)->setData(x, yL, true);
+    mPeriod->clearItems();
+    auto shadeAC = [&](uint64_t a){
+        for (const WaveEvent &e : evs) if (e.type == 2 && e.sample > a && e.sample < a + (uint64_t)beat / 2) {
+            const double ax = 1000.0 * ((double)a - (double)ticA) / sr, cx = 1000.0 * ((double)e.sample - (double)ticA) / sr;
+            auto *r = new QCPItemRect(mPeriod); r->topLeft->setCoords(ax, 1.15); r->bottomRight->setCoords(cx, -1.15);
+            r->setPen(Qt::NoPen); r->setBrush(QColor(40, 60, 200, 70));
+            break;
+        }
+    };
+    shadeAC(ticA); shadeAC(tocA);
+    auto vl = [&](uint64_t smp, const QColor &c){
+        const double xm = 1000.0 * ((double)smp - (double)ticA) / sr;
+        auto *ln = new QCPItemLine(mPeriod); ln->start->setCoords(xm, -1.15); ln->end->setCoords(xm, 1.15);
+        ln->setPen(QPen(c, 1.2));
+    };
+    vl(ticA, QColor(0, 200, 0)); vl(tocA, QColor(0, 200, 0));
+    for (const WaveEvent &e : evs) if (e.type == 2 && e.sample >= ticA && e.sample <= tocA + (uint64_t)beat / 2) vl(e.sample, QColor(220, 40, 40));
+    auto *nm = new QCPItemText(mPeriod);                         // 그래프 이름
+    nm->position->setType(QCPItemPosition::ptAxisRectRatio);
+    nm->position->setCoords(0.015, 0.02); nm->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+    nm->setText(QStringLiteral("Period")); nm->setColor(Qt::white);
+    nm->setFont(QFont(QStringLiteral("sans"), 9, QFont::Bold));
+    nm->setBrush(QColor(0, 0, 0, 150)); nm->setPadding(QMargins(3, 1, 3, 1));
+    mPeriod->xAxis->setRange(x.isEmpty() ? -5 : x.first(), x.isEmpty() ? 5 : x.last());
+    mPeriod->yAxis->setRange(-1.05, 1.05);
+    mPeriod->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// 좌측 paperstrip: tic/tac onset 을 세로(시간)·가로(2박자 폴딩 위상)로 점 표시.
+void TabWaveformCompare::drawPaperstrip()
+{
+    if (!mPaper) return;
+    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
+    const int beat = mBuf.samplesPerBeat();
+    if (beat <= 0 || mAHist.isEmpty() || !mHaveAnchor) {
+        mPaper->graph(0)->data()->clear(); mPaper->graph(1)->data()->clear(); mPaper->clearItems(); mPaper->replot(); return;
+    }
+    // tg paperstrip: 폴딩창 W = 비트주기/zoom. 고정 앵커(점프 없음) + 고정 0.5 오프셋(초기 가운데).
+    //  → tic·tac 이 거의 같은 x 로 접히되 'beat error' 만큼 벌어지고, rate 드리프트는 기울기/ wrap 으로 보임.
+    const double W   = (double)beat / kPaperZoom;
+    const double Wms = 1000.0 * W / sr;
+    const double latestT = (double)mRawBuf.latestAbs() / sr;
+    // 처음부터 1분 폭 고정: 경과<60s 면 [0,60], 그 이후엔 [현재−60s, 현재]로 스크롤.
+    const double yLo = (latestT <= kPaperSecs) ? 0.0 : (latestT - kPaperSecs);
+    const double yHi = yLo + kPaperSecs;
+    QVector<double> tx, ty, kx, ky;
+    for (uint64_t a : mAHist) {
+        const double tSec = (double)a / sr;
+        if (tSec < yLo) continue;
+        const long nbeat = (long)llround((double)((int64_t)a - (int64_t)mAnchor) / (double)beat);
+        double rp = std::fmod((double)((int64_t)a - (int64_t)mAnchor), W);
+        if (rp < 0) rp += W;
+        double ph = rp / W + 0.5;                                // 고정 앵커·오프셋 → x 안 흔들림
+        ph -= std::floor(ph);                                    // [0,1) wrap
+        if (nbeat % 2 == 0) { tx.push_back(ph); ty.push_back(tSec); }
+        else                { kx.push_back(ph); ky.push_back(tSec); }
+    }
+    mPaper->graph(0)->setData(tx, ty, false);
+    mPaper->graph(1)->setData(kx, ky, false);
+    mPaper->clearItems();
+    auto vl = [&](double xx, const QColor &c){
+        auto *ln = new QCPItemLine(mPaper); ln->start->setCoords(xx, yLo); ln->end->setCoords(xx, latestT);
+        ln->setPen(QPen(c, 1));
+    };
+    vl(0.08, QColor(0, 120, 0)); vl(0.92, QColor(0, 120, 0));   // tg 녹색 마진(wrap 경계)
+    auto *wl = new QCPItemText(mPaper);                          // 폭 라벨 — 좌상단 모서리(데이터 안 가림)
+    wl->position->setType(QCPItemPosition::ptAxisRectRatio);
+    wl->position->setCoords(0.02, 0.012); wl->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+    wl->setText(QString("W=%1ms").arg(Wms, 0, 'f', 1));
+    wl->setColor(Qt::white); wl->setBrush(QColor(0, 0, 0, 170)); wl->setPadding(QMargins(3, 1, 3, 1));
+    mPaper->xAxis->setRange(0, 1);                               // x 고정(autoscale 아님)
+    mPaper->yAxis->setRange(yLo, yHi);                           // 항상 60초 폭 고정
+    mPaper->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void TabWaveformCompare::render()
 {
     if (!mRawBuf.hasData()) return;
-    const int sr   = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
-    const int pre  = (int)(kPreMs  / 1000.0 * sr);
-    const int post = (int)(kPostMs / 1000.0 * sr);
-
-    // 최근 C 이벤트들(각 패널의 비트 기준). 표시 창이 버퍼 안에 드는 것만.
-    const QVector<WaveEvent> evs = mBuf.eventsInRange(mBuf.oldestAbs(), mBuf.latestAbs());
-    QVector<quint64> cs;
-    for (const WaveEvent &e : evs)
-        if (e.type == 2 && e.sample > (quint64)pre && e.sample + (quint64)post <= mRawBuf.latestAbs())
-            cs.push_back(e.sample);
-    if (cs.isEmpty()) { mInfo->setText(QStringLiteral("C 이벤트 수집 중…")); return; }
-
-    // 비트 선택: 최근에서 mBeatOffset 만큼 뒤로 이동(이전/다음 버튼). 범위 클램프.
-    const int maxOffset = std::max(0, (int)cs.size() - 1);
-    if (mBeatOffset > maxOffset) mBeatOffset = maxOffset;
-    const int newest = (int)cs.size() - 1 - mBeatOffset;        // 위 패널(i=0)이 가리킬 인덱스
-    const int n = std::min((int)kPanels, newest + 1);
-    for (int i = 0; i < kPanels; ++i) {
-        const int idx = newest - i;
-        if (i < n && idx >= 0) {
-            renderPanel(mPanels[i], cs[idx]);                  // 위(i=0) = 선택 비트, 아래로 갈수록 과거
-        } else {
-            for (int g = 0; g < mPanels[i]->graphCount(); ++g) mPanels[i]->graph(g)->data()->clear();
-            mPanels[i]->clearItems(); mPanels[i]->replot();
-        }
-    }
-    renderOverview(cs, std::max(0, newest - n + 1), newest);    // 선택 구간 강조
-    renderStrip();                                              // 좌측 세로 trace 스트립
-    mInfo->setText(QString("비트 %1/%2 (offset=%3)  lift=%4°  bph=%5 %6  cursor=%7 ms")
-        .arg(newest + 1).arg(cs.size()).arg(mBeatOffset).arg(mLiftAngle)
-        .arg(mBuf.bph()).arg(mBuf.synced() ? "[synced]" : "").arg(mCursorMs, 0, 'f', 1));
-}
-
-// 하단 개요: 최근 다수 비트의 엔벨로프를 한 줄에 펼치고 모든 C 마커 + 선택 구간을 파랑 강조.
-void TabWaveformCompare::renderOverview(const QVector<quint64> &cs, int selFrom, int selTo)
-{
-    if (!mOverview || cs.isEmpty()) return;
-    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
-    const quint64 first = cs.first(), last = cs.last();
-    const quint64 pre = (quint64)(kPreMs / 1000.0 * sr);
-    const quint64 from = first > pre ? first - pre : 0;
-    const int count = (int)(last - from) + (int)(kPostMs / 1000.0 * sr);
-    if (count <= 1) return;
-    // 다운샘플(가독성): 최대 ~2000 포인트.
-    QVector<double> raw; mRawBuf.copyRange(from, count, raw);
-    const int step = std::max(1, count / 2000);
-    QVector<double> x, yU, yL, base;
-    double mx = 1e-12;
-    for (int i = 0; i < count; i += step) mx = std::max(mx, std::fabs(raw[i]));
-    for (int i = 0; i < count; i += step) {
-        x.push_back(1000.0 * (from + (quint64)i) / sr / 1000.0);   // 초 단위(넓은 축)
-        const double m = std::min(1.0, std::fabs(raw[i]) / mx);
-        yU.push_back(m); yL.push_back(-m); base.push_back(0.0);
-    }
-    mOverview->graph(0)->setData(x, base, true);
-    mOverview->graph(1)->setData(x, yU, true);
-    mOverview->graph(2)->setData(x, yL, true);
-    mOverview->clearItems();
-    mOverview->xAxis2->setVisible(false);
-    for (int i = 0; i < cs.size(); ++i) {
-        const double cx = (double)cs[i] / sr;                      // 초
-        const bool sel = (i >= selFrom && i <= selTo);
-        auto *ln = new QCPItemLine(mOverview);
-        ln->start->setCoords(cx, -1.15); ln->end->setCoords(cx, 1.15);
-        ln->setPen(QPen(sel ? QColor(40, 110, 255) : QColor(180, 60, 60), sel ? 2.5 : 1));
-    }
-    mOverview->xAxis->setLabel(QStringLiteral("overview — time (s), 파랑 = 선택 비트"));
-    mOverview->xAxis->rescale();
-    mOverview->yAxis->setRange(-1.15, 1.15);
-    mOverview->replot(QCustomPlot::rpQueuedReplot);
-}
-
-// 좌측 세로 trace 스트립: 최근 0.5초 엔벨로프를 세로축=시간으로 스크롤, C 이벤트 녹색 수평선.
-void TabWaveformCompare::renderStrip()
-{
-    if (!mStrip || !mRawBuf.hasData()) return;
-    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
-    const int win = (int)(0.5 * sr);
-    const quint64 latest = mRawBuf.latestAbs();
-    const quint64 from = latest > (quint64)win ? latest - win : 0;
-    const int count = (int)(latest - from);
-    if (count <= 1) return;
-    QVector<double> raw; mRawBuf.copyRange(from, count, raw);
-    const int step = std::max(1, count / 1200);
-    double mx = 1e-12;
-    for (int i = 0; i < count; i += step) mx = std::max(mx, std::fabs(raw[i]));
-    QVector<double> tkey, tval;                                // key = time(세로), value = |amp|(가로)
-    for (int i = 0; i < count; i += step) {
-        tkey.push_back((double)(from + (quint64)i) / sr);
-        tval.push_back(std::min(1.0, std::fabs(raw[i]) / mx));
-    }
-    mStrip->graph(0)->data()->clear();
-    mStrip->graph(2)->data()->clear();
-    mStrip->graph(1)->setChannelFillGraph(nullptr);
-    mStrip->graph(1)->setKeyAxis(mStrip->yAxis);               // 시간축을 세로로
-    mStrip->graph(1)->setValueAxis(mStrip->xAxis);
-    mStrip->graph(1)->setData(tkey, tval, true);
-    mStrip->clearItems();
-    const QVector<WaveEvent> evs = mBuf.eventsInRange(from, latest);
-    for (const WaveEvent &e : evs) if (e.type == 2) {          // C 이벤트 = 녹색 수평선
-        const double tt = (double)e.sample / sr;
-        auto *ln = new QCPItemLine(mStrip);
-        ln->start->setCoords(0, tt); ln->end->setCoords(1, tt);
-        ln->setPen(QPen(QColor(0, 160, 0), 1));
-    }
-    mStrip->xAxis->setRange(0, 1.05);
-    mStrip->yAxis->setRange((double)from / sr, (double)latest / sr);
-    mStrip->replot(QCustomPlot::rpQueuedReplot);
+    drawAvgPanel(mTic, mTicAvg, QStringLiteral("Tic"));
+    drawAvgPanel(mToc, mTocAvg, QStringLiteral("Toc"));
+    drawPeriod();
+    drawPaperstrip();
 }
 
 void TabWaveformCompare::onResetSession()
 {
-    mBuf.clear(); mRawBuf.clear(); mConfigured = false; mBeatOffset = 0;
+    mBuf.clear(); mRawBuf.clear(); mConfigured = false;
+    mTicAvg.clear(); mTocAvg.clear(); mWin = 0; mTicInit = mTocInit = false;
+    mLastC = 0; mHaveLastC = false; mCCount = 0;
+    mAHist.clear(); mAnchor = 0; mHaveAnchor = false;
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
-    QVector<QCustomPlot*> all = mPanels; if (mOverview) all.push_back(mOverview); if (mStrip) all.push_back(mStrip);
-    for (QCustomPlot *p : all) {
+    for (QCustomPlot *p : {mPaper, mTic, mToc, mPeriod}) {
+        if (!p) continue;
         for (int g = 0; g < p->graphCount(); ++g) p->graph(g)->data()->clear();
         p->clearItems(); p->replot();
     }
