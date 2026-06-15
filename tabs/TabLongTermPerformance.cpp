@@ -2,7 +2,6 @@
 #include "ReadoutBar.h"
 #include "qcustomplot.h"
 
-#include <QComboBox>
 #include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -28,8 +27,12 @@ static QCustomPlot *makeLane(QWidget *parent, const QString &yLabel, const QColo
     p->addGraph(); p->graph(0)->setPen(QPen(line, 1));                          // 메인 트레이스
     p->addGraph(); p->graph(1)->setPen(QPen(line.darker(140), 1, Qt::DashLine));// 평균선
     p->yAxis->setLabel(yLabel);
-    p->xAxis->setTickLabels(xLabels);
-    if (xLabels) p->xAxis->setLabel(QStringLiteral("time (s)"));
+    // 각 레인 X축에 경과 시간(mm:ss) 눈금 표시.
+    auto timeTicker = QSharedPointer<QCPAxisTickerTime>::create();
+    timeTicker->setTimeFormat(QStringLiteral("%m:%s"));
+    p->xAxis->setTicker(timeTicker);
+    p->xAxis->setTickLabels(true);
+    if (xLabels) p->xAxis->setLabel(QStringLiteral("time (mm:ss)"));
     return p;
 }
 
@@ -38,38 +41,45 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
 
-    // FR-LTP-1.5: 보기 기간 선택 + 리셋 버튼.
+    // 컨트롤: X축은 8분 고정이라 기간 선택 없음 — 리셋만 제공.
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("기간:"), this));
-    mPeriod = new QComboBox(this);
-    mPeriod->addItem(QStringLiteral("전체"), 0.0);
-    mPeriod->addItem(QStringLiteral("최근 1분"),  60.0);
-    mPeriod->addItem(QStringLiteral("최근 5분"),  300.0);
-    mPeriod->addItem(QStringLiteral("최근 15분"), 900.0);
-    mPeriod->addItem(QStringLiteral("최근 1시간"), 3600.0);
-    ctl->addWidget(mPeriod);
+    ctl->addWidget(new QLabel(QStringLiteral("X축: 8분 고정 (이후 슬라이딩)"), this));
+    ctl->addStretch(1);
     auto *resetBtn = new QPushButton(QStringLiteral("↻ Reset"), this);
     ctl->addWidget(resetBtn);
-    ctl->addStretch(1);
     lay->addLayout(ctl);
-    connect(mPeriod, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this]{ applyView();
-        for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot(); });
     connect(resetBtn, &QPushButton::clicked, this, &TabLongTermPerformance::onResetSession);
 
     mRate.plot = makeLane(this, QStringLiteral("rate s/d"),     QColor(200,40,140), false);
     mAmp.plot  = makeLane(this, QStringLiteral("amplitude °"),  QColor(40,80,200),  false);
     mBe.plot   = makeLane(this, QStringLiteral("beat err ms"),  QColor(30,150,60),  true);
-    // 변동범위 밴드(반투명) — 각 레인.
-    mRate.band = new QCPItemRect(mRate.plot); mRate.band->setPen(Qt::NoPen); mRate.band->setBrush(QColor(200,40,140,40));
-    mAmp.band  = new QCPItemRect(mAmp.plot);  mAmp.band->setPen(Qt::NoPen);  mAmp.band->setBrush(QColor(40,80,200,40));
-    mBe.band   = new QCPItemRect(mBe.plot);   mBe.band->setPen(Qt::NoPen);   mBe.band->setBrush(QColor(30,150,60,40));
+    // 변동범위 밴드(반투명) + 우측 상단 통계 텍스트(최대/최소/σ) — 각 레인.
+    struct LB { Lane *L; QColor c; } lanes[] = {
+        {&mRate, QColor(200,40,140)}, {&mAmp, QColor(40,80,200)}, {&mBe, QColor(30,150,60)} };
+    for (const LB &lb : lanes) {
+        Lane *L = lb.L;
+        L->band = new QCPItemRect(L->plot); L->band->setPen(Qt::NoPen);
+        L->band->setBrush(QColor(lb.c.red(), lb.c.green(), lb.c.blue(), 40));
+        // 그래프 맨 오른쪽(우상단)에 고정된 통계 라벨.
+        L->stats = new QCPItemText(L->plot);
+        L->stats->setLayer(QStringLiteral("overlay"));
+        L->stats->position->setType(QCPItemPosition::ptAxisRectRatio);
+        L->stats->position->setCoords(0.995, 0.04);
+        L->stats->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
+        L->stats->setTextAlignment(Qt::AlignRight);
+        L->stats->setFont(QFont(QStringLiteral("monospace"), 8));
+        L->stats->setColor(lb.c.darker(150));
+        L->stats->setPadding(QMargins(4,2,4,2));
+        L->stats->setBrush(QColor(255,255,255,190));
+        L->stats->setPen(QPen(QColor(lb.c.red(), lb.c.green(), lb.c.blue(), 120)));
+    }
     lay->addWidget(mRate.plot, 1);
     lay->addWidget(mAmp.plot, 1);
     lay->addWidget(mBe.plot, 1);
     onResetSession();
 }
 
-void TabLongTermPerformance::redrawLane(Lane &L, const QColor &)
+void TabLongTermPerformance::redrawLane(Lane &L, const QString &unit)
 {
     if (!L.have) return;
     L.plot->graph(1)->setData({L.xFirst, L.xLast}, {L.avg(), L.avg()});   // 기간 평균선
@@ -77,15 +87,21 @@ void TabLongTermPerformance::redrawLane(Lane &L, const QColor &)
     const double sg = L.sigma();
     L.band->topLeft->setCoords(L.xFirst, L.avg() + sg);
     L.band->bottomRight->setCoords(L.xLast, L.avg() - sg);
+    // 그래프 맨 오른쪽 통계 라벨: 최대/최소/표준편차.
+    if (L.stats)
+        L.stats->setText(QStringLiteral("max %1%4\nmin %2%4\n σ  %3%4")
+                             .arg(L.max, 0, 'f', 2).arg(L.min, 0, 'f', 2)
+                             .arg(sg, 0, 'f', 2).arg(unit));
 }
 
 void TabLongTermPerformance::applyView()
 {
-    const double viewSec = mPeriod ? mPeriod->currentData().toDouble() : 0.0;
+    // X축 8분 고정: 경과<8분이면 [0,8분], 그 이후엔 최근 8분만 보이도록 흘러간다.
+    const double lo = (mCurX <= kWindowSec) ? 0.0 : (mCurX - kWindowSec);
+    const double hi = lo + kWindowSec;
     for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) {
         if (!p) continue;
-        if (viewSec > 0.0) p->xAxis->setRange(std::max(0.0, mCurX - viewSec), mCurX);
-        else               p->xAxis->rescale();           // 전체 보기
+        p->xAxis->setRange(lo, hi);
         p->graph(0)->rescaleValueAxis(false, true);       // 보이는 구간 기준 세로 스케일
         p->yAxis->scaleRange(1.1, p->yAxis->range().center());
     }
@@ -105,7 +121,9 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
         if (s.rateValid)      { mRate.add(x, s.rate);        mRate.plot->graph(0)->addData(x, s.rate); }
         if (s.amplitudeValid) { mAmp.add(x, s.amplitudeDeg); mAmp.plot->graph(0)->addData(x, s.amplitudeDeg); }
         if (s.beatErrorValid) { mBe.add(x, s.beatErrorMs);   mBe.plot->graph(0)->addData(x, s.beatErrorMs); }
-        redrawLane(mRate, {}); redrawLane(mAmp, {}); redrawLane(mBe, {});
+        redrawLane(mRate, QString());
+        redrawLane(mAmp, QStringLiteral("°"));
+        redrawLane(mBe, QStringLiteral("ms"));
     }
     if (isVisible()) {
         applyView();
@@ -125,6 +143,7 @@ void TabLongTermPerformance::onResetSession()
         L->sum=0; L->sumSq=0; L->min=0; L->max=0; L->n=0; L->have=false; L->xFirst=L->xLast=0;
         if (L->plot) { L->plot->graph(0)->data()->clear(); L->plot->graph(1)->data()->clear(); }
         if (L->band) { L->band->topLeft->setCoords(0,0); L->band->bottomRight->setCoords(0,0); }
+        if (L->stats) L->stats->setText(QString());
     }
     if (mBar) mBar->update(MeasurementSnapshot{});
     for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot();
