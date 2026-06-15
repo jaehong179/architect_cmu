@@ -2,6 +2,7 @@
 #include "ReadoutBar.h"
 #include "qcustomplot.h"
 #include <QSpinBox>
+#include <QCheckBox>
 #include <QHBoxLayout>
 #include <algorithm>
 #include <cmath>
@@ -11,14 +12,17 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Escapement Analyzer</b> — 한 박자의 Tick(좌)·Tock(우) 버스트를 ms 축에 펼침. 각 버스트의 "
-        "T1(첫 소리)·T3(셋째 소리)을 빨강 세로선 + 간격(ms)으로 표시. 녹색 세로선 = 이상적 Tock T3 위치, "
-        "중앙 어두운 곡선 = Tick·Tock Beat Error. (FR-EAM)"), this));
+        "<b>Escapement Analyzer</b> — beat 동기 <b>고정 x축</b>에 Tick(좌)·Tock(우) <b>원신호(raw)</b> 버스트. "
+        "빨강 세로선 = T1/T3 + 간격(ms), 녹색 = 이상적 Tock T3, 자홍/청록 점선 = onset/peak. "
+        "<b>가운데 점열</b> = 최근 비트 타이밍 마커: Tic(파랑)·Tac(빨강), <b>두 점열 간격 = beat error</b>, <b>기울기 = rate</b>. (FR-EAM)"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("threshold %:"), this));
     mThresh = new QSpinBox(this); mThresh->setRange(1, 30); mThresh->setValue(4);   // 참조 그림 "threshold 4%"
     ctl->addWidget(mThresh);
+    mOnsetPeak = new QCheckBox(QStringLiteral("onset↔peak 비교"), this);
+    mOnsetPeak->setChecked(true);
+    ctl->addWidget(mOnsetPeak);
     ctl->addStretch(1);
     mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -26,69 +30,103 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     lay->addLayout(ctl);
 
     mPlot = new QCustomPlot(this);
-    mPlot->addGraph();
-    mPlot->graph(0)->setPen(QPen(QColor(120, 110, 0)));
-    mPlot->graph(0)->setBrush(QColor(235, 215, 0, 150));            // 노란 채움(area)
+    mPlot->addGraph();                                            // graph(0) = 원신호(raw bipolar)
+    mPlot->graph(0)->setPen(QPen(QColor(110, 110, 110)));
+    mPlot->addGraph();                                            // graph(1) = Tic 점(파랑)
+    mPlot->graph(1)->setLineStyle(QCPGraph::lsNone);
+    mPlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(40, 80, 200), 3));
+    mPlot->graph(1)->setName(QStringLiteral("Tic (똑)"));
+    mPlot->addGraph();                                            // graph(2) = Tac 점(빨강)
+    mPlot->graph(2)->setLineStyle(QCPGraph::lsNone);
+    mPlot->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200, 40, 40), 3));
+    mPlot->graph(2)->setName(QStringLiteral("Tac (딱)"));
     mPlot->xAxis->setLabel(QStringLiteral("time (ms, 0 = Tick T1)"));
-    mPlot->yAxis->setLabel(QStringLiteral("envelope"));
-    // 중앙 Beat Error 곡선(어두운 선) — 본축 위 중앙 밴드에 Tick·Tock 박자오차 이력을 표시.
-    mPlot->addGraph();
-    mPlot->graph(1)->setPen(QPen(QColor(40, 40, 40), 1.4));
+    mPlot->yAxis->setLabel(QStringLiteral("raw signal"));
     lay->addWidget(mPlot, 1);
 
     connect(mThresh, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });
+    connect(mOnsetPeak, &QCheckBox::toggled, this, [this](bool){ if (isVisible()) render(); });
 }
 
 void TabEscapementAnalyzer::onMeasurement(const MeasurementSnapshot &s)
 {
     if (mBar) mBar->update(s);
-    // beat error 이력 누적(중앙 곡선용) — 최근 200개 유지.
-    mBeValid = s.beatErrorValid;
-    if (s.beatErrorValid) {
-        mBeHist.push_back(s.beatErrorMs);
-        if (mBeHist.size() > 200) mBeHist.remove(0, mBeHist.size() - 200);
-    }
+    if (s.beatErrorValid) mLastBeatErr = s.beatErrorMs;
 }
 
 void TabEscapementAnalyzer::onWave(const WaveBlock &w)
 {
-    if (!mConfigured && w.sampleRateHz > 0) { mBuf.configure(w.sampleRateHz); mConfigured = true; }
-    mBuf.push(w);
+    if (!mConfigured && w.sampleRateHz > 0) {
+        mBuf.configure(w.sampleRateHz);
+        mRawBuf.configure(w.sampleRateHz);
+        mConfigured = true;
+    }
+    mBuf.push(w);                                                // 엔벨로프 + 이벤트(마커/동기)
+    if (w.raw && w.rawN > 0) {                                   // 원신호 → mRawBuf (표시용)
+        WaveBlock rb;
+        rb.env = w.raw; rb.n = w.rawN; rb.startSample = w.rawStart;
+        rb.sampleRateHz = w.sampleRateHz; rb.bph = w.bph; rb.synced = w.synced;
+        mRawBuf.push(rb);
+    }
+    accumBeats(w);                                              // 가운데 점열 누적
     if (isVisible()) render();
 }
 
-static void vline(QCustomPlot *p, double xMs, double y0, double y1, const QColor &c, Qt::PenStyle st, double w = 1)
+// 새 A 이벤트마다 비트 타이밍오차 점 누적(E1~E3). 짝수 비트=Tic, 홀수=Tac.
+void TabEscapementAnalyzer::accumBeats(const WaveBlock &w)
+{
+    if (w.sampleRateHz <= 0 || !w.synced || w.bph <= 0) return;
+    if (mAnchored && w.bph != mAncBph) { mAnchored = false; mEnVal.clear(); mEnN.clear(); }
+    const double sr = (double)w.sampleRateHz;
+    const double iTargetMs = 3600.0 / w.bph * 1000.0;            // E1: I_target = 3600/BPH (ms)
+    for (int i = 0; i < w.numEvents; ++i) {
+        const WaveEvent &e = w.events[i];
+        if (e.type != 1) continue;                              // A 이벤트(T1)만 타이밍 기준
+        if (mAnchored && e.sample <= mLastA) continue;
+        if (!mAnchored) { mTstart = e.sample; mBeatN = 0; mLastA = e.sample; mAncBph = w.bph; mAnchored = true; continue; }
+        const double dtMs = (double)(e.sample - mTstart) / sr * 1000.0;
+        const long n = (long)std::llround(dtMs / iTargetMs);    // 비트 번호(누락 견딤)
+        if (n <= mBeatN) { mLastA = e.sample; continue; }
+        mBeatN = n; mLastA = e.sample;
+        const double En = dtMs - (double)n * iTargetMs;         // E2: Eₙ = T측정 − (T시작 + n·I목표)
+        mEnVal.push_back(-En); mEnN.push_back(n);               // 빠름=+ (랩 없이 누적, 표시 때 평균 기준 정렬)
+        while (mEnVal.size() > kHist) { mEnVal.remove(0); mEnN.remove(0); }
+    }
+}
+
+static void vline(QCustomPlot *p, double xMs, double y0, double y1, const QColor &c, double w = 1.4)
 {
     auto *ln = new QCPItemLine(p);
     ln->start->setCoords(xMs, y0); ln->end->setCoords(xMs, y1);
-    ln->setPen(QPen(c, w, st));
+    ln->setPen(QPen(c, w));
 }
 
 void TabEscapementAnalyzer::render()
 {
-    if (!mBuf.hasData()) return;
-    const int sr = mBuf.sampleRate() > 0 ? mBuf.sampleRate() : 48000;
+    if (!mRawBuf.hasData()) return;
+    const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
+    const double preMs = 5.0, tailMs = 25.0;
+    const int pre = (int)(preMs / 1000.0 * sr);
+    const int beat = mBuf.samplesPerBeat();
+
     uint64_t lastA;
-    if (!mBuf.latestEvent(1, lastA)) {                  // 미동기: A 대기 — 최근 40ms 만 표시.
+    if (!mBuf.latestEvent(1, lastA) || beat <= 0) {              // 미동기: 최근 40ms 원신호만(마커 없음).
         const int n = (int)(0.040 * sr);
-        const uint64_t from = mBuf.latestAbs() > (uint64_t)n ? mBuf.latestAbs() - n : 0;
-        QVector<double> y; mBuf.copyRange(from, n, y);
-        QVector<double> x(n); for (int i = 0; i < n; ++i) x[i] = 1000.0 * i / sr;
+        const uint64_t from = mRawBuf.latestAbs() > (uint64_t)n ? mRawBuf.latestAbs() - n : 0;
+        QVector<double> yy; mRawBuf.copyRange(from, n, yy);
+        QVector<double> xx(n); for (int i = 0; i < n; ++i) xx[i] = 1000.0 * i / sr;
         mPlot->clearItems();
-        mPlot->graph(0)->setData(x, y, true);
-        mPlot->graph(1)->data()->clear();
-        mPlot->rescaleAxes();
+        mPlot->graph(0)->setData(xx, yy, true);
+        mPlot->graph(1)->data()->clear(); mPlot->graph(2)->data()->clear();
+        double a = 0.001; for (double v : yy) a = std::max(a, std::abs(v));
+        mPlot->xAxis->setRange(0, 40);
+        mPlot->yAxis->setRange(-a * 1.1, a * 1.1);
         mInfo->setText(QStringLiteral("A 이벤트 대기(미동기)…"));
         mPlot->replot(QCustomPlot::rpQueuedReplot);
         return;
     }
 
-    const int beat = mBuf.samplesPerBeat();
-    const int pre  = (int)(0.002 * sr);
-    const int wpk  = (int)(0.002 * sr);                 // 국소 피크 탐색 ±2ms
-    const int tail = beat > 0 ? (int)(beat * 0.6) : (int)(0.030 * sr);
-
-    // 두 연속 onset = Tick(이전 A) + Tock(최신 A). 한 박자 안의 escapement 소리 비교.
+    // 두 연속 onset = Tick(이전 A) + Tock(최신 A).
     const QVector<WaveEvent> allEv = mBuf.eventsInRange(mBuf.oldestAbs(), mBuf.latestAbs());
     QVector<uint64_t> aList;
     for (const WaveEvent &e : allEv) if (e.type == 1) aList.push_back(e.sample);
@@ -96,60 +134,98 @@ void TabEscapementAnalyzer::render()
     const uint64_t ticA = haveTwo ? aList[aList.size() - 2] : lastA;
     const uint64_t tocA = lastA;
 
-    // 표시 창: Tick 시작(−pre) ~ Tock 버스트 끝(+tail).
+    // ── 고정 x축: [-preMs, beatMs+tailMs] — BPH(nominal beat)만으로 결정 → 좌우 흔들림 없음. ──
+    const double beatMs = 1000.0 * beat / sr;
+    const double xLo = -preMs, xHi = beatMs + tailMs;
+    const int span = (int)((xHi - xLo) / 1000.0 * sr);
     const uint64_t from = ticA > (uint64_t)pre ? ticA - pre : 0;
-    int span = (int)(tocA - from) + tail;
-    if (span < (int)(0.040 * sr)) span = (int)(0.040 * sr);
 
-    const int ticIdx = (int)(ticA - from);          // Tick T1 의 창 내 인덱스 → 이 지점을 0 ms 로.
-    QVector<double> y; mBuf.copyRange(from, span, y);
+    QVector<double> y; mRawBuf.copyRange(from, span, y);
     QVector<double> x(span);
-    for (int i = 0; i < span; ++i) x[i] = 1000.0 * (i - ticIdx) / sr;   // 0 = Tick T1 (사양 −축 포함)
+    for (int i = 0; i < span; ++i) x[i] = 1000.0 * (i - pre) / sr;     // 0 = Tick T1
     mPlot->graph(0)->setData(x, y, true);
-    const double xLo = x.first(), xHi = x.last();
+    QVector<double> env; mBuf.copyRange(from, span, env);             // onset/peak 검출용 엔벨로프
+    double envMax = 0.001; for (double v : env) envMax = std::max(envMax, v);
 
-    double ymax = 0.0; for (double v : y) if (v > ymax) ymax = v;
-    if (ymax <= 0.0) ymax = 1.0;
+    // ── y 스케일: raw 최댓값(T1/T3 의 날카로운 스파이크)이 아니라 98퍼센타일로 잡아
+    //  버스트 본체가 화면을 채우게 한다(스파이크는 살짝 클리핑). 초기 관찰 후 고정. ──
+    QVector<double> av; av.reserve(span);
+    for (double v : y) av.push_back(std::abs(v));
+    double p98 = 0.001;
+    if (!av.isEmpty()) {
+        const int k = std::min((int)av.size() - 1, (int)(av.size() * 0.98));
+        std::nth_element(av.begin(), av.begin() + k, av.end());
+        p98 = std::max(0.001, av[k]);
+    }
+    if (!mScaleLocked) {
+        mAmpScale = std::max(mAmpScale, p98);
+        if (++mScaleFrames >= kScaleWarm) mScaleLocked = true;
+    } else if (p98 > mAmpScale * 1.6 || p98 < mAmpScale * 0.4) {
+        mAmpScale = p98; mScaleFrames = 0; mScaleLocked = false;       // 진폭 크게 변함 → 재보정
+    }
+    const double A = mAmpScale * 1.25;   // 본체가 화면의 ~80% 차지
 
-    // Threshold: 검출기 onset_threshold(절대 엔벨로프 레벨) 우선, 없으면 스핀박스(창 최대 대비 %).
+    // threshold(±): 검출기 onset 레벨 우선, 없으면 % (창 최대 대비). raw 는 바이폴라라 ± 양쪽.
     const float det = mBuf.onsetThreshold();
-    const bool  fromDet = det > 0.0f && (double)det < ymax * 1.5;
-    const double thr = fromDet ? (double)det : ymax * (mThresh->value() / 100.0);
-    const double thrPct = ymax > 0.0 ? thr / ymax * 100.0 : 0.0;
+    const bool  fromDet = det > 0.0f && (double)det < A * 1.5;
+    const double thr = fromDet ? (double)det : A * (mThresh->value() / 100.0);
+    const double envThr = fromDet ? (double)det : envMax * (mThresh->value() / 100.0);
+    const bool showOP = mOnsetPeak && mOnsetPeak->isChecked();
 
     mPlot->clearItems();
-    // Threshold 녹색 수평선 + 라벨("threshold N%").
-    {
+    for (double s : {1.0, -1.0}) {
         auto *hl = new QCPItemLine(mPlot);
-        hl->start->setCoords(xLo, thr); hl->end->setCoords(xHi, thr);
+        hl->start->setCoords(xLo, s * thr); hl->end->setCoords(xHi, s * thr);
         hl->setPen(QPen(QColor(0, 160, 90), 1, Qt::DashLine));
+    }
+    {
         auto *t = new QCPItemText(mPlot);
         t->position->setCoords(xLo, thr);
-        t->setText(fromDet ? QString("threshold %1% (det)").arg(thrPct, 0, 'f', 0)
-                           : QString("threshold %1%").arg(mThresh->value()));
+        t->setText(fromDet ? QStringLiteral("threshold (det)") : QString("threshold %1%").arg(mThresh->value()));
         t->setColor(QColor(0, 130, 70));
         t->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
     }
 
-    // 한 버스트(T1=A, T3=C peak) 빨강 세로선 + 간격 라벨. 반환 = (t1Ms, t3Ms), 0 = Tick T1.
+    // onset↔peak 비교: 이벤트 부근 엔벨로프의 onset(임계 상향교차)·peak(국소최대)를 자홍/청록 점선.
+    auto markOnsetPeak = [&](uint64_t evSample, double yLo, double yHi){
+        const int c = (int)((int64_t)evSample - (int64_t)from);
+        if (c < 0 || c >= span) return;
+        const int wn = (int)(0.0025 * sr);
+        const int lo = std::max(0, c - wn), hi = std::min(span - 1, c + wn);
+        int pk = lo; for (int i = lo; i <= hi; ++i) if (env[i] > env[pk]) pk = i;
+        int on = pk; while (on > 0 && env[on] > envThr) --on;
+        const double onMs = 1000.0 * (on - pre) / sr, pkMs = 1000.0 * (pk - pre) / sr;
+        auto dline = [&](double xm, const QColor &cc){
+            auto *ln = new QCPItemLine(mPlot);
+            ln->start->setCoords(xm, yLo); ln->end->setCoords(xm, yHi);
+            ln->setPen(QPen(cc, 1.2, Qt::DashLine));
+        };
+        dline(onMs, QColor(200, 0, 200));                        // onset (자홍)
+        dline(pkMs, QColor(0, 150, 150));                        // peak  (청록)
+        auto *lb = new QCPItemText(mPlot);
+        lb->position->setCoords(pkMs, yHi);
+        lb->setText(QString("on→pk %1ms").arg(pkMs - onMs, 0, 'f', 2));
+        lb->setColor(QColor(140, 0, 140));
+        lb->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    };
+
+    // 한 버스트: T1=A, T3=A 직후 첫 C. 빨강 세로선 + 간격(ms).
     auto drawBurst = [&](uint64_t aSample, const QString &name, double &t1Ms, double &t3Ms){
-        t1Ms = 1000.0 * (double)(aSample - ticA) / sr; t3Ms = -1.0;
-        vline(mPlot, t1Ms, 0, ymax, QColor(220, 0, 0), Qt::SolidLine, 1.4);   // T1 빨강
-        auto *nl = new QCPItemText(mPlot);                                    // 버스트 이름(Tick/Tock)
-        nl->position->setCoords(t1Ms, ymax * 1.05);
+        t1Ms = 1000.0 * (double)((int64_t)aSample - (int64_t)ticA) / sr; t3Ms = -1.0;
+        vline(mPlot, t1Ms, -A, A, QColor(220, 0, 0));
+        if (showOP) markOnsetPeak(aSample, A * 0.45, A * 0.92);          // T1 onset/peak (상단)
+        auto *nl = new QCPItemText(mPlot);
+        nl->position->setCoords(t1Ms, A * 1.04);
         nl->setText(name); nl->setColor(QColor(150, 0, 0));
         nl->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
-        const QVector<WaveEvent> cs = mBuf.eventsInRange(aSample + 1, aSample + (uint64_t)tail);
+        const QVector<WaveEvent> cs = mBuf.eventsInRange(aSample + 1, aSample + (uint64_t)beat / 2);
         for (const WaveEvent &e : cs) {
             if (e.type != 2) continue;
-            const int evIdx = (int)(e.sample - from);
-            int pk = evIdx;
-            for (int i = qMax(0, evIdx - wpk); i < qMin(span, evIdx + wpk + 1); ++i)
-                if (y[i] > y[pk]) pk = i;
-            t3Ms = 1000.0 * (pk - ticIdx) / sr;
-            vline(mPlot, t3Ms, 0, ymax, QColor(220, 0, 0), Qt::SolidLine, 1.4);   // T3 빨강
-            auto *gl = new QCPItemText(mPlot);                                    // T1→T3 간격(ms)
-            gl->position->setCoords((t1Ms + t3Ms) / 2.0, ymax * 0.30);
+            t3Ms = 1000.0 * (double)((int64_t)e.sample - (int64_t)ticA) / sr;
+            vline(mPlot, t3Ms, -A, A, QColor(220, 0, 0));
+            if (showOP) markOnsetPeak(e.sample, -A * 0.92, -A * 0.45);   // T3 onset/peak (하단)
+            auto *gl = new QCPItemText(mPlot);
+            gl->position->setCoords((t1Ms + t3Ms) / 2.0, A * 0.5);
             gl->setText(QString("%1 ms").arg(t3Ms - t1Ms, 0, 'f', 1));
             gl->setColor(Qt::black);
             gl->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
@@ -161,50 +237,56 @@ void TabEscapementAnalyzer::render()
     drawBurst(ticA, QStringLiteral("Tick T1/T3"), ticT1, ticT3);
     if (haveTwo) drawBurst(tocA, QStringLiteral("Tock T1/T3"), tocT1, tocT3);
 
-    // 이상적 Tock T3(녹색 수직선): Tick T3 + 한 박자(BPH 로부터). 실제 Tock T3 와의 차 = 박자오차.
+    // 이상적 Tock T3(녹색) = Tick T3 + 한 박자(nominal).
     double idealTocMs = -1.0;
-    if (beat > 0 && ticT3 >= 0) {
-        idealTocMs = ticT3 + 1000.0 * (double)beat / sr;
-        if (idealTocMs <= xHi + 2.0) {
-            vline(mPlot, idealTocMs, 0, ymax, QColor(0, 150, 0), Qt::SolidLine, 1.6);
-            auto *gt = new QCPItemText(mPlot);
-            gt->position->setCoords(idealTocMs, ymax * 0.80);
-            gt->setText(QStringLiteral(" ideal Tock T3"));
-            gt->setColor(QColor(0, 120, 0));
-            gt->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        }
+    if (ticT3 >= 0) {
+        idealTocMs = ticT3 + beatMs;
+        vline(mPlot, idealTocMs, -A, A, QColor(0, 150, 0), 1.8);
+        auto *gt = new QCPItemText(mPlot);
+        gt->position->setCoords(idealTocMs, A * 0.82);
+        gt->setText(QStringLiteral(" ideal Tock T3"));
+        gt->setColor(QColor(0, 120, 0));
+        gt->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     }
 
-    // 중앙 Beat Error 곡선(어두운 선): Tick·Tock 박자오차 이력을 본축 중앙 밴드에 매핑.
-    if (mBeHist.size() >= 2) {
-        const int m = mBeHist.size();
-        double bmn = mBeHist[0], bmx = mBeHist[0];
-        for (double v : mBeHist) { bmn = std::min(bmn, v); bmx = std::max(bmx, v); }
-        const double bmid = 0.5 * (bmn + bmx), bspan = std::max(bmx - bmn, 0.2);
-        const double cen = ymax * 0.55, half = ymax * 0.16;   // 중앙 밴드(envelope 본축)
-        QVector<double> bx(m), by(m);
+    // ── 가운데 점열: 최근 비트 타이밍오차를 점으로 누적. Tic(짝, 파랑)·Tac(홀, 빨강). ──
+    //  x = mid + Eₙ·zoom (±kWrapMs 창을 가운데 밴드폭으로 확대), y = 오래된(아래)→최신(위).
+    //  두 점열 간격 = beat error, 기울기 = rate.
+    const int m = mEnVal.size();
+    if (m >= 1) {
+        double mean = 0; for (double v : mEnVal) mean += v; mean /= m;   // 평균 기준 정렬(랩 대신)
+        const double mid  = beatMs * 0.5;
+        const double zoom = beatMs * 0.05;     // 타이밍오차 1ms → beat 폭의 5%
+        const double band = beatMs * 0.16;     // 가운데 밴드 한계(버스트 침범 방지)
+        QVector<double> tx, ty, kx, ky;
         for (int i = 0; i < m; ++i) {
-            bx[i] = xLo + (xHi - xLo) * i / (m - 1);
-            by[i] = cen + (mBeHist[i] - bmid) / bspan * half;
+            const double yp = (m == 1) ? 0.0 : (-A * 0.9 + 1.8 * A * i / (m - 1));
+            double dx = (mEnVal[i] - mean) * zoom;
+            dx = std::max(-band, std::min(band, dx));               // 가로 폭 제한
+            const double xp = mid + dx;
+            if (mEnN[i] % 2 == 0) { tx.push_back(xp); ty.push_back(yp); }   // 짝=Tic
+            else                  { kx.push_back(xp); ky.push_back(yp); }   // 홀=Tac
         }
-        mPlot->graph(1)->setData(bx, by, true);
-        auto *bl = new QCPItemText(mPlot);                    // 곡선 라벨
-        bl->position->setCoords((xLo + xHi) / 2.0, cen + half * 1.3);
-        bl->setText(QStringLiteral("beat error (Tick·Tock)"));
-        bl->setColor(QColor(60, 60, 60));
-        bl->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
+        mPlot->graph(1)->setData(tx, ty, false);
+        mPlot->graph(2)->setData(kx, ky, false);
+        auto *ml = new QCPItemText(mPlot);
+        ml->position->setCoords(mid, A * 1.04);
+        ml->setText(QStringLiteral("beat error (Tic·Tac) / rate"));
+        ml->setColor(QColor(90, 90, 90));
+        ml->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
     } else {
-        mPlot->graph(1)->data()->clear();
+        mPlot->graph(1)->data()->clear(); mPlot->graph(2)->data()->clear();
     }
 
     mPlot->xAxis->setRange(xLo, xHi);
-    mPlot->yAxis->setRange(0, ymax * 1.18);
+    mPlot->yAxis->setRange(-A * 1.12, A * 1.12);
     const double ticGap = (ticT3 >= 0) ? ticT3 - ticT1 : -1.0;
     const double tocGap = (tocT3 >= 0) ? tocT3 - tocT1 : -1.0;
     const double drift  = (tocT3 >= 0 && idealTocMs >= 0) ? tocT3 - idealTocMs : 0.0;
-    mInfo->setText(QString("Tick T1→T3=%1ms  Tock T1→T3=%2ms  ΔTock(실−이상)=%3ms  bph=%4 %5")
-        .arg(ticGap >= 0 ? QString::number(ticGap,'f',1) : "--")
-        .arg(tocGap >= 0 ? QString::number(tocGap,'f',1) : "--")
+    mInfo->setText(QString("Tick T1→T3=%1ms  Tock T1→T3=%2ms  beat err=%3ms  ΔTock(실−이상)=%4ms  bph=%5 %6")
+        .arg(ticGap >= 0 ? QString::number(ticGap, 'f', 1) : "--")
+        .arg(tocGap >= 0 ? QString::number(tocGap, 'f', 1) : "--")
+        .arg(mLastBeatErr, 0, 'f', 2)
         .arg(drift, 0, 'f', 2).arg(mBuf.bph()).arg(mBuf.synced() ? "[synced]" : ""));
     mPlot->replot(QCustomPlot::rpQueuedReplot);
 }
@@ -213,9 +295,16 @@ void TabEscapementAnalyzer::onShown() { render(); }
 
 void TabEscapementAnalyzer::onResetSession()
 {
-    mBuf.clear(); mConfigured = false;
-    mBeHist.clear(); mBeValid = false;
+    mBuf.clear(); mRawBuf.clear(); mConfigured = false;
+    mAmpScale = 0.0; mScaleFrames = 0; mScaleLocked = false;
+    mAnchored = false; mTstart = 0; mBeatN = 0; mLastA = 0; mAncBph = 0;
+    mEnVal.clear(); mEnN.clear(); mLastBeatErr = 0.0;
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
-    if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->graph(1)->data()->clear(); mPlot->clearItems(); mPlot->replot(); }
+    if (mPlot) {
+        mPlot->graph(0)->data()->clear();
+        mPlot->graph(1)->data()->clear();
+        mPlot->graph(2)->data()->clear();
+        mPlot->clearItems(); mPlot->replot();
+    }
 }
