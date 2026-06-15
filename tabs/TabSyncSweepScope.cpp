@@ -148,7 +148,8 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     for (int k = 0; k < 4; ++k) {
         mQuad[k] = new QCustomPlot(mQuadBox);
         mQuad[k]->addGraph();
-        mQuad[k]->xAxis->setLabel(QStringLiteral("ms"));
+        mQuad[k]->xAxis->setLabel(QStringLiteral("sweep time (ms)"));
+        mQuad[k]->yAxis->setLabel(QStringLiteral("signal"));
         grid->addWidget(mQuad[k], 0, k);           // 가로 1×4 배치(사양: F0|F1|F2|F3 나란히)
     }
     mQuadBox->setVisible(false);

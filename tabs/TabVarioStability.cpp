@@ -16,11 +16,12 @@ double TabVarioStability::Stat::sigma() const
     return var > 0.0 ? std::sqrt(var) : 0.0;
 }
 
-static QCustomPlot *makeBar(QWidget *parent)
+static QCustomPlot *makeBar(QWidget *parent, const QString &xLabel)
 {
     auto *p = new QCustomPlot(parent);
     p->yAxis->setRange(0, 1); p->yAxis->setVisible(false);
     p->xAxis->setVisible(true);
+    p->xAxis->setLabel(xLabel);          // 값 축 단위(s/d 또는 °)
     p->setMinimumHeight(70);
     return p;
 }
@@ -35,10 +36,10 @@ TabVarioStability::TabVarioStability(QWidget *parent) : TabView(parent)
 
     mRateLbl = new QLabel(this); mRateLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mRateLbl);
-    mRateBar = makeBar(this); lay->addWidget(mRateBar);
+    mRateBar = makeBar(this, QStringLiteral("rate (s/d)")); lay->addWidget(mRateBar);
     mAmpLbl = new QLabel(this); mAmpLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mAmpLbl);
-    mAmpBar = makeBar(this); lay->addWidget(mAmpBar);
+    mAmpBar = makeBar(this, QStringLiteral("amplitude (°)")); lay->addWidget(mAmpBar);
     mElapsedLbl = new QLabel(this); mElapsedLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mElapsedLbl);
     lay->addStretch(1);

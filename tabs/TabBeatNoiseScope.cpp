@@ -8,13 +8,15 @@
 #include <QMouseEvent>
 #include <cmath>
 
-static QCustomPlot *miniPlot(QWidget *parent, const QString &yLabel, int minH)
+static QCustomPlot *miniPlot(QWidget *parent, const QString &yLabel, int minH,
+                             const QString &xLabel = QString())
 {
     auto *p = new QCustomPlot(parent);
     p->addGraph();
     p->graph(0)->setPen(QPen(QColor(120, 110, 0)));
     p->graph(0)->setBrush(QColor(235, 215, 0, 150));
     p->yAxis->setLabel(yLabel);
+    if (!xLabel.isEmpty()) p->xAxis->setLabel(xLabel);
     p->setMinimumHeight(minH);
     return p;
 }
@@ -52,6 +54,7 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mScope1->graph(0)->setPen(QPen(QColor(120, 110, 0)));
     mScope1->graph(0)->setBrush(QColor(235, 215, 0, 150));
     mScope1->xAxis->setLabel(QStringLiteral("time (ms)"));
+    mScope1->yAxis->setLabel(QStringLiteral("envelope (진폭)"));
     s1lay->addWidget(mScope1, 1);
     lay->addWidget(mScope1Box, 3);
 
@@ -64,8 +67,8 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mCycle->setStyleSheet(QStringLiteral("font-family:monospace;"));
     s2lay->addWidget(mCycle);
     // Plan 명시: tic/tac 축 대응을 단정하지 말 것 → 중립적으로 "trace 1/2" 표기.
-    mTr1 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ① (trace 1)"), 70);
-    mTr2 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ② (trace 2)"), 70);
+    mTr1 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ① (trace 1)"), 70, QStringLiteral("time (ms)"));
+    mTr2 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ② (trace 2)"), 70, QStringLiteral("time (ms)"));
     s2lay->addWidget(mTr1, 1);
     s2lay->addWidget(mTr2, 1);
     lay->addWidget(mScope2Box, 3);
