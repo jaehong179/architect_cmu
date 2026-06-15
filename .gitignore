@@ -17,3 +17,6 @@ mem_ext.csv
 thermal_ext.csv
 joined.csv
 corr.csv
+
+# 에디터 로컬 설정 — 추적 제외(로컬 유지)
+.vscode/
