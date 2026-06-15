@@ -5,9 +5,9 @@
 set -euo pipefail
 
 # ---- 설정: Qt / 도구 경로 ---------------------------------------------------
-QT_PREFIX="/home/lg/Qt/6.11.1/gcc_arm64"
-if [[ -x "/home/lg/Qt/Tools/CMake/bin/cmake" ]]; then
-    CMAKE="/home/lg/Qt/Tools/CMake/bin/cmake"
+QT_PREFIX="${HOME}/Qt/6.11.1/gcc_arm64"
+if [[ -x "${HOME}/Qt/Tools/CMake/bin/cmake" ]]; then
+    CMAKE="${HOME}/Qt/Tools/CMake/bin/cmake"
 else
     CMAKE="$(command -v cmake || true)"
 fi
@@ -37,7 +37,7 @@ cat <<'EOF'
 
 예시:
   # 빌드 후 자동 실행
-  build_run.sh /home/lg/Desktop/TimeGrapher_Perf/architect_cmu
+  build_run.sh ${HOME}/Desktop/TimeGrapher_Perf/architect_cmu
 
   # 깨끗이 다시 빌드만 (실행 안 함)
   build_run.sh /path/to/proj --clean --no-run
@@ -47,7 +47,7 @@ cat <<'EOF'
 
 동작:
   1) <소스경로>/CMakeLists.txt 확인
-  2) cmake 구성 (캐시 없을 때만, Qt: /home/lg/Qt/6.11.1/gcc_arm64)
+  2) cmake 구성 (캐시 없을 때만, Qt: ${HOME}/Qt/6.11.1/gcc_arm64)
   3) cmake --build --parallel (Ninja)
   4) 실행 파일 자동 감지 후 DISPLAY 잡아서 실행
 EOF
