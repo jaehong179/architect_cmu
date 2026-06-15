@@ -20,7 +20,7 @@ class TabBeatNoiseScope : public TabView
     Q_OBJECT
 public:
     explicit TabBeatNoiseScope(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Beat Scope"); }
+    QString tabTitle() const override { return QStringLiteral("Beat-Noise Scope Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;

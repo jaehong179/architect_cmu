@@ -12,7 +12,7 @@ class TabVarioStability : public TabView
     Q_OBJECT
 public:
     explicit TabVarioStability(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Vario"); }
+    QString tabTitle() const override { return QStringLiteral("Rate and Amplitude Stability Over Time"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 protected:

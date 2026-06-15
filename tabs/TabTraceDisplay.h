@@ -15,7 +15,7 @@ class TabTraceDisplay : public TabView
     Q_OBJECT
 public:
     explicit TabTraceDisplay(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Trace"); }
+    QString tabTitle() const override { return QStringLiteral("Trace Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 protected:

@@ -14,7 +14,7 @@ class TabLongTermPerformance : public TabView
     Q_OBJECT
 public:
     explicit TabLongTermPerformance(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Long-Term"); }
+    QString tabTitle() const override { return QStringLiteral("Long-Term Performance Graph"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 protected:

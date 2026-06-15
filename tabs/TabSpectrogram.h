@@ -18,7 +18,7 @@ class TabSpectrogram : public TabView
     Q_OBJECT
 public:
     explicit TabSpectrogram(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Spectrogram"); }
+    QString tabTitle() const override { return QStringLiteral("Time-Frequency Spectrogram Display"); }
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
 protected:

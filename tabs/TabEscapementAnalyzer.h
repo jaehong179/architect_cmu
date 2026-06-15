@@ -16,7 +16,7 @@ class TabEscapementAnalyzer : public TabView
     Q_OBJECT
 public:
     explicit TabEscapementAnalyzer(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Escapement"); }
+    QString tabTitle() const override { return QStringLiteral("Escapement Analyzer and Marker-Line Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;

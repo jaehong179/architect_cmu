@@ -14,7 +14,7 @@ class TabSequenceDisplay : public TabView
     Q_OBJECT
 public:
     explicit TabSequenceDisplay(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Sequence"); }
+    QString tabTitle() const override { return QStringLiteral("Multi-Position Sequence Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 private:

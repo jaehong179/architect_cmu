@@ -19,7 +19,7 @@ class TabWaveformCompare : public TabView
     Q_OBJECT
 public:
     explicit TabWaveformCompare(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Waveform Cmp"); }
+    QString tabTitle() const override { return QStringLiteral("Waveform Comparison Display with Timing Markers"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;

@@ -17,7 +17,7 @@ class TabBeatErrorTrace : public TabView
     Q_OBJECT
 public:
     explicit TabBeatErrorTrace(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Beat Error"); }
+    QString tabTitle() const override { return QStringLiteral("Beat Error Display and Diagnostic Trace"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
