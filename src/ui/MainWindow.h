@@ -5,12 +5,11 @@
 #include <QComboBox>
 #include <QTimer>     // [PERF 계측] CPU/메모리 1Hz 샘플링 타이머 (docs/PERF_VERIFICATION_GUIDE.md §C/§D)
 #include "qcustomplot.h"
-#include "AudioWorker.h"
-#include "PlaybackWorker.h"
-#include "SimWorker.h"
+#include "SharedAudio.h"
 #include "WavStreamWriter.h"
 #include "Timegrapher.h"
 #include "MeasurementEngine.h"
+#include "CaptureController.h"
 #include "WatchSynthStream.h"
 
 
@@ -50,18 +49,8 @@ private slots:
     // [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 그리기 완료(afterReplot) 시점 계측 → 진짜 종단간
     void OnScopeReplotted();
 public slots:
-    void HandleAudioInput();
-    void HandlePlaybackInput();
     void HandlePlaybackDoneReadingFile();
-    void HandleSimInput();
     void HandleSimDone();
-
-signals:
-    void LocalStartAudio(QAudioDevice InputDevice,int SampleRate,float Volume);
-    void LocalStopAudio();
-    void LocalSetAudioInputVolume(float Volume);
-    void LocalStartPlayback(const QString &FileName);
-    void LocalStartSim(WatchSynthStreamConfig cfg);
 
 private:
     Ui::MainWindow *ui;
@@ -69,17 +58,11 @@ private:
     uint64_t        mInputAbsSample = 0;      // [탭 모듈] 원신호(raw) 게시용 0-기반 입력 샘플 인덱스(이벤트/엔벨로프와 동일 좌표)
     void   RegisterDisplayTabs(void);        // [탭 모듈] 신규 탭 모듈들을 생성·등록
     void   PublishMeasurementToTabs(void);   // [탭 모듈] 현재 측정값을 스냅샷으로 탭에 게시
-    void   StartAudioThread(void);
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   CreateDectectors(void);
     void   DeleteDectectors(void);
     void   LoadAudioDevices(void);
-    void   StopAudioThread(void);
-    void   StartPlaybackThread(const QString &FileName);
-    void   StopPlaybackThread(void);
-    void   StartSimThread(WatchSynthStreamConfig cfg);
-    void   StopSimThread(void);
     bool   OpenFile(const QString &FileName);
     void   HandleInputData(TMasterAudioDataRaw *SharedDataPtr);
     void   EventsReset(void);
@@ -107,13 +90,7 @@ private:
 
     WavStreamWriter           *mWavWriter= nullptr;
     MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산(구 T*Events 대체)
-    TMasterAudioDataRaw       *mRawAudio= nullptr;
-    QThread                   *mAudioWorkerThread= nullptr;
-    TAudioWorker              *mAudioWorker= nullptr;
-    QThread                   *mPlaybackWorkerThread= nullptr;
-    TPlaybackWorker           *mPlaybackWorker= nullptr;
-    QThread                   *mSimWorkerThread= nullptr;
-    TSimWorker                *mSimWorker= nullptr;
+    CaptureController         *mCapture= nullptr;  // 오디오 소스(스레드·워커·버퍼) 오케스트레이션
     int                        mAvalableRates[5];
     int                        mNumberofRates;
     double                     mLiftAngle;

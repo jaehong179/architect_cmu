@@ -83,9 +83,11 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         # [perf] 성능 계측 (횡단 관심사)
         src/perf/PerfInstrumentation.h
         src/perf/PerfInstrumentation.cpp
-        # [engine] 측정 계산 오케스트레이션 (rate/beat/amplitude)
+        # [engine] 측정 계산 + 입력 소스 오케스트레이션
         src/engine/MeasurementEngine.h
         src/engine/MeasurementEngine.cpp
+        src/engine/CaptureController.h
+        src/engine/CaptureController.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h

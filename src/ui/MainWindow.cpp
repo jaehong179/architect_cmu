@@ -1,6 +1,8 @@
 #include <QtGlobal>
 #include "MainWindow.h"
 #include "./ui_MainWindow.h"
+#include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices) — 구 AudioWorker.h 전이 include 대체
+#include <QAudioDevice>
 #include "WaveHeader.h"
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 
@@ -161,6 +163,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     // [탭 모듈] 신규 디스플레이 탭들을 생성·등록. 코어 DSP 불변(QA-MOD-01).
     RegisterDisplayTabs();
+
+    // 오디오 소스 오케스트레이션(스레드·워커·버퍼)은 CaptureController 담당.
+    //  워커가 채운 블록 → dataReady → HandleInputData(처리). 소스 종료 → 정지 핸들러.
+    //  (cross-thread 는 워커→컨트롤러 큐 연결 1곳뿐, dataReady→HandleInputData 는 메인 스레드 직접)
+    mCapture = new CaptureController(this);
+    connect(mCapture, &CaptureController::dataReady,              this, &MainWindow::HandleInputData);
+    connect(mCapture, &CaptureController::playbackDoneReadingFile, this, &MainWindow::HandlePlaybackDoneReadingFile);
+    connect(mCapture, &CaptureController::simDone,                 this, &MainWindow::HandleSimDone);
 }
 
 // [탭 모듈 · QA-MOD-01] 기존 2개 탭(RateTab/SoundTab, MainWindow.ui 정의)에 더해 신규 탭
@@ -474,128 +484,8 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::StartAudioThread(void)
-{
-    QVariant v = ui->InputDeviceComboBox->currentData();
-    QAudioDevice InputDevice = v.value<QAudioDevice>();
-    Reset();
-    if (mRawAudio)
-    {
-        if (mRawAudio->Samples)
-        {
-            delete[] mRawAudio->Samples;
-            mRawAudio->Samples=NULL;
-        }
-        delete mRawAudio;
-        mRawAudio=NULL;
-    }
-    mRawAudio=new TMasterAudioDataRaw;
-    mRawAudio->NumberOfAudioSamples=mCurrentSamplesPerSecond * SECONDS_OF_BUFFER;
-    mRawAudio->Samples=new float[mRawAudio->NumberOfAudioSamples];
-    mAudioWorkerThread=new QThread();
-    mAudioWorker = new TAudioWorker(mRawAudio);
-    mAudioWorker->moveToThread(mAudioWorkerThread); // Move the worker to the new thread
-
-    QObject::connect(mAudioWorker, &TAudioWorker::finished, mAudioWorkerThread, &QThread::quit);
-    //QObject::connect(mAudioWorker, &TAudioWorker::finished, mAudioWorker, &QObject::deleteLater);
-    QObject::connect(mAudioWorkerThread, &QThread::finished, mAudioWorker, &QObject::deleteLater);
-    QObject::connect(mAudioWorkerThread, &QThread::finished, mAudioWorkerThread, &QObject::deleteLater);
-
-    // Connect data signal to a handler in the main thread (queued connection is automatic)
-    QObject::connect(mAudioWorker, &TAudioWorker::AudioDataReady,this,&MainWindow::HandleAudioInput);
-
-    QObject::connect(this, &MainWindow::LocalStartAudio,mAudioWorker,&TAudioWorker::StartAudioRecording);
-    QObject::connect(this, &MainWindow::LocalStopAudio,mAudioWorker,&TAudioWorker::StopAudioRecording);
-    QObject::connect(this, &MainWindow::LocalSetAudioInputVolume,mAudioWorker,&TAudioWorker::SetAudioInputVolume);
-    mAudioWorkerThread->start(QThread::TimeCriticalPriority);
-    emit LocalStartAudio(InputDevice,mCurrentSamplesPerSecond,ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
-}
-void MainWindow::StopAudioThread(void)
-{
- emit LocalStopAudio();
-}
-
-void MainWindow::StartPlaybackThread(const QString &FileName)
-{
-    Reset();
-    if (mRawAudio)
-    {
-        if (mRawAudio->Samples)
-        {
-            delete[] mRawAudio->Samples;
-            mRawAudio->Samples=NULL;
-        }
-        delete mRawAudio;
-        mRawAudio=NULL;
-    }
-    mRawAudio=new TMasterAudioDataRaw;
-    mRawAudio->NumberOfAudioSamples=mCurrentSamplesPerSecond * SECONDS_OF_BUFFER;
-    mRawAudio->Samples=new float[mRawAudio->NumberOfAudioSamples];
-    mPlaybackWorkerThread=new QThread();
-    mPlaybackWorker = new TPlaybackWorker(mRawAudio,mCurrentSamplesPerSecond);
-    mPlaybackWorker->moveToThread(mPlaybackWorkerThread); // Move the worker to the new thread
-
-    QObject::connect(mPlaybackWorker, &TPlaybackWorker::finished, mPlaybackWorkerThread, &QThread::quit);
-    //QObject::connect(mPlaybackWorker, &TPlaybackWorker::finished, mPlaybackWorker, &QObject::deleteLater);
-    QObject::connect(mPlaybackWorkerThread, &QThread::finished, mPlaybackWorker, &QObject::deleteLater);
-    QObject::connect(mPlaybackWorkerThread, &QThread::finished, mPlaybackWorkerThread, &QObject::deleteLater);
-
-    QObject::connect(this, &MainWindow::LocalStartPlayback,mPlaybackWorker,&TPlaybackWorker::StartPlayback);
-    // Connect data signal to a handler in the main thread (queued connection is automatic)
-    QObject::connect(mPlaybackWorker, &TPlaybackWorker::PlaybackDataReady,this,&MainWindow::HandlePlaybackInput);
-    QObject::connect(mPlaybackWorker, &TPlaybackWorker::PlaybackDoneReadingFile,this,&MainWindow::HandlePlaybackDoneReadingFile);
-    mPlaybackWorkerThread->start(QThread::TimeCriticalPriority);
-
-    emit LocalStartPlayback(FileName);
-}
-void MainWindow::StartSimThread(WatchSynthStreamConfig cfg)
-{
-    Reset();
-    if (mRawAudio)
-    {
-        if (mRawAudio->Samples)
-        {
-            delete[] mRawAudio->Samples;
-            mRawAudio->Samples=NULL;
-        }
-        delete mRawAudio;
-        mRawAudio=NULL;
-    }
-    mRawAudio=new TMasterAudioDataRaw;
-    mRawAudio->NumberOfAudioSamples=mCurrentSamplesPerSecond * SECONDS_OF_BUFFER;
-    mRawAudio->Samples=new float[mRawAudio->NumberOfAudioSamples];
-    mSimWorkerThread=new QThread();
-    mSimWorker = new TSimWorker(mRawAudio,mCurrentSamplesPerSecond);
-    mSimWorker->moveToThread(mSimWorkerThread); // Move the worker to the new thread
-
-    QObject::connect(mSimWorker, &TSimWorker::finished, mSimWorkerThread, &QThread::quit);
-    //QObject::connect(mSimWorker, &TSimWorker::finished, mSimWorker, &QObject::deleteLater);
-    QObject::connect(mSimWorkerThread, &QThread::finished, mSimWorker, &QObject::deleteLater);
-    QObject::connect(mSimWorkerThread, &QThread::finished, mSimWorkerThread, &QObject::deleteLater);
-
-    QObject::connect(this, &MainWindow::LocalStartSim,mSimWorker,&TSimWorker::StartSim);
-    // Connect data signal to a handler in the main thread (queued connection is automatic)
-    QObject::connect(mSimWorker, &TSimWorker::SimDataReady,this,&MainWindow::HandleSimInput);
-    QObject::connect(mSimWorker, &TSimWorker::SimDone,this,&MainWindow::HandleSimDone);
-    mSimWorkerThread->start(QThread::TimeCriticalPriority);
-
-    emit LocalStartSim(cfg);
-}
-void MainWindow::StopPlaybackThread(void)
-{
- if (mPlaybackWorkerThread)
-    {
-     mPlaybackWorkerThread->requestInterruption();
-    }
-}
-void MainWindow::StopSimThread(void)
-{
-    if (mSimWorkerThread)
-    {
-        mSimWorkerThread->requestInterruption();
-    }
-}
-
+// 오디오 소스(스레드·워커·버퍼) 관리는 CaptureController 로 이동했다.
+//  MainWindow 는 mCapture->startLive/Playback/Sim · stopX 로 제어하고, dataReady 신호를 받아 처리한다.
 
 // 스코프 마커 헬퍼(AddVerticalMarker/AddText/AddHorizontalMarker*·RemoveMarkersAndText)는
 //  ScopePlot 과 함께 TabRateScope 로 이동했다.
@@ -648,18 +538,8 @@ void MainWindow::HandleInputData(TMasterAudioDataRaw *SharedDataPtr)
        // qDebug() << "Main thread: handleResults slot is running in thread" << QThread::currentThreadId()<<" "<<count;
 }
 
-void MainWindow::HandleAudioInput()
-{
-HandleInputData(mAudioWorker->mRawAudio);
-}
-void MainWindow::HandlePlaybackInput()
-{
- HandleInputData(mPlaybackWorker->mRawAudio);
-}
-void MainWindow::HandleSimInput()
-{
- HandleInputData(mSimWorker->mRawAudio);
-}
+// HandleAudioInput/HandlePlaybackInput/HandleSimInput 은 제거 — CaptureController::dataReady 가
+//  직접 HandleInputData(raw) 로 연결된다(생성자 배선 참조).
 void MainWindow::HandlePlaybackDoneReadingFile()
 {
     SetGuiStopMode();
@@ -1140,7 +1020,9 @@ void   MainWindow::SetGuiStopMode(void)
 void   MainWindow::LiveStart(void)
 {
     if (!RecordSessionCheck()) return;
-    StartAudioThread();
+    Reset();   // 세션 리셋(탭·검출기·측정) — 구 StartAudioThread 가 하던 것
+    QAudioDevice dev = ui->InputDeviceComboBox->currentData().value<QAudioDevice>();
+    mCapture->startLive(dev, mCurrentSamplesPerSecond, ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
 }
@@ -1156,7 +1038,8 @@ void   MainWindow::PlaybackStart(void)
            && !(status=OpenFile(fileDialog.selectedFiles().constFirst()))) {
     }
     if (!status) return;
-    StartPlaybackThread(fileDialog.selectedFiles().constFirst());
+    Reset();
+    mCapture->startPlayback(fileDialog.selectedFiles().constFirst(), mCurrentSamplesPerSecond);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
 }
@@ -1188,7 +1071,8 @@ void   MainWindow::SimStart(void)
     // [PERF 계측 · §G-1 · QA-CO-01] Sim 정답 설정값 보관 — DisplayResults에서 측정값과 대비.
     mLastSimCfg = cfg;
     mSimActive  = true;
-    StartSimThread(cfg);
+    Reset();
+    mCapture->startSim(cfg, mCurrentSamplesPerSecond);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
 }
@@ -1246,7 +1130,7 @@ void MainWindow::on_AveragingPeriodComboBox_currentIndexChanged(int index)
 }
 void MainWindow::on_MicrophoneHorizontalSlider_sliderMoved(int position)
 {
-    emit LocalSetAudioInputVolume(ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
+    mCapture->setInputVolume(ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
 }
 void MainWindow::on_StartPushButton_clicked()
 {
@@ -1271,12 +1155,12 @@ void MainWindow::on_StopPushButton_clicked()
 
     if(ui->ModeComboBox->currentText()==ModeStrings[LIVE])
     {
-        StopAudioThread();
+        mCapture->stopLive();
         AudioCloseCheck();
     }
     else if(ui->ModeComboBox->currentText()==ModeStrings[PLAYBACK])
     {
-        StopPlaybackThread();
+        mCapture->stopPlayback();
 
         if (mWavWriter)
         {
@@ -1290,7 +1174,7 @@ void MainWindow::on_StopPushButton_clicked()
     }
     else if(ui->ModeComboBox->currentText()==ModeStrings[SIM])
     {
-        StopSimThread();
+        mCapture->stopSim();
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
     }
