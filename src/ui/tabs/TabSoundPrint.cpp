@@ -7,6 +7,10 @@ static constexpr int kMarkerPixelSize = 3;
 // 이벤트 타입(WaveEvent.type) — tg_event_type_t 와 동일 값.
 static constexpr int kEventA = 1;   // unlock (impulse)
 static constexpr int kEventC = 2;   // drop/lock
+// 고정 캔버스 크기(위젯 크기와 독립) — 구 .ui SoundImage 기하(1019×654)와 동일.
+//  너비=표시할 비트 컬럼 수, 높이=비트 주기 내 시간 해상도. paintEvent 가 위젯에 맞춰 스케일링.
+static constexpr int kCanvasWidth  = 1019;
+static constexpr int kCanvasHeight = 654;
 
 TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
 {
@@ -14,8 +18,8 @@ TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
     lay->setContentsMargins(0, 0, 0, 0);
     mImage = new SoundImageWidget(this);
     lay->addWidget(mImage);
-    // 위젯이 resize로 QImage를 재생성하면 렌더러를 새 이미지에 재바인딩(use-after-free 방지).
-    connect(mImage, &SoundImageWidget::imageRecreated, this, [this] { tryInitOrRebind(); });
+    // 고정 캔버스를 즉시 생성 → 탭 가시성/크기와 무관하게 항상 누적·즉시 표시(앞부분 손실·전환 지연 방지).
+    mImage->CreateImage(kCanvasWidth, kCanvasHeight);
 }
 
 // 구 MainWindow::buildSoundImageConfig 와 동일한 표시 설정.
@@ -34,20 +38,21 @@ SoundImageRenderer::Config TabSoundPrint::makeConfig(int sampleRateHz) const
     return cfg;
 }
 
-void TabSoundPrint::tryInitOrRebind()
+void TabSoundPrint::ensureRenderer()
 {
-    QImage *img = mImage->GetImage();
-    if (!img || img->isNull()) { mInitialized = false; return; }  // 아직 미배치(0크기) → 다음 호출에 재시도
+    if (mInitialized) return;
     if (mSampleRateHz <= 0) return;
-    if (!mRenderer.initialize(img, makeConfig(mSampleRateHz))) { mInitialized = false; return; }
+    QImage *img = mImage->GetImage();
+    if (!img || img->isNull()) return;                // 고정 캔버스 — 생성자 이후 항상 유효
+    if (!mRenderer.initialize(img, makeConfig(mSampleRateHz))) return;
     mRenderer.reset();
     mInitialized = true;
-    mHasBph = false;                                  // (재)초기화 후 다음 동기 프레임에서 BPH 재적용
+    mHasBph = false;                                  // (재)초기화 후 다음 동기 프레임에서 BPH 적용
 }
 
 void TabSoundPrint::onResetSession()
 {
-    mInitialized = false;   // 다음 onWave에서 현재 이미지/샘플레이트로 재초기화
+    mInitialized = false;   // 다음 onWave에서 고정 캔버스로 재초기화(누적 비움)
     mHasBph = false;
 }
 
@@ -59,8 +64,8 @@ void TabSoundPrint::onMeasurement(const MeasurementSnapshot &snap)
 void TabSoundPrint::onWave(const WaveBlock &wave)
 {
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
-    if (!mInitialized) tryInitOrRebind();
-    if (!mInitialized) return;                        // 이미지 미준비 → 이 슬라이스 건너뜀
+    ensureRenderer();
+    if (!mInitialized) return;                        // 샘플레이트 미확정 → 이 슬라이스 건너뜀
 
     // 원신호(정류 전 PCM)를 렌더러에 주입 — 폴딩 사운드 이미지 갱신.
     if (wave.raw && wave.rawN > 0)

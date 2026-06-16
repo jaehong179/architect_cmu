@@ -18,7 +18,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 private:
-    void tryInitOrRebind();                                  // 위젯 이미지+샘플레이트 준비 시 렌더러 (재)초기화
+    void ensureRenderer();                                   // 샘플레이트 확정 시 고정 캔버스로 렌더러 1회 초기화
     SoundImageRenderer::Config makeConfig(int sampleRateHz) const;
     SoundImageWidget   *mImage = nullptr;
     SoundImageRenderer  mRenderer;
