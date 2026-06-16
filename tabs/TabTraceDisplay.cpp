@@ -11,10 +11,10 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     // 그래프 읽는 법 설명(Project Plan §Trace: "short explanatory text or labels").
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>상단 rate&nbsp;:</b></td><td>"
-        "<font color='#143ca0'><b>진한선=스무딩</b></font> · 수평=정시 · 상승=빠름 · 하강=느림 (s/d)</td></tr>"
-        "<tr><td valign='top'><b>하단 amplitude&nbsp;:</b></td><td>"
-        "<font color='#00a000'>녹색 밴드 270~300°</font> = 정상 범위 (°)</td></tr>"
+        "<tr><td valign='top'><b>Top rate&nbsp;:</b></td><td>"
+        "<font color='#143ca0'><b>bold line=smoothed</b></font> · flat=on-rate · rising=fast · falling=slow (s/d)</td></tr>"
+        "<tr><td valign='top'><b>Bottom amplitude&nbsp;:</b></td><td>"
+        "<font color='#00a000'>green band 270~300°</font> = normal range (°)</td></tr>"
         "</table>"), this));
     mAlert = new QLabel(this);
     mAlert->setWordWrap(true);
@@ -98,10 +98,10 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
 
     QStringList warn;
     if (haveSmoothed && smoothed < kLateSlow)
-        warn << QString("⚠ 느림(late): %1 s/d").arg(smoothed, 0, 'f', 1);
+        warn << QString("⚠ slow (late): %1 s/d").arg(smoothed, 0, 'f', 1);
     if (s.amplitudeValid && (s.amplitudeDeg < kAmpLo || s.amplitudeDeg > kAmpHi))
-        warn << QString("⚠ amplitude 270~300° 이탈: %1°").arg(s.amplitudeDeg, 0, 'f', 0);
-    if (warn.isEmpty()) { mAlert->setText(QString("정상 · 세션평균 rate=%1 s/d  amp=%2°")
+        warn << QString("⚠ amplitude out of 270~300°: %1°").arg(s.amplitudeDeg, 0, 'f', 0);
+    if (warn.isEmpty()) { mAlert->setText(QString("Normal · session mean rate=%1 s/d  amp=%2°")
                               .arg(mRateN?QString::number(mRateSum/mRateN,'f',1):"--")
                               .arg(mAmpN?QString::number(mAmpSum/mAmpN,'f',0):"--"));
                           mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;")); }
@@ -125,7 +125,7 @@ void TabTraceDisplay::onResetSession()
 {
     mHaveT0 = false; mRateWin.clear(); mRateSum=mAmpSum=0; mRateN=mAmpN=0;
     mDevWin.clear(); mDevSum=0; mDevN=0;
-    mAlert->setText(QStringLiteral("측정 대기 중…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
+    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mRate) { mRate->graph(0)->data()->clear(); mRate->graph(1)->data()->clear(); mRate->replot(); }

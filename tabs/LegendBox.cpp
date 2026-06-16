@@ -10,7 +10,7 @@ QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent)
     auto *v = new QVBoxLayout(box);
     v->setContentsMargins(0, 0, 0, 0); v->setSpacing(2);
 
-    auto *btn = new QPushButton(QStringLiteral("▾ 범례 (접기)"), box);
+    auto *btn = new QPushButton(QStringLiteral("▾ Legend (collapse)"), box);
     btn->setCheckable(true); btn->setChecked(true);              // 기본 펼침
     btn->setStyleSheet(QStringLiteral("QPushButton{ text-align:left; border:none; font-weight:bold; padding:2px; }"));
 
@@ -21,7 +21,7 @@ QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent)
 
     QObject::connect(btn, &QPushButton::toggled, key, [btn, key](bool on){
         key->setVisible(on);
-        btn->setText(on ? QStringLiteral("▾ 범례 (접기)") : QStringLiteral("▸ 범례 (펼치기)"));
+        btn->setText(on ? QStringLiteral("▾ Legend (collapse)") : QStringLiteral("▸ Legend (expand)"));
     });
 
     v->addWidget(btn);

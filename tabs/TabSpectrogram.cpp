@@ -11,12 +11,12 @@ TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>축&nbsp;:</b></td><td>가로=시간(ms) · 세로=주파수(Hz) · 색=강도(dB)</td></tr>"
-        "<tr><td valign='top'><b>판독&nbsp;:</b></td><td>비트마다 반복되는 수직 줄무늬(에너지 버스트) 구조 관찰 (raw STFT)</td></tr>"
+        "<tr><td valign='top'><b>Axis&nbsp;:</b></td><td>horizontal=time(ms) · vertical=frequency(Hz) · color=intensity(dB)</td></tr>"
+        "<tr><td valign='top'><b>Reading&nbsp;:</b></td><td>observe the vertical stripe (energy burst) structure repeating each beat (raw STFT)</td></tr>"
         "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("창:"), this));
+    ctl->addWidget(new QLabel(QStringLiteral("Window:"), this));
     mWindowSel = new QComboBox(this);
     mWindowSel->addItem(QStringLiteral("Last Beat"), 0.0);
     mWindowSel->addItem(QStringLiteral("0.5 s"), 0.5);
@@ -38,7 +38,7 @@ TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
         "QProgressBar::chunk{background:#1faa3c;border-radius:2px;}"));   // 녹색 레벨바
     ctl->addWidget(mPeakBar, 1);
     ctl->addStretch(1);
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
+    mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
@@ -171,7 +171,7 @@ void TabSpectrogram::recompute()
     mMap->data()->setRange(QCPRange(0, winMs), QCPRange(0, sr / 2.0));
     mPlot->xAxis->setRange(0, winMs);
     mPlot->yAxis->setRange(0, sr / 2.0);
-    mInfo->setText(QString("%1  창=%2 ms  bins=%3 (0..%4 Hz)  bph=%5")
+    mInfo->setText(QString("%1  window=%2 ms  bins=%3 (0..%4 Hz)  bph=%5")
         .arg(mWindowSel->currentText()).arg(winMs, 0, 'f', 0)
         .arg(kBins).arg(sr / 2.0, 0, 'f', 0).arg(mEvtBuf.bph()));
     mPlot->replot(QCustomPlot::rpQueuedReplot);
@@ -183,7 +183,7 @@ void TabSpectrogram::onResetSession()
 {
     mBuf.clear(); mEvtBuf.clear(); mConfigured = false; mTick = 0;
     if (mMap) { mMap->data()->fill(kFloorDb); if (mPlot) mPlot->replot(); }
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPeak) { mPeak->setText(QStringLiteral("-- dBFS"));
                  mPeak->setStyleSheet(QStringLiteral("font-family:monospace; font-weight:bold;")); }
     if (mPeakBar) mPeakBar->setValue(0);

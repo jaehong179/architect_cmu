@@ -43,7 +43,7 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
 
     // 컨트롤: X축은 8분 고정이라 기간 선택 없음 — 리셋만 제공.
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("X축: 8분 고정 (이후 슬라이딩)"), this));
+    ctl->addWidget(new QLabel(QStringLiteral("X axis: fixed 8 min (sliding after)"), this));
     ctl->addStretch(1);
     auto *resetBtn = new QPushButton(QStringLiteral("↻ Reset"), this);
     ctl->addWidget(resetBtn);
@@ -84,14 +84,14 @@ void TabLongTermPerformance::redrawLane(Lane &L, const QString &unit)
     if (!L.have) return;
     L.plot->graph(1)->setData({L.xFirst, L.xLast}, {L.avg(), L.avg()});   // 기간 평균선
     // Plan: "visually indicate the range of typical variation" → 평균±σ 밴드(이상치에 안 끌려감).
-    const double sg = L.sigma();
-    L.band->topLeft->setCoords(L.xFirst, L.avg() + sg);
-    L.band->bottomRight->setCoords(L.xLast, L.avg() - sg);
+    const double sigma = L.sigma();
+    L.band->topLeft->setCoords(L.xFirst, L.avg() + sigma);
+    L.band->bottomRight->setCoords(L.xLast, L.avg() - sigma);
     // 그래프 맨 오른쪽 통계 라벨: 최대/최소/표준편차.
     if (L.stats)
         L.stats->setText(QStringLiteral("max %1%4\nmin %2%4\n σ  %3%4")
                              .arg(L.max, 0, 'f', 2).arg(L.min, 0, 'f', 2)
-                             .arg(sg, 0, 'f', 2).arg(unit));
+                             .arg(sigma, 0, 'f', 2).arg(unit));
 }
 
 void TabLongTermPerformance::applyView()

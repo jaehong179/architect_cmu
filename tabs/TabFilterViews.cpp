@@ -33,20 +33,20 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>필터&nbsp;:</b></td><td>"
-        "<font color='#dc143c'><b>F0</b></font>=Raw 미러(원신호) · "
-        "<font color='#006e00'><b>F1</b></font>=이동평균(평활·잡음↓) · "
-        "<font color='#e17800'><b>F2</b></font>=상승강조+지수감쇠(T3·T2) · "
-        "<font color='#5a3cc8'><b>F3</b></font>=정류+상승에지+포물선감쇠(T1·T3)</td></tr>"
-        "<tr><td valign='top'><b>표시&nbsp;:</b></td><td>박자(T1) 정렬 고정창 · "
-        "F0·F1·F2 미러(±) · F3 upper(정류) · y축=진폭(정규화) · 가운데 점선=T1/T2/T3</td></tr>"
+        "<tr><td valign='top'><b>Filter&nbsp;:</b></td><td>"
+        "<font color='#dc143c'><b>F0</b></font>=Raw mirror(original) · "
+        "<font color='#006e00'><b>F1</b></font>=moving average(smoothing·noise↓) · "
+        "<font color='#e17800'><b>F2</b></font>=rising-emphasis+exponential decay(T3·T2) · "
+        "<font color='#5a3cc8'><b>F3</b></font>=rectified+rising edge+parabolic decay(T1·T3)</td></tr>"
+        "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>beat(T1)-aligned fixed window · "
+        "F0·F1·F2 mirror(±) · F3 upper(rectified) · y axis=amplitude(normalized) · center dashed lines=T1/T2/T3</td></tr>"
         "</table>"), this));
 
     auto *ctl = new QHBoxLayout();                       // Pause + 상태
     mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);
     ctl->addWidget(mPause);
     ctl->addStretch(1);
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
+    mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
@@ -80,7 +80,7 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
         p->graph(1)->setVisible(kScopeMirror[k]);       // upper 패널(F2·F3)은 하단 그래프 숨김
         p->setNoAntialiasingOnDrag(true);
         p->xAxis->setLabel(QStringLiteral("time (ms, 0=T1)"));
-        p->yAxis->setLabel(kScopeMirror[k] ? QStringLiteral("진폭(정규화) ±") : QStringLiteral("진폭(정규화) +"));
+        p->yAxis->setLabel(kScopeMirror[k] ? QStringLiteral("amplitude(normalized) ±") : QStringLiteral("amplitude(normalized) +"));
         mQuad[k] = p;
         cl->addWidget(p, 1);
 
@@ -155,7 +155,7 @@ void TabFilterViews::render()
     computeScopeFilters(rawFull, sr, out, pulses);
 
     for (int k = 0; k < 4; ++k) drawPanel(k, out[k], warm, sweep, sr, preS, pulses);
-    mInfo->setText(QString("F0~F3  창=%1ms(0=T1)  bph=%2 %3")
+    mInfo->setText(QString("F0~F3  window=%1ms(0=T1)  bph=%2 %3")
         .arg(1000.0*sweep/sr,0,'f',0)
         .arg(mRawBuf.bph()).arg(haveA && mRawBuf.synced() ? "[beat-locked]" : "[unsynced]"));
 }
@@ -191,7 +191,7 @@ void TabFilterViews::drawPanel(int k, const QVector<double> &out, int warm, int 
     static const QColor tcol[3] = { QColor(0,160,0), QColor(230,140,0), QColor(210,0,0) };
     static const char  *tname[3] = { "T1", "T2", "T3" };
     QVector<QCPItemLine *> &lpool = mMarks[k];
-    QVector<QCPItemText *> &tpool = mTLab[k];
+    QVector<QCPItemText *> &tpool = mTLabels[k];
     int used = 0;
     const double yLo = mirror ? -top * 1.12 : 0.0, yHi = top * 1.12;
     for (int t = 0; t < 3; ++t) {
@@ -232,13 +232,13 @@ void TabFilterViews::onResetSession()
     mThrottle.invalidate();
     for (int k = 0; k < 4; ++k) mNorm[k] = 0.0;
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     for (int k = 0; k < 4; ++k) {
         QCustomPlot *p = mQuad[k];
         if (!p) continue;
         p->graph(0)->data()->clear(); p->graph(1)->data()->clear();
         for (QCPItemLine *ln : mMarks[k]) ln->setVisible(false);   // 이름(셀 라벨)은 유지, T 마커만 숨김
-        for (QCPItemText *tx : mTLab[k]) tx->setVisible(false);
+        for (QCPItemText *tx : mTLabels[k]) tx->setVisible(false);
         p->replot();
     }
 }

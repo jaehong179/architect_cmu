@@ -20,7 +20,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
 
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("포지션:"), this));
+    ctl->addWidget(new QLabel(QStringLiteral("Position:"), this));
     mPos = new QComboBox(this);
     // Plan §Test Positions (Chronoscope X1 G3 / NIHS 95-10): 수평 CH·CB + 수직 9H·6H·3H·12H,
     //  중간(intermediate) 포지션 4개 포함 → 최대 10 포지션 시퀀스.
@@ -30,15 +30,15 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
                     QStringLiteral("10H30 (int.)"), QStringLiteral("7H30 (int.)"),
                     QStringLiteral("4H30 (int.)"), QStringLiteral("1H30 (int.)")});
     ctl->addWidget(mPos);
-    mCapture = new QPushButton(QStringLiteral("현재값 캡처"), this);
-    mClear   = new QPushButton(QStringLiteral("초기화"), this);
+    mCapture = new QPushButton(QStringLiteral("Capture current"), this);
+    mClear   = new QPushButton(QStringLiteral("Reset"), this);
     ctl->addWidget(mCapture); ctl->addWidget(mClear);
     mComplete = new QLabel(this);   // 완료 인디케이터(녹색 Ok)
     mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
     ctl->addWidget(mComplete); ctl->addStretch(1);
     lay->addLayout(ctl);
 
-    mLive = new QLabel(QStringLiteral("현재: 측정 대기 중…"), this);
+    mLive = new QLabel(QStringLiteral("Current: Waiting for signal…"), this);
     mLive->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mLive);
 
@@ -71,7 +71,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
 {
     mLast = s; mHaveLast = true;
-    mLive->setText(QString("현재[%1]:  rate=%2 s/d   beat=%3 ms   amp=%4°   bph=%5")
+    mLive->setText(QString("Current[%1]:  rate=%2 s/d   beat=%3 ms   amp=%4°   bph=%5")
         .arg(mPos->currentText())
         .arg(s.rateValid ? QString::asprintf("%+.1f", s.rate) : QStringLiteral("--"))
         .arg(s.beatErrorValid ? QString::number(s.beatErrorMs,'f',2) : QStringLiteral("--"))
@@ -125,7 +125,7 @@ void TabSequenceDisplay::recomputeSummary()
             if (auto *it = mSummary->item(3, c)) {
                 const bool unbal = di > kUnbalanceSd;
                 it->setBackground(unbal ? QBrush(QColor(255, 120, 120)) : QBrush());
-                if (unbal) it->setToolTip(QStringLiteral("수직 포지션 rate 산포 과대 → 밸런스 휠 불균형 의심"));
+                if (unbal) it->setToolTip(QStringLiteral("excessive vertical-position rate spread → suspected balance-wheel unbalance"));
             }
         } else setCell(3,c,"--");
     }
@@ -145,10 +145,10 @@ void TabSequenceDisplay::updateComplete()
     int n = 0; for (bool b : have) if (b) ++n;
     if (!mComplete) return;
     if (n >= 6) {
-        mComplete->setText(QStringLiteral("✓ 시퀀스 완료 (Ok)"));
+        mComplete->setText(QStringLiteral("✓ Sequence complete (Ok)"));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#0a8a0a;"));
     } else {
-        mComplete->setText(QStringLiteral("진행 %1/6 포지션").arg(n));
+        mComplete->setText(QStringLiteral("Progress %1/6 positions").arg(n));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888;"));
     }
 }

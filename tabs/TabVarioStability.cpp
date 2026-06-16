@@ -33,11 +33,11 @@ TabVarioStability::TabVarioStability(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>밴드&nbsp;:</b></td><td>"
-        "<font color='#00a000'>녹색</font>=허용범위 · <font color='#c8a000'>노랑</font>=평균±σ</td></tr>"
-        "<tr><td valign='top'><b>화살표&nbsp;:</b></td><td>"
-        "<font color='#1e64dc'>파랑</font>=측정 min/max · <font color='#dc0000'>빨강</font>=평균</td></tr>"
-        "<tr><td valign='top'><b>판독&nbsp;:</b></td><td>min/max 폭이 좁을수록 안정(rate·amplitude 장기 안정성)</td></tr>"
+        "<tr><td valign='top'><b>Band&nbsp;:</b></td><td>"
+        "<font color='#00a000'>green</font>=normal range · <font color='#c8a000'>yellow</font>=mean±σ</td></tr>"
+        "<tr><td valign='top'><b>Arrow&nbsp;:</b></td><td>"
+        "<font color='#1e64dc'>blue</font>=measured min/max · <font color='#dc0000'>red</font>=mean</td></tr>"
+        "<tr><td valign='top'><b>Reading&nbsp;:</b></td><td>narrower min/max spread = more stable (rate·amplitude long-term stability)</td></tr>"
         "</table>"), this));
 
     mRateLbl = new QLabel(this); mRateLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -80,11 +80,11 @@ void TabVarioStability::drawBar(QCustomPlot *p, const Stat &st, double bandLo, d
     rect->setBrush(QBrush(QColor(0, 200, 0, 60)));
 
     // σ 영역(노란 밴드, X±σ) — Witschi Vario 의 평균 주위 노란 구간.
-    const double sg = st.sigma();
-    if (sg > 0.0) {
+    const double sigma = st.sigma();
+    if (sigma > 0.0) {
         auto *sig = new QCPItemRect(p);
-        sig->topLeft->setCoords(st.avg() - sg, 0.74);
-        sig->bottomRight->setCoords(st.avg() + sg, 0.26);
+        sig->topLeft->setCoords(st.avg() - sigma, 0.74);
+        sig->bottomRight->setCoords(st.avg() + sigma, 0.26);
         sig->setPen(Qt::NoPen);
         sig->setBrush(QBrush(QColor(240, 220, 0, 110)));
     }
@@ -103,8 +103,8 @@ void TabVarioStability::refresh()
     mAmpLbl->setText(QString("AMP    Min=%1   X=%2   σ=%3   Max=%4   °")
         .arg(mAmp.min,0,'f',0).arg(mAmp.avg(),0,'f',0).arg(mAmp.sigma(),0,'f',2).arg(mAmp.max,0,'f',0));
     // Witschi Vario 표기(예: 1:16)와 동일한 분:초 형식.
-    const int es = (int)mElapsed;
-    mElapsedLbl->setText(QString("ELAPSED  %1:%2").arg(es / 60).arg(es % 60, 2, 10, QLatin1Char('0')));
+    const int elapsedSec = (int)mElapsed;
+    mElapsedLbl->setText(QString("ELAPSED  %1:%2").arg(elapsedSec / 60).arg(elapsedSec % 60, 2, 10, QLatin1Char('0')));
     drawBar(mRateBar, mRate, kRateBandLo, kRateBandHi, kRateDispLo, kRateDispHi);
     drawBar(mAmpBar,  mAmp,  kAmpBandLo,  kAmpBandHi,  kAmpDispLo,  kAmpDispHi);
 }

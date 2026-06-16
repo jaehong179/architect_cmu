@@ -20,11 +20,11 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>표시&nbsp;:</b></td><td>folded "
-        "<font color='#c77dbf'>|신호−평균|</font>(정류, 양·음 절반 합침)을 바닥부터 채운 그래스 · "
-        "y축=진폭(envelope, 정규화)</td></tr>"
-        "<tr><td valign='top'><b>스윕&nbsp;:</b></td><td>창 폭 = 틱 주기 × N비트(프리러닝)</td></tr>"
-        "<tr><td valign='top'><b>동작&nbsp;:</b></td><td>정시=패턴 정지 · 빠름/느림=좌우 드리프트</td></tr>"
+        "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>folded "
+        "<font color='#c77dbf'>|signal−mean|</font>(rectified, positive·negative halves merged) grass filled from baseline · "
+        "y-axis=amplitude(envelope, normalized)</td></tr>"
+        "<tr><td valign='top'><b>Sweep&nbsp;:</b></td><td>window width = tick period × N beats(free-running)</td></tr>"
+        "<tr><td valign='top'><b>Behavior&nbsp;:</b></td><td>on-rate=pattern frozen · fast/slow=horizontal drift</td></tr>"
         "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
@@ -34,7 +34,7 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);          // 화면 정지(스코프 모드)
     ctl->addWidget(mPause);
     ctl->addStretch(1);
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
+    mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
@@ -45,7 +45,7 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     mPlot->graph(0)->setBrush(QColor(199, 125, 191, 150));   // 바닥(0)까지 채움 → 그래스
     mPlot->graph(0)->setAdaptiveSampling(true);
     mPlot->xAxis->setLabel(QStringLiteral("sweep time (ms)"));
-    mPlot->yAxis->setLabel(QStringLiteral("진폭 (envelope, 정규화 0~1)"));
+    mPlot->yAxis->setLabel(QStringLiteral("amplitude (envelope, normalized 0~1)"));
     lay->addWidget(mPlot, 1);
 
     connect(mBeats, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });
@@ -64,10 +64,10 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
     }
     mBuf.push(w);                                      // 엔벨로프 + 이벤트(마커/동기)
     if (w.raw && w.rawN > 0) {                          // 원신호 → mRawBuf (표시)
-        WaveBlock rb;
-        rb.env = w.raw; rb.n = w.rawN; rb.startSample = w.rawStart;
-        rb.sampleRateHz = w.sampleRateHz; rb.bph = w.bph; rb.synced = w.synced;
-        mRawBuf.push(rb);
+        WaveBlock rawBlock;
+        rawBlock.env = w.raw; rawBlock.n = w.rawN; rawBlock.startSample = w.rawStart;
+        rawBlock.sampleRateHz = w.sampleRateHz; rawBlock.bph = w.bph; rawBlock.synced = w.synced;
+        mRawBuf.push(rawBlock);
     }
     // 프리러닝 스윕 앵커: 동기 후 첫 A 이벤트에서 1회만 고정(이후 재정렬 금지 → 드리프트 가시화).
     if (!mHaveAnchor && w.synced) {
@@ -85,13 +85,13 @@ void TabSyncSweepScope::render()
     if (beat <= 0) beat = (int)(0.040 * sr);
     const int sweep = mBeats->value() * beat;
 
-    // 프리러닝 스윕: 창 시작 = T_anchor + k·sweep (마지막 완전한 창).
+    // 프리러닝 스윕: 창 시작 = T_anchor + sweepCount·sweep (마지막 완전한 창).
     //  정시 시계 → 매 창에서 비트가 같은 위치 = 정지. 빠름/느림 → 창마다 위치 이동 = 드리프트.
     const uint64_t latest = mRawBuf.latestAbs();
     uint64_t from;
     if (mHaveAnchor && latest > mSweepAnchor + (uint64_t)sweep) {
-        const uint64_t k = (latest - mSweepAnchor) / (uint64_t)sweep;
-        from = mSweepAnchor + (k - 1) * (uint64_t)sweep;     // 마지막 완전한 스윕 창
+        const uint64_t sweepCount = (latest - mSweepAnchor) / (uint64_t)sweep;
+        from = mSweepAnchor + (sweepCount - 1) * (uint64_t)sweep;     // 마지막 완전한 스윕 창
     } else {
         from = latest > (uint64_t)sweep ? latest - sweep : 0;   // 미동기: 최근 구간
     }
@@ -131,6 +131,6 @@ void TabSyncSweepScope::onResetSession()
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mHaveAnchor = false; mSweepAnchor = 0; mNorm = 0.0;
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->replot(); }
 }

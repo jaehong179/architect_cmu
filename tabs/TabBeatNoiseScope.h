@@ -37,7 +37,7 @@ private:
     // 활성 스코프만 그리고 스트립은 항상 갱신(스트립은 항상 하단).
     void render() { if (mShowScope2) renderScope2(); else renderScope1(); renderStrips(); }
     void onStripClicked(QMouseEvent *ev);   // 스트립 클릭 → Scope1 확대
-    double beatAmplitudeDeg(uint64_t aSample) const;   // E8: A→C 간격으로 비트 진폭(°)
+    double beatAmplitudeDeg(uint64_t aEventSample) const;   // E8: A→C 간격으로 비트 진폭(°)
 
     ReadoutBar  *mBar    = nullptr;
     QWidget     *mScope1Box = nullptr; // Scope1 컨테이너(라벨+플롯)
@@ -56,12 +56,12 @@ private:
     bool         mConfigured = false;
     bool         mShowScope2 = false; // false=Scope1, true=Scope2
     // y 스케일 안정화: 매 프레임 max 대신 스무딩 피크(상승 즉시·하강 천천히) → 출렁임 억제.
-    double       mNormScope1 = 0, mNormStrips = 0, mNormTr1 = 0, mNormTr2 = 0;
+    double       mPeakScope1 = 0, mPeakStrips = 0, mPeakTr1 = 0, mPeakTr2 = 0;
     int          mRangeMs = 20;
     int          mLiftAngle = 52;     // 최근 스냅샷의 lift angle(°) — Scope1 표시용
 
     // 비트 누적(trace1/2 평균 + 스트립)
-    uint64_t                 mLastBeatA = 0; bool mHaveLastBeat = false;
+    uint64_t                 mLastBeatASample = 0; bool mHaveLastBeat = false;
     long                     mBeatCount = 0;
     int                      mWin = 0;        // 평균 윈도우 샘플 수(20ms)
     QVector<double>          mTr1Sum, mTr2Sum; long mTr1N = 0, mTr2N = 0;
@@ -70,7 +70,7 @@ private:
     long                     mTr1AmpN = 0,  mTr2AmpN = 0;
     double                   mLastCycleAmp1 = 0, mLastCycleAmp2 = 0; bool mHaveCycleResult = false;
     QVector<QVector<double>> mRecent;          // 최근 비트(스트립용)
-    int                      mSelStrip = -1;   // 선택된 스트립(-1=라이브)
+    int                      mSelectedStrip = -1;   // 선택된 스트립(-1=라이브)
     static constexpr int     kStrips = 8;     // 최근 비트 스트립 8개
     static constexpr long    kCycleN = 50;     // Plan: 50 tic + 50 tac 간격에서 사이클 완료
 };

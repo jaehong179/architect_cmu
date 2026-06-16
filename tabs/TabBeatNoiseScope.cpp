@@ -36,20 +36,20 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
 
     auto *ctl = new QHBoxLayout();
-    mScopeToggle = new QPushButton(QStringLiteral("● Scope 1 표시 중  ▶ 클릭 시 Scope 2"), this);   // 현재 모드 + 전환
+    mScopeToggle = new QPushButton(QStringLiteral("● Scope 1 showing  ▶ click for Scope 2"), this);   // 현재 모드 + 전환
     ctl->addWidget(mScopeToggle);
     mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);                  // 화면 정지
     ctl->addWidget(mPause);
-    ctl->addWidget(new QLabel(QStringLiteral("Scope1 범위:"), this));
+    ctl->addWidget(new QLabel(QStringLiteral("Scope1 range:"), this));
     mRange = new QComboBox(this);
     mRange->addItem(QStringLiteral("20 ms"), 20);
     mRange->addItem(QStringLiteral("200 ms"), 200);
     mRange->addItem(QStringLiteral("400 ms"), 400);
     ctl->addWidget(mRange);
-    mAvg = new QCheckBox(QStringLiteral("Σ 평균"), this); mAvg->setChecked(true);
+    mAvg = new QCheckBox(QStringLiteral("Σ average"), this); mAvg->setChecked(true);
     ctl->addWidget(mAvg);
     ctl->addStretch(1);
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
+    mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
@@ -57,13 +57,13 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     // ── Scope 1 컨테이너(단일 비트 파형) ──
     mScope1Box = new QWidget(this);
     auto *s1lay = new QVBoxLayout(mScope1Box); s1lay->setContentsMargins(0, 0, 0, 0);
-    s1lay->addWidget(new QLabel(QStringLiteral("<b>Scope 1</b> — 단일 비트 파형 (A 녹색 / C 빨강, lift angle 표시)"), mScope1Box));
+    s1lay->addWidget(new QLabel(QStringLiteral("<b>Scope 1</b> — single-beat waveform (A green / C red, lift angle shown)"), mScope1Box));
     mScope1 = new QCustomPlot(mScope1Box);
     mScope1->addGraph();
     mScope1->graph(0)->setPen(QPen(QColor(120, 110, 0)));
     mScope1->graph(0)->setBrush(QColor(235, 215, 0, 150));
     mScope1->xAxis->setLabel(QStringLiteral("time (ms)"));
-    mScope1->yAxis->setLabel(QStringLiteral("진폭 (envelope)"));
+    mScope1->yAxis->setLabel(QStringLiteral("amplitude (envelope)"));
     s1lay->addWidget(mScope1, 1);
     lay->addWidget(mScope1Box, 3);
 
@@ -71,20 +71,20 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     // Plan: tic/tac 대응을 단정하지 않고 "두 평균 비트-노이즈 트레이스"로 표기.
     mScope2Box = new QWidget(this);
     auto *s2lay = new QVBoxLayout(mScope2Box); s2lay->setContentsMargins(0, 0, 0, 0);
-    s2lay->addWidget(new QLabel(QStringLiteral("<b>Scope 2</b> — 두 비트그룹(tic/tac)의 평균 비트노이즈 (고정 20 ms · Σ 사이클 50+50 → 축별 평균 진폭). 건강한 시계는 두 트레이스가 거의 겹침; 진단은 축별 평균 진폭 차이로."), mScope2Box));
+    s2lay->addWidget(new QLabel(QStringLiteral("<b>Scope 2</b> — average beat-noise of the two beat-groups (tic/tac) (fixed 20 ms · Σ cycle 50+50 → per-axis average amplitude). A healthy watch shows the two traces nearly overlapping; diagnose via the per-axis average-amplitude difference."), mScope2Box));
     mCycle = new QLabel(QStringLiteral("Σ 0/50 · 0/50"), mScope2Box);
     mCycle->setStyleSheet(QStringLiteral("font-family:monospace;"));
     s2lay->addWidget(mCycle);
     // Plan 명시: tic/tac 축 대응을 단정하지 말 것 → 중립적으로 "trace 1/2" 표기.
-    mTr1 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ① (trace 1)"), 70, QStringLiteral("time (ms)"));
-    mTr2 = miniPlot(mScope2Box, QStringLiteral("평균 비트노이즈 ② (trace 2)"), 70, QStringLiteral("time (ms)"));
+    mTr1 = miniPlot(mScope2Box, QStringLiteral("average beat-noise ① (trace 1)"), 70, QStringLiteral("time (ms)"));
+    mTr2 = miniPlot(mScope2Box, QStringLiteral("average beat-noise ② (trace 2)"), 70, QStringLiteral("time (ms)"));
     s2lay->addWidget(mTr1, 1);
     s2lay->addWidget(mTr2, 1);
     lay->addWidget(mScope2Box, 3);
     mScope2Box->setVisible(false);   // 기본 = Scope 1
 
     // ③ 하단: 최근 비트 스트립 8개 — Scope1/Scope2 무관 항상 맨 아래.
-    lay->addWidget(new QLabel(QStringLiteral("최근 비트 스트립 8개 — 하나를 클릭하면 Scope 1에서 확대(재클릭 시 라이브 복귀)"), this));
+    lay->addWidget(new QLabel(QStringLiteral("8 recent-beat thumbnails — click one to zoom in Scope 1 (click again to return to live)"), this));
     mStrips = miniPlot(this, QString(), 70);
     mStrips->xAxis->setTickLabels(false);
     connect(mStrips, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripClicked);
@@ -101,8 +101,8 @@ void TabBeatNoiseScope::applyScopeView()
 {
     if (mScope1Box) mScope1Box->setVisible(!mShowScope2);
     if (mScope2Box) mScope2Box->setVisible(mShowScope2);
-    if (mScopeToggle) mScopeToggle->setText(mShowScope2 ? QStringLiteral("● Scope 2 표시 중  ▶ 클릭 시 Scope 1")
-                                                        : QStringLiteral("● Scope 1 표시 중  ▶ 클릭 시 Scope 2"));
+    if (mScopeToggle) mScopeToggle->setText(mShowScope2 ? QStringLiteral("● Scope 2 showing  ▶ click for Scope 1")
+                                                        : QStringLiteral("● Scope 1 showing  ▶ click for Scope 2"));
     if (mRange) mRange->setEnabled(!mShowScope2);   // 범위는 Scope1 전용
     if (isVisible()) render();
 }
@@ -124,7 +124,7 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
     }
     const bool paused = mPause && mPause->isChecked();
     mBuf.push(w);
-    // Pause: 화면뿐 아니라 비트 누적/스트립/선택(mSelStrip)·평균 트레이스까지 동결.
+    // Pause: 화면뿐 아니라 비트 누적/스트립/선택(mSelectedStrip)·평균 트레이스까지 동결.
     //  → 정지 화면의 스트립과 실제 데이터가 일치하므로, 정지 후 스트립을 골라 확대하고
     //    토글 버튼으로 Scope1 ↔ Scope2 를 오가도 선택이 그대로 유지된다.
     if (!paused) { processNewBeats(); if (isVisible()) render(); }
@@ -152,7 +152,7 @@ void TabBeatNoiseScope::processNewBeats()
     if (mWin <= 0 || !mBuf.hasData()) return;
     const uint64_t latest = mBuf.latestAbs();
     if (latest <= (uint64_t)mWin) return;
-    const uint64_t scanFrom = mHaveLastBeat ? mLastBeatA + 1 : mBuf.oldestAbs();
+    const uint64_t scanFrom = mHaveLastBeat ? mLastBeatASample + 1 : mBuf.oldestAbs();
     const QVector<WaveEvent> evs = mBuf.eventsInRange(scanFrom, latest - (uint64_t)mWin + 1);
     for (const WaveEvent &e : evs) {
         if (e.type != 1) continue;                 // A 이벤트(비트 시작)
@@ -189,9 +189,9 @@ void TabBeatNoiseScope::processNewBeats()
         }
         // 스트립 링
         mRecent.push_back(beat);
-        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (mSelStrip >= 0) --mSelStrip; }
-        if (mSelStrip < -1) mSelStrip = -1;
-        mLastBeatA = e.sample; mHaveLastBeat = true; ++mBeatCount;
+        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (mSelectedStrip >= 0) --mSelectedStrip; }
+        if (mSelectedStrip < -1) mSelectedStrip = -1;
+        mLastBeatASample = e.sample; mHaveLastBeat = true; ++mBeatCount;
     }
 }
 
@@ -199,12 +199,12 @@ void TabBeatNoiseScope::renderScope1()
 {
     const int sr = mBuf.sampleRate() > 0 ? mBuf.sampleRate() : 48000;
     // 스트립이 선택되어 있으면 그 비트를 확대 표시(Plan: "select one of these prior beats for enlarged viewing").
-    if (mSelStrip >= 0 && mSelStrip < mRecent.size()) {
-        const QVector<double> &beat = mRecent[mSelStrip];
+    if (mSelectedStrip >= 0 && mSelectedStrip < mRecent.size()) {
+        const QVector<double> &beat = mRecent[mSelectedStrip];
         QVector<double> x(beat.size());
         for (int i = 0; i < beat.size(); ++i) x[i] = 1000.0 * i / sr;
         double inst = 0.0; for (double v : beat) if (v > inst) inst = v;
-        const double ymax = smoothPeak(mNormScope1, inst);   // 스무딩 피크(출렁임 억제)
+        const double ymax = smoothPeak(mPeakScope1, inst);   // 스무딩 피크(출렁임 억제)
         mScope1->clearItems();
         mScope1->graph(0)->setData(x, beat, true);
         // A 는 비트 시작(x=0) → 좌측 축에 가려지지 않도록 약간의 좌측 여백을 둔다.
@@ -230,8 +230,8 @@ void TabBeatNoiseScope::renderScope1()
         ct->setText(QString("C %1 ms").arg(cMs, 0, 'f', 1));
         ct->setColor(Qt::black);
         ct->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        mInfo->setText(QString("[선택 비트 #%1]  A→C=%2ms  lift=%3°  bph=%4")
-            .arg(mSelStrip + 1).arg(cMs, 0, 'f', 1).arg(mLiftAngle).arg(mBuf.bph()));
+        mInfo->setText(QString("[selected beat #%1]  A→C=%2ms  lift=%3°  bph=%4")
+            .arg(mSelectedStrip + 1).arg(cMs, 0, 'f', 1).arg(mLiftAngle).arg(mBuf.bph()));
         mScope1->replot(QCustomPlot::rpQueuedReplot);
         return;
     }
@@ -272,14 +272,14 @@ void TabBeatNoiseScope::renderStrips()
             if (v > ymax) ymax = v;
         }
     }
-    const double top = smoothPeak(mNormStrips, ymax > 0 ? ymax : 1.0);   // 스무딩 피크(출렁임 억제)
+    const double top = smoothPeak(mPeakStrips, ymax > 0 ? ymax : 1.0);   // 스무딩 피크(출렁임 억제)
     mStrips->graph(0)->setData(x, y, true);
     // 선택 스트립 강조 박스.
     mStrips->clearItems();
-    if (mSelStrip >= 0 && mSelStrip < mRecent.size()) {
+    if (mSelectedStrip >= 0 && mSelectedStrip < mRecent.size()) {
         auto *rect = new QCPItemRect(mStrips);
-        rect->topLeft->setCoords(mSelStrip * (winMs + 2.0), top * 1.05);
-        rect->bottomRight->setCoords(mSelStrip * (winMs + 2.0) + winMs, 0);
+        rect->topLeft->setCoords(mSelectedStrip * (winMs + 2.0), top * 1.05);
+        rect->bottomRight->setCoords(mSelectedStrip * (winMs + 2.0) + winMs, 0);
         rect->setPen(QPen(QColor(0, 80, 220), 2));
         rect->setBrush(Qt::NoBrush);
     }
@@ -296,7 +296,7 @@ void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
     const double xc = mStrips->xAxis->pixelToCoord(ev->pos().x());
     const int idx = (int)(xc / (winMs + 2.0));
     if (idx < 0 || idx >= mRecent.size()) return;
-    mSelStrip = (mSelStrip == idx) ? -1 : idx;   // 재클릭 → 라이브 복귀
+    mSelectedStrip = (mSelectedStrip == idx) ? -1 : idx;   // 재클릭 → 라이브 복귀
     // 선택 비트 확대는 Scope1 에서 — Scope2 보기였다면 Scope1 으로 전환.
     mShowScope2 = false;
     applyScopeView();          // render(Scope1) + renderStrips() 수행
@@ -325,7 +325,7 @@ static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
         t->position->setType(QCPItemPosition::ptAxisRectRatio);
         t->position->setCoords(0.985, 0.07);
         t->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
-        t->setText(QString("평균 진폭 ≈ %1°").arg(ampDeg, 0, 'f', 0));
+        t->setText(QString("average amplitude ≈ %1°").arg(ampDeg, 0, 'f', 0));
         t->setColor(QColor(170, 70, 0));
         t->setBrush(QColor(255, 255, 255, 200));
         t->setPen(QPen(QColor(170, 70, 0, 120)));
@@ -344,8 +344,8 @@ void TabBeatNoiseScope::renderScope2()
     const double amp2 = mTr2AmpN > 0 ? mTr2AmpSum / mTr2AmpN : mLastCycleAmp2;
     const bool a1 = (mTr1AmpN > 0) || mHaveCycleResult;
     const bool a2 = (mTr2AmpN > 0) || mHaveCycleResult;
-    drawTrace(mTr1, mTr1Sum, mTr1N, mTr1Last, sr, avgOn, amp1, a1, mNormTr1);
-    drawTrace(mTr2, mTr2Sum, mTr2N, mTr2Last, sr, avgOn, amp2, a2, mNormTr2);
+    drawTrace(mTr1, mTr1Sum, mTr1N, mTr1Last, sr, avgOn, amp1, a1, mPeakTr1);
+    drawTrace(mTr2, mTr2Sum, mTr2N, mTr2Last, sr, avgOn, amp2, a2, mPeakTr2);
     // 사이클 진행(중간 결과 10·20 간격 포함) / 완료 시 축별 평균 진폭(Witschi "50  X 289°" 표기).
     QString t = QString("Σ %1/%2 · %3/%4").arg(mTr1N).arg(kCycleN).arg(mTr2N).arg(kCycleN);
     auto interim = [&](long n, double ampSum, long ampN) -> QString {
@@ -356,7 +356,7 @@ void TabBeatNoiseScope::renderScope2()
     t += interim(mTr1N, mTr1AmpSum, mTr1AmpN);
     t += interim(mTr2N, mTr2AmpSum, mTr2AmpN);
     if (mHaveCycleResult)
-        t += QString("    [사이클 완료] trace1 X̄=%1°  trace2 X̄=%2°")
+        t += QString("    [cycle complete] trace1 X̄=%1°  trace2 X̄=%2°")
                  .arg(mLastCycleAmp1, 0, 'f', 0).arg(mLastCycleAmp2, 0, 'f', 0);
     mCycle->setText(t);
 }
@@ -364,15 +364,15 @@ void TabBeatNoiseScope::renderScope2()
 void TabBeatNoiseScope::onResetSession()
 {
     mBuf.clear(); mConfigured = false;
-    mLastBeatA = 0; mHaveLastBeat = false; mBeatCount = 0; mWin = 0;
+    mLastBeatASample = 0; mHaveLastBeat = false; mBeatCount = 0; mWin = 0;
     mTr1Sum.clear(); mTr2Sum.clear(); mTr1N = mTr2N = 0;
     mTr1Last.clear(); mTr2Last.clear();
     mTr1AmpSum = mTr2AmpSum = 0; mTr1AmpN = mTr2AmpN = 0;
     mHaveCycleResult = false; mLastCycleAmp1 = mLastCycleAmp2 = 0;
-    mRecent.clear(); mSelStrip = -1;
-    mNormScope1 = mNormStrips = mNormTr1 = mNormTr2 = 0;
+    mRecent.clear(); mSelectedStrip = -1;
+    mPeakScope1 = mPeakStrips = mPeakTr1 = mPeakTr2 = 0;
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mCycle) mCycle->setText(QString("Σ 0/%1 · 0/%1").arg(kCycleN));
     for (QCustomPlot *p : {mScope1, mStrips, mTr1, mTr2})
         if (p) { p->graph(0)->data()->clear(); p->clearItems(); p->replot(); }

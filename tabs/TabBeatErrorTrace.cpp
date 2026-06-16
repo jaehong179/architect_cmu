@@ -10,9 +10,9 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>기울기&nbsp;:</b></td><td>두 선의 기울기 = 보율(상승=빠름 · 하강=느림)</td></tr>"
-        "<tr><td valign='top'><b>세로 간격&nbsp;:</b></td><td>두 선(똑 Tic·딱 Toc)의 세로 간격 = 비트오차(좁을수록 정확)</td></tr>"
-        "<tr><td valign='top'><b>계산&nbsp;:</b></td><td>비트마다 Eₙ = T측정 − (T시작 + n·I목표), ±10ms 랩</td></tr>"
+        "<tr><td valign='top'><b>Slope&nbsp;:</b></td><td>Slope of the two lines = rate (rising=fast · falling=slow)</td></tr>"
+        "<tr><td valign='top'><b>Vertical gap&nbsp;:</b></td><td>Vertical gap of the two lines (Tic·Toc) = beat error (narrower is more accurate)</td></tr>"
+        "<tr><td valign='top'><b>Formula&nbsp;:</b></td><td>Each beat Eₙ = T_measured − (T_start + n·I_target), ±10ms wrap</td></tr>"
         "</table>"), this));
     mAlert = new QLabel(this); mAlert->setWordWrap(true);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
@@ -24,14 +24,14 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mPlot->graph(0)->setLineStyle(QCPGraph::lsLine);
     mPlot->graph(0)->setPen(QPen(QColor(40,80,200), 1));
     mPlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(40,80,200), 3));
-    mPlot->graph(0)->setName(QStringLiteral("Tic (똑)"));
+    mPlot->graph(0)->setName(QStringLiteral("Tic"));
     mPlot->addGraph();   // Toc (홀수 비트)
     mPlot->graph(1)->setLineStyle(QCPGraph::lsLine);
     mPlot->graph(1)->setPen(QPen(QColor(200,40,40), 1));
     mPlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200,40,40), 3));
-    mPlot->graph(1)->setName(QStringLiteral("Toc (딱)"));
+    mPlot->graph(1)->setName(QStringLiteral("Toc"));
     mPlot->xAxis->setLabel(QStringLiteral("beat #"));
-    mPlot->yAxis->setLabel(QStringLiteral("타이밍 오차 (ms) · 두 선 간격 = 비트오차"));
+    mPlot->yAxis->setLabel(QStringLiteral("timing error (ms) · gap between the two lines = beat error"));
     mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);
     mPlot->legend->setVisible(true);
 
@@ -123,7 +123,7 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
                 mGapLine->start->setCoords(xr, y0);
                 mGapLine->end->setCoords(xr, y1);
                 mGapText->position->setCoords(xr, (y0 + y1) / 2.0);
-                mGapText->setText(QString("간격=비트오차 %1 ms").arg(mBeatErrMs, 0, 'f', 2));
+                mGapText->setText(QString("gap=beat error %1 ms").arg(mBeatErrMs, 0, 'f', 2));
                 shown = true;
             }
         }
@@ -140,11 +140,11 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         const QString gapTxt = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
         QStringList warn;
         if (mBeatErrValid && mBeatErrMs > kGoodMs)
-            warn << QString("⚠ 비트오차(두 선 간격) 과대: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
+            warn << QString("⚠ beat error (gap between the two lines) too large: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
         if (std::fabs(slopeDeg) > 45.0)
-            warn << QString("⚠ MAJOR FAULT — 기울기 %1° (>45°)").arg(slopeDeg, 0, 'f', 0);
+            warn << QString("⚠ MAJOR FAULT — slope %1° (>45°)").arg(slopeDeg, 0, 'f', 0);
         if (warn.isEmpty()) {
-            mAlert->setText(QString("양호 — 비트오차(두 선 간격) %1 · 기울기 %2° (≈ %3 s/d)")
+            mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · slope %2° (≈ %3 s/d)")
                                 .arg(gapTxt).arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
             mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;"));
         } else {
@@ -167,7 +167,7 @@ void TabBeatErrorTrace::onResetSession()
     mAnchored = false; mTstart = 0; mN = 0; mLastA = 0; mBph = 0;
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
-    mAlert->setText(QStringLiteral("측정 대기 중…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
+    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);

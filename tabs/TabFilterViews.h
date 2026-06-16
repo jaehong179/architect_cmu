@@ -36,7 +36,7 @@ private:
     ReadoutBar  *mBar      = nullptr;
     QCustomPlot *mQuad[4]  = {nullptr, nullptr, nullptr, nullptr};   // F0|F1|F2|F3 가로 1×4(칸별)
     QVector<QCPItemLine *> mMarks[4];                               // T1/T2/T3 마커선 풀(재사용)
-    QVector<QCPItemText *> mTLab[4];                                // T1/T2/T3 라벨 풀(재사용)
+    QVector<QCPItemText *> mTLabels[4];                                // T1/T2/T3 라벨 풀(재사용)
     QCheckBox   *mPause    = nullptr;   // 화면 정지
     QLabel      *mInfo     = nullptr;
     WaveBuffer   mBuf;       // 엔벨로프(이벤트/마커/동기용)

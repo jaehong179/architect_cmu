@@ -14,28 +14,28 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>파형&nbsp;:</b></td><td>"
-        "<font color='#6e6e6e'>━ 회색</font>=원신호(raw, ±) · "
-        "<font color='#dc0000'><b>❘ 빨강</b></font>=T1(해방)·T3(낙하) 펄스 · "
-        "<font color='#009600'><b>❘ 녹색</b></font>=이상적 Tock T3 · "
-        "<font color='#00a05a'>┄ 녹색점선</font>=threshold(검출 임계)</td></tr>"
+        "<tr><td valign='top'><b>Waveform&nbsp;:</b></td><td>"
+        "<font color='#6e6e6e'>━ gray</font>=raw signal (raw, ±) · "
+        "<font color='#dc0000'><b>❘ red</b></font>=T1(unlock)·T3(drop) pulse · "
+        "<font color='#009600'><b>❘ green</b></font>=ideal Tock T3 · "
+        "<font color='#00a05a'>┄ green dashed</font>=threshold(detection threshold)</td></tr>"
         "<tr><td valign='top'><b>onset↔peak&nbsp;:</b></td><td>"
-        "<font color='#c800c8'>┊ 자홍</font>=onset(임계 첫 교차) · "
-        "<font color='#009696'>┊ 청록</font>=peak(엔벨로프 최대) · on→pk=onset→peak 상승시간(ms)</td></tr>"
-        "<tr><td valign='top'><b>가운데 점열&nbsp;:</b></td><td>"
-        "<font color='#2850c8'>● 파랑</font>=Tic · <font color='#c82828'>● 빨강</font>=Tac · "
-        "두 점열 간격=beat error · 기울기=rate</td></tr>"
+        "<font color='#c800c8'>┊ magenta</font>=onset(first threshold crossing) · "
+        "<font color='#009696'>┊ teal</font>=peak(envelope peak) · on→pk=onset→peak rise time(ms)</td></tr>"
+        "<tr><td valign='top'><b>center dots&nbsp;:</b></td><td>"
+        "<font color='#2850c8'>● blue</font>=Tic · <font color='#c82828'>● red</font>=Tac · "
+        "gap between the two dot rows=beat error · slope=rate</td></tr>"
         "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("threshold %:"), this));
     mThresh = new QSpinBox(this); mThresh->setRange(1, 30); mThresh->setValue(4);   // 참조 그림 "threshold 4%"
     ctl->addWidget(mThresh);
-    mOnsetPeak = new QCheckBox(QStringLiteral("onset↔peak 비교"), this);
+    mOnsetPeak = new QCheckBox(QStringLiteral("onset↔peak compare"), this);
     mOnsetPeak->setChecked(true);
     ctl->addWidget(mOnsetPeak);
     ctl->addStretch(1);
-    mInfo = new QLabel(QStringLiteral("측정 대기 중…"), this);
+    mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
     lay->addLayout(ctl);
@@ -46,13 +46,13 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     mPlot->addGraph();                                            // graph(1) = Tic 점(파랑)
     mPlot->graph(1)->setLineStyle(QCPGraph::lsNone);
     mPlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(40, 80, 200), 3));
-    mPlot->graph(1)->setName(QStringLiteral("Tic (똑)"));
+    mPlot->graph(1)->setName(QStringLiteral("Tic (tick)"));
     mPlot->addGraph();                                            // graph(2) = Tac 점(빨강)
     mPlot->graph(2)->setLineStyle(QCPGraph::lsNone);
     mPlot->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200, 40, 40), 3));
-    mPlot->graph(2)->setName(QStringLiteral("Tac (딱)"));
+    mPlot->graph(2)->setName(QStringLiteral("Tac (tock)"));
     mPlot->xAxis->setLabel(QStringLiteral("time (ms, 0 = Tick T1)"));
-    mPlot->yAxis->setLabel(QStringLiteral("진폭 (raw, bipolar)"));
+    mPlot->yAxis->setLabel(QStringLiteral("amplitude (raw, bipolar)"));
     lay->addWidget(mPlot, 1);
 
     connect(mThresh, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });
@@ -87,21 +87,21 @@ void TabEscapementAnalyzer::onWave(const WaveBlock &w)
 void TabEscapementAnalyzer::accumBeats(const WaveBlock &w)
 {
     if (w.sampleRateHz <= 0 || !w.synced || w.bph <= 0) return;
-    if (mAnchored && w.bph != mAncBph) { mAnchored = false; mEnVal.clear(); mEnN.clear(); }
+    if (mAnchored && w.bph != mAnchorBph) { mAnchored = false; mBeatErrVals.clear(); mBeatErrNums.clear(); }
     const double sr = (double)w.sampleRateHz;
     const double iTargetMs = 3600.0 / w.bph * 1000.0;            // E1: I_target = 3600/BPH (ms)
     for (int i = 0; i < w.numEvents; ++i) {
         const WaveEvent &e = w.events[i];
         if (e.type != 1) continue;                              // A 이벤트(T1)만 타이밍 기준
-        if (mAnchored && e.sample <= mLastA) continue;
-        if (!mAnchored) { mTstart = e.sample; mBeatN = 0; mLastA = e.sample; mAncBph = w.bph; mAnchored = true; continue; }
-        const double dtMs = (double)(e.sample - mTstart) / sr * 1000.0;
+        if (mAnchored && e.sample <= mLastASample) continue;
+        if (!mAnchored) { mAnchorStartSample = e.sample; mBeatNumber = 0; mLastASample = e.sample; mAnchorBph = w.bph; mAnchored = true; continue; }
+        const double dtMs = (double)(e.sample - mAnchorStartSample) / sr * 1000.0;
         const long n = (long)std::llround(dtMs / iTargetMs);    // 비트 번호(누락 견딤)
-        if (n <= mBeatN) { mLastA = e.sample; continue; }
-        mBeatN = n; mLastA = e.sample;
+        if (n <= mBeatNumber) { mLastASample = e.sample; continue; }
+        mBeatNumber = n; mLastASample = e.sample;
         const double En = dtMs - (double)n * iTargetMs;         // E2: Eₙ = T측정 − (T시작 + n·I목표)
-        mEnVal.push_back(-En); mEnN.push_back(n);               // 빠름=+ (랩 없이 누적, 표시 때 평균 기준 정렬)
-        while (mEnVal.size() > kHist) { mEnVal.remove(0); mEnN.remove(0); }
+        mBeatErrVals.push_back(-En); mBeatErrNums.push_back(n);               // 빠름=+ (랩 없이 누적, 표시 때 평균 기준 정렬)
+        while (mBeatErrVals.size() > kHist) { mBeatErrVals.remove(0); mBeatErrNums.remove(0); }
     }
 }
 
@@ -132,7 +132,7 @@ void TabEscapementAnalyzer::render()
         double a = 0.001; for (double v : yy) a = std::max(a, std::abs(v));
         mPlot->xAxis->setRange(0, 40);
         mPlot->yAxis->setRange(-a * 1.1, a * 1.1);
-        mInfo->setText(QStringLiteral("A 이벤트 대기(미동기)…"));
+        mInfo->setText(QStringLiteral("Waiting for A event (unsynced)…"));
         mPlot->replot(QCustomPlot::rpQueuedReplot);
         return;
     }
@@ -269,19 +269,19 @@ void TabEscapementAnalyzer::render()
     // ── 가운데 점열: 최근 비트 타이밍오차를 점으로 누적. Tic(짝, 파랑)·Tac(홀, 빨강). ──
     //  x = mid + Eₙ·zoom (±kWrapMs 창을 가운데 밴드폭으로 확대), y = 오래된(아래)→최신(위).
     //  두 점열 간격 = beat error, 기울기 = rate.
-    const int m = mEnVal.size();
+    const int m = mBeatErrVals.size();
     if (m >= 1) {
-        double mean = 0; for (double v : mEnVal) mean += v; mean /= m;   // 평균 기준 정렬(랩 대신)
+        double mean = 0; for (double v : mBeatErrVals) mean += v; mean /= m;   // 평균 기준 정렬(랩 대신)
         const double mid  = beatMs * 0.5;
         const double zoom = beatMs * 0.05;     // 타이밍오차 1ms → beat 폭의 5%
         const double band = beatMs * 0.16;     // 가운데 밴드 한계(버스트 침범 방지)
         QVector<double> tx, ty, kx, ky;
         for (int i = 0; i < m; ++i) {
             const double yp = (m == 1) ? 0.0 : (-A * 0.9 + 1.8 * A * i / (m - 1));
-            double dx = (mEnVal[i] - mean) * zoom;
+            double dx = (mBeatErrVals[i] - mean) * zoom;
             dx = std::max(-band, std::min(band, dx));               // 가로 폭 제한
             const double xp = mid + dx;
-            if (mEnN[i] % 2 == 0) { tx.push_back(xp); ty.push_back(yp); }   // 짝=Tic
+            if (mBeatErrNums[i] % 2 == 0) { tx.push_back(xp); ty.push_back(yp); }   // 짝=Tic
             else                  { kx.push_back(xp); ky.push_back(yp); }   // 홀=Tac
         }
         mPlot->graph(1)->setData(tx, ty, false);
@@ -300,7 +300,7 @@ void TabEscapementAnalyzer::render()
     const double ticGap = (ticT3 >= 0) ? ticT3 - ticT1 : -1.0;
     const double tocGap = (tocT3 >= 0) ? tocT3 - tocT1 : -1.0;
     const double drift  = (tocT3 >= 0 && idealTocMs >= 0) ? tocT3 - idealTocMs : 0.0;
-    mInfo->setText(QString("Tick T1→T3=%1ms  Tock T1→T3=%2ms  beat err=%3ms  ΔTock(실−이상)=%4ms  bph=%5 %6")
+    mInfo->setText(QString("Tick T1→T3=%1ms  Tock T1→T3=%2ms  beat err=%3ms  ΔTock(meas−ideal)=%4ms  bph=%5 %6")
         .arg(ticGap >= 0 ? QString::number(ticGap, 'f', 1) : "--")
         .arg(tocGap >= 0 ? QString::number(tocGap, 'f', 1) : "--")
         .arg(mLastBeatErr, 0, 'f', 2)
@@ -314,10 +314,10 @@ void TabEscapementAnalyzer::onResetSession()
 {
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mAmpScale = 0.0; mScaleFrames = 0; mScaleLocked = false;
-    mAnchored = false; mTstart = 0; mBeatN = 0; mLastA = 0; mAncBph = 0;
-    mEnVal.clear(); mEnN.clear(); mLastBeatErr = 0.0;
+    mAnchored = false; mAnchorStartSample = 0; mBeatNumber = 0; mLastASample = 0; mAnchorBph = 0;
+    mBeatErrVals.clear(); mBeatErrNums.clear(); mLastBeatErr = 0.0;
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
+    if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPlot) {
         mPlot->graph(0)->data()->clear();
         mPlot->graph(1)->data()->clear();

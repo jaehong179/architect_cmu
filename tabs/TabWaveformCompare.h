@@ -27,7 +27,7 @@ private:
     void render();
     void accumulate(const WaveBlock &w);                 // C 정렬 tic/toc 평균 + A onset 누적
     QCustomPlot *makeScope();                            // 검정 배경 흰 미러 파형 패널 1개
-    void drawAvgPanel(QCustomPlot *p, const QVector<double> &avg, const QString &title);
+    void drawAvgPanel(QCustomPlot *plot, const QVector<double> &avg, const QString &title);
     void drawPeriod();                                  // 하단: 한 박자 전체 파형
     void drawPaperstrip();                              // 좌측: tic/tac 점
 
@@ -40,15 +40,15 @@ private:
     WaveBuffer   mRawBuf;     // 바이폴라 원신호(표시)
     bool         mConfigured = false;
     int          mLiftAngle  = 52;
-    double       mAmpDeg = 0.0; bool mAmpValid = false;
+    double       mAmplitudeDeg = 0.0; bool mAmplitudeValid = false;
 
     // C 정렬 tic/toc 코히어런트 평균(EMA).
-    QVector<double> mTicAvg, mTocAvg;   // 길이 = mWin (pre+post)
-    int      mWin = 0; bool mTicInit = false, mTocInit = false;
+    QVector<double> mTicAvg, mTocAvg;   // 길이 = mWindowLen (pre+post)
+    int      mWindowLen = 0; bool mTicInit = false, mTocInit = false;
     uint64_t mLastC = 0; bool mHaveLastC = false; long mCCount = 0;
 
     // paperstrip 용 최근 A onset 절대샘플.
-    QVector<uint64_t> mAHist; uint64_t mAnchor = 0; bool mHaveAnchor = false;
+    QVector<uint64_t> mAOnsetHist; uint64_t mAnchor = 0; bool mHaveAnchor = false;
 
     static constexpr double kPreMs  = 25.0;   // C 이전(tg NEGATIVE_SPAN)
     static constexpr double kPostMs = 10.0;   // C 이후(tg POSITIVE_SPAN)
