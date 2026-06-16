@@ -11,8 +11,8 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
     // 접이식 범례(공간 확보): 버튼으로 펼침/접힘.
-    auto *legendBtn = new QPushButton(QStringLiteral("▸ 범례 (펼치기)"), this);
-    legendBtn->setCheckable(true); legendBtn->setChecked(false);
+    auto *legendBtn = new QPushButton(QStringLiteral("▾ 범례 (접기)"), this);
+    legendBtn->setCheckable(true); legendBtn->setChecked(true);   // 기본 펼침
     legendBtn->setStyleSheet(QStringLiteral("QPushButton{ text-align:left; border:none; font-weight:bold; padding:2px; }"));
     auto *key = new QLabel(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
@@ -29,7 +29,7 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
         "</table>"), this);
     key->setWordWrap(true);
     key->setStyleSheet(QStringLiteral("QLabel{ background:#f6f6f6; border:1px solid #c4c4c4; border-radius:4px; padding:5px; }"));
-    key->setVisible(false);                              // 기본 접힘
+    key->setVisible(true);                               // 기본 펼침
     connect(legendBtn, &QPushButton::toggled, this, [key, legendBtn](bool on){
         key->setVisible(on); legendBtn->setText(on ? QStringLiteral("▾ 범례 (접기)") : QStringLiteral("▸ 범례 (펼치기)"));
     });

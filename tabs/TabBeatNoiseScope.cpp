@@ -21,6 +21,15 @@ static QCustomPlot *miniPlot(QWidget *parent, const QString &yLabel, int minH,
     return p;
 }
 
+// y 스케일 안정화: 스무딩 피크(상승 즉시·하강 천천히) → 매 프레임 max 출렁임 억제.
+//  상승은 즉시라 봉우리가 잘리지 않고, 하강만 서서히 줄어 스케일이 안정적이다.
+static double smoothPeak(double &norm, double inst)
+{
+    if (inst > norm) norm = inst; else norm = 0.92 * norm + 0.08 * inst;
+    if (norm < 1e-9) norm = 1e-9;
+    return norm;
+}
+
 TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
@@ -54,7 +63,7 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     mScope1->graph(0)->setPen(QPen(QColor(120, 110, 0)));
     mScope1->graph(0)->setBrush(QColor(235, 215, 0, 150));
     mScope1->xAxis->setLabel(QStringLiteral("time (ms)"));
-    mScope1->yAxis->setLabel(QStringLiteral("envelope (진폭)"));
+    mScope1->yAxis->setLabel(QStringLiteral("진폭 (envelope)"));
     s1lay->addWidget(mScope1, 1);
     lay->addWidget(mScope1Box, 3);
 
@@ -194,8 +203,8 @@ void TabBeatNoiseScope::renderScope1()
         const QVector<double> &beat = mRecent[mSelStrip];
         QVector<double> x(beat.size());
         for (int i = 0; i < beat.size(); ++i) x[i] = 1000.0 * i / sr;
-        double ymax = 0.0; for (double v : beat) if (v > ymax) ymax = v;
-        if (ymax <= 0.0) ymax = 1.0;
+        double inst = 0.0; for (double v : beat) if (v > inst) inst = v;
+        const double ymax = smoothPeak(mNormScope1, inst);   // 스무딩 피크(출렁임 억제)
         mScope1->clearItems();
         mScope1->graph(0)->setData(x, beat, true);
         // A 는 비트 시작(x=0) → 좌측 축에 가려지지 않도록 약간의 좌측 여백을 둔다.
@@ -263,18 +272,19 @@ void TabBeatNoiseScope::renderStrips()
             if (v > ymax) ymax = v;
         }
     }
+    const double top = smoothPeak(mNormStrips, ymax > 0 ? ymax : 1.0);   // 스무딩 피크(출렁임 억제)
     mStrips->graph(0)->setData(x, y, true);
     // 선택 스트립 강조 박스.
     mStrips->clearItems();
     if (mSelStrip >= 0 && mSelStrip < mRecent.size()) {
         auto *rect = new QCPItemRect(mStrips);
-        rect->topLeft->setCoords(mSelStrip * (winMs + 2.0), (ymax > 0 ? ymax : 1.0) * 1.05);
+        rect->topLeft->setCoords(mSelStrip * (winMs + 2.0), top * 1.05);
         rect->bottomRight->setCoords(mSelStrip * (winMs + 2.0) + winMs, 0);
         rect->setPen(QPen(QColor(0, 80, 220), 2));
         rect->setBrush(Qt::NoBrush);
     }
     mStrips->xAxis->setRange(0, mRecent.size() * (winMs + 2.0));
-    mStrips->yAxis->setRange(0, (ymax > 0 ? ymax : 1.0) * 1.1);
+    mStrips->yAxis->setRange(0, top * 1.1);
     mStrips->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -294,7 +304,7 @@ void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
 
 static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
                       const QVector<double> &last, int sr, bool avgOn,
-                      double ampDeg, bool ampValid)
+                      double ampDeg, bool ampValid, double &norm)
 {
     // Σ ON: 정렬 코히어런트 평균(잡음 √N 감소). Σ OFF: 최신 단일 비트.
     const QVector<double> &src = avgOn ? sum : last;
@@ -306,8 +316,9 @@ static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
     double ymax = 0.0;
     for (int i = 0; i < w; ++i) { x[i] = 1000.0 * i / sr; y[i] = src[i] / div; if (y[i] > ymax) ymax = y[i]; }
     p->graph(0)->setData(x, y, true);
+    const double top = smoothPeak(norm, ymax > 0 ? ymax : 1.0);   // 스무딩 피크(출렁임 억제)
     p->xAxis->setRange(0, 1000.0 * w / sr);
-    p->yAxis->setRange(0, (ymax > 0 ? ymax : 1.0) * 1.1);
+    p->yAxis->setRange(0, top * 1.1);
     // Plan: "display the average amplitude on each horizontal axis" — 축별 평균 진폭 라벨.
     if (ampValid) {
         auto *t = new QCPItemText(p);
@@ -333,8 +344,8 @@ void TabBeatNoiseScope::renderScope2()
     const double amp2 = mTr2AmpN > 0 ? mTr2AmpSum / mTr2AmpN : mLastCycleAmp2;
     const bool a1 = (mTr1AmpN > 0) || mHaveCycleResult;
     const bool a2 = (mTr2AmpN > 0) || mHaveCycleResult;
-    drawTrace(mTr1, mTr1Sum, mTr1N, mTr1Last, sr, avgOn, amp1, a1);
-    drawTrace(mTr2, mTr2Sum, mTr2N, mTr2Last, sr, avgOn, amp2, a2);
+    drawTrace(mTr1, mTr1Sum, mTr1N, mTr1Last, sr, avgOn, amp1, a1, mNormTr1);
+    drawTrace(mTr2, mTr2Sum, mTr2N, mTr2Last, sr, avgOn, amp2, a2, mNormTr2);
     // 사이클 진행(중간 결과 10·20 간격 포함) / 완료 시 축별 평균 진폭(Witschi "50  X 289°" 표기).
     QString t = QString("Σ %1/%2 · %3/%4").arg(mTr1N).arg(kCycleN).arg(mTr2N).arg(kCycleN);
     auto interim = [&](long n, double ampSum, long ampN) -> QString {
@@ -359,6 +370,7 @@ void TabBeatNoiseScope::onResetSession()
     mTr1AmpSum = mTr2AmpSum = 0; mTr1AmpN = mTr2AmpN = 0;
     mHaveCycleResult = false; mLastCycleAmp1 = mLastCycleAmp2 = 0;
     mRecent.clear(); mSelStrip = -1;
+    mNormScope1 = mNormStrips = mNormTr1 = mNormTr2 = 0;
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("측정 대기 중…"));
     if (mCycle) mCycle->setText(QString("Σ 0/%1 · 0/%1").arg(kCycleN));

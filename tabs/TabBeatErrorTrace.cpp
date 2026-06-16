@@ -1,5 +1,6 @@
 #include "TabBeatErrorTrace.h"
 #include "ReadoutBar.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <cmath>
 
@@ -7,9 +8,12 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Beat Error — 똑(Tic)·딱(Toc) Trace</b> — 두 선의 <b>기울기=보율</b>(상승=빠름, 하강=느림), "
-        "두 선의 <b>세로 간격=비트오차</b>(좁을수록 정확). 비트마다 Eₙ=T측정−(T시작+n·I목표), ±10ms 랩. (FR-BED)"), this));
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>기울기&nbsp;:</b></td><td>두 선의 기울기 = 보율(상승=빠름 · 하강=느림)</td></tr>"
+        "<tr><td valign='top'><b>세로 간격&nbsp;:</b></td><td>두 선(똑 Tic·딱 Toc)의 세로 간격 = 비트오차(좁을수록 정확)</td></tr>"
+        "<tr><td valign='top'><b>계산&nbsp;:</b></td><td>비트마다 Eₙ = T측정 − (T시작 + n·I목표), ±10ms 랩</td></tr>"
+        "</table>"), this));
     mAlert = new QLabel(this); mAlert->setWordWrap(true);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
     lay->addWidget(mAlert);

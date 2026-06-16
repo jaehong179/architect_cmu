@@ -1,5 +1,6 @@
 #include "TabTraceDisplay.h"
 #include "ReadoutBar.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
@@ -8,9 +9,13 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     mBar = new ReadoutBar(this);
     lay->addWidget(mBar);
     // 그래프 읽는 법 설명(Project Plan §Trace: "short explanatory text or labels").
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Trace Display</b> — 상단 rate(s/d, 진한선=스무딩): 수평=정시, 상승=빠름, 하강=느림. "
-        "하단 amplitude(°): 녹색 밴드 270~300°가 정상 범위. (FR-TD)"), this));
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>상단 rate&nbsp;:</b></td><td>"
+        "<font color='#143ca0'><b>진한선=스무딩</b></font> · 수평=정시 · 상승=빠름 · 하강=느림 (s/d)</td></tr>"
+        "<tr><td valign='top'><b>하단 amplitude&nbsp;:</b></td><td>"
+        "<font color='#00a000'>녹색 밴드 270~300°</font> = 정상 범위 (°)</td></tr>"
+        "</table>"), this));
     mAlert = new QLabel(this);
     mAlert->setWordWrap(true);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));

@@ -55,6 +55,8 @@ private:
     WaveBuffer   mBuf;
     bool         mConfigured = false;
     bool         mShowScope2 = false; // false=Scope1, true=Scope2
+    // y 스케일 안정화: 매 프레임 max 대신 스무딩 피크(상승 즉시·하강 천천히) → 출렁임 억제.
+    double       mNormScope1 = 0, mNormStrips = 0, mNormTr1 = 0, mNormTr2 = 0;
     int          mRangeMs = 20;
     int          mLiftAngle = 52;     // 최근 스냅샷의 lift angle(°) — Scope1 표시용
 

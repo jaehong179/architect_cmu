@@ -1,6 +1,7 @@
 #include "TabFilterViews.h"
 #include "ScopeFilters.h"
 #include "ReadoutBar.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -30,6 +31,16 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>필터&nbsp;:</b></td><td>"
+        "<font color='#dc143c'><b>F0</b></font>=Raw 미러(원신호) · "
+        "<font color='#006e00'><b>F1</b></font>=이동평균(평활·잡음↓) · "
+        "<font color='#e17800'><b>F2</b></font>=상승강조+지수감쇠(T3·T2) · "
+        "<font color='#5a3cc8'><b>F3</b></font>=정류+상승에지+포물선감쇠(T1·T3)</td></tr>"
+        "<tr><td valign='top'><b>표시&nbsp;:</b></td><td>박자(T1) 정렬 고정창 · "
+        "F0·F1·F2 미러(±) · F3 upper(정류) · y축=진폭(정규화) · 가운데 점선=T1/T2/T3</td></tr>"
+        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();                       // Pause + 상태
     mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);
@@ -69,7 +80,7 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
         p->graph(1)->setVisible(kScopeMirror[k]);       // upper 패널(F2·F3)은 하단 그래프 숨김
         p->setNoAntialiasingOnDrag(true);
         p->xAxis->setLabel(QStringLiteral("time (ms, 0=T1)"));
-        p->yAxis->setLabel(kScopeMirror[k] ? QStringLiteral("정규화 ±") : QStringLiteral("정규화 +"));
+        p->yAxis->setLabel(kScopeMirror[k] ? QStringLiteral("진폭(정규화) ±") : QStringLiteral("진폭(정규화) +"));
         mQuad[k] = p;
         cl->addWidget(p, 1);
 

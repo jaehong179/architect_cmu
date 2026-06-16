@@ -1,5 +1,6 @@
 #include "TabVarioStability.h"
 #include "ReadoutBar.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <cmath>
 
@@ -30,9 +31,14 @@ TabVarioStability::TabVarioStability(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Vario Display</b> — rate·amplitude 장기 안정성. "
-        "녹색=허용범위, 노랑=평균±σ, 파란 화살표=측정 min/max, 빨간 화살표=평균. min/max 폭이 좁을수록 안정. (FR-RAS)"), this));
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>밴드&nbsp;:</b></td><td>"
+        "<font color='#00a000'>녹색</font>=허용범위 · <font color='#c8a000'>노랑</font>=평균±σ</td></tr>"
+        "<tr><td valign='top'><b>화살표&nbsp;:</b></td><td>"
+        "<font color='#1e64dc'>파랑</font>=측정 min/max · <font color='#dc0000'>빨강</font>=평균</td></tr>"
+        "<tr><td valign='top'><b>판독&nbsp;:</b></td><td>min/max 폭이 좁을수록 안정(rate·amplitude 장기 안정성)</td></tr>"
+        "</table>"), this));
 
     mRateLbl = new QLabel(this); mRateLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mRateLbl);

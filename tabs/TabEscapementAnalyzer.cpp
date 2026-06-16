@@ -1,5 +1,6 @@
 #include "TabEscapementAnalyzer.h"
 #include "ReadoutBar.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <QSpinBox>
 #include <QCheckBox>
@@ -11,10 +12,20 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     mBar = new ReadoutBar(this); lay->addWidget(mBar);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Escapement Analyzer</b> — beat 동기 <b>고정 x축</b>에 Tick(좌)·Tock(우) <b>원신호(raw)</b> 버스트. "
-        "빨강 세로선 = T1/T3 + 간격(ms), 녹색 = 이상적 Tock T3, 자홍/청록 점선 = onset/peak. "
-        "<b>가운데 점열</b> = 최근 비트 타이밍 마커: Tic(파랑)·Tac(빨강), <b>두 점열 간격 = beat error</b>, <b>기울기 = rate</b>. (FR-EAM)"), this));
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>파형&nbsp;:</b></td><td>"
+        "<font color='#6e6e6e'>━ 회색</font>=원신호(raw, ±) · "
+        "<font color='#dc0000'><b>❘ 빨강</b></font>=T1(해방)·T3(낙하) 펄스 · "
+        "<font color='#009600'><b>❘ 녹색</b></font>=이상적 Tock T3 · "
+        "<font color='#00a05a'>┄ 녹색점선</font>=threshold(검출 임계)</td></tr>"
+        "<tr><td valign='top'><b>onset↔peak&nbsp;:</b></td><td>"
+        "<font color='#c800c8'>┊ 자홍</font>=onset(임계 첫 교차) · "
+        "<font color='#009696'>┊ 청록</font>=peak(엔벨로프 최대) · on→pk=onset→peak 상승시간(ms)</td></tr>"
+        "<tr><td valign='top'><b>가운데 점열&nbsp;:</b></td><td>"
+        "<font color='#2850c8'>● 파랑</font>=Tic · <font color='#c82828'>● 빨강</font>=Tac · "
+        "두 점열 간격=beat error · 기울기=rate</td></tr>"
+        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("threshold %:"), this));
@@ -41,7 +52,7 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     mPlot->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200, 40, 40), 3));
     mPlot->graph(2)->setName(QStringLiteral("Tac (딱)"));
     mPlot->xAxis->setLabel(QStringLiteral("time (ms, 0 = Tick T1)"));
-    mPlot->yAxis->setLabel(QStringLiteral("raw signal"));
+    mPlot->yAxis->setLabel(QStringLiteral("진폭 (raw, bipolar)"));
     lay->addWidget(mPlot, 1);
 
     connect(mThresh, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });
@@ -209,24 +220,30 @@ void TabEscapementAnalyzer::render()
         lb->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
     };
 
-    // 한 버스트: T1=A, T3=A 직후 첫 C. 빨강 세로선 + 간격(ms).
-    auto drawBurst = [&](uint64_t aSample, const QString &name, double &t1Ms, double &t3Ms){
+    // 한 버스트: T1=A, T3=A 직후 첫 C. 빨강 세로선 + 각 선에 T1/T3 라벨 + 버스트 헤더(Tick/Tock).
+    auto label = [&](double xm, double yy, const QString &s, const QColor &cc, bool bold = false){
+        auto *t = new QCPItemText(mPlot);
+        t->position->setCoords(xm, yy);
+        t->setText(s); t->setColor(cc);
+        if (bold) t->setFont(QFont(QStringLiteral("sans"), 9, QFont::Bold));
+        t->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+    };
+    auto drawBurst = [&](uint64_t aSample, const QString &burst, double &t1Ms, double &t3Ms){
         t1Ms = 1000.0 * (double)((int64_t)aSample - (int64_t)ticA) / sr; t3Ms = -1.0;
         vline(mPlot, t1Ms, -A, A, QColor(220, 0, 0));
         if (showOP) markOnsetPeak(aSample, A * 0.45, A * 0.92);          // T1 onset/peak (상단)
-        auto *nl = new QCPItemText(mPlot);
-        nl->position->setCoords(t1Ms, A * 1.04);
-        nl->setText(name); nl->setColor(QColor(150, 0, 0));
-        nl->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+        label(t1Ms, A * 1.12, burst, QColor(80, 80, 80), true);         // 버스트 이름(Tick/Tock)
+        label(t1Ms, A * 1.04, QStringLiteral("T1"), QColor(190, 0, 0)); // 좌 빨강선 = T1
         const QVector<WaveEvent> cs = mBuf.eventsInRange(aSample + 1, aSample + (uint64_t)beat / 2);
         for (const WaveEvent &e : cs) {
             if (e.type != 2) continue;
             t3Ms = 1000.0 * (double)((int64_t)e.sample - (int64_t)ticA) / sr;
             vline(mPlot, t3Ms, -A, A, QColor(220, 0, 0));
             if (showOP) markOnsetPeak(e.sample, -A * 0.92, -A * 0.45);   // T3 onset/peak (하단)
+            label(t3Ms, A * 1.04, QStringLiteral("T3"), QColor(190, 0, 0));   // 우 빨강선 = T3
             auto *gl = new QCPItemText(mPlot);
             gl->position->setCoords((t1Ms + t3Ms) / 2.0, A * 0.5);
-            gl->setText(QString("%1 ms").arg(t3Ms - t1Ms, 0, 'f', 1));
+            gl->setText(QString("T1–T3 %1 ms").arg(t3Ms - t1Ms, 0, 'f', 1));
             gl->setColor(Qt::black);
             gl->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);
             break;
@@ -234,8 +251,8 @@ void TabEscapementAnalyzer::render()
     };
 
     double ticT1 = -1, ticT3 = -1, tocT1 = -1, tocT3 = -1;
-    drawBurst(ticA, QStringLiteral("Tick T1/T3"), ticT1, ticT3);
-    if (haveTwo) drawBurst(tocA, QStringLiteral("Tock T1/T3"), tocT1, tocT3);
+    drawBurst(ticA, QStringLiteral("Tick"), ticT1, ticT3);
+    if (haveTwo) drawBurst(tocA, QStringLiteral("Tock"), tocT1, tocT3);
 
     // 이상적 Tock T3(녹색) = Tick T3 + 한 박자(nominal).
     double idealTocMs = -1.0;

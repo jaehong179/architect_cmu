@@ -103,6 +103,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         tabs/TabFilterViews.cpp
         tabs/ScopeFilters.h
         tabs/ScopeFilters.cpp
+        tabs/LegendBox.h
+        tabs/LegendBox.cpp
         Splash.qrc
         LinuxAudio.cpp
         LinuxAudio.h

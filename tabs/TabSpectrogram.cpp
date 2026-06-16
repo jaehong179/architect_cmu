@@ -1,4 +1,5 @@
 #include "TabSpectrogram.h"
+#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -8,9 +9,11 @@
 TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Spectrogram</b> — 가로=시간(ms), 세로=주파수(Hz), 색=강도(dB). "
-        "비트마다 반복되는 수직 줄무늬(에너지 버스트) 구조 관찰. (FR-TFS · raw STFT)"), this));
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>축&nbsp;:</b></td><td>가로=시간(ms) · 세로=주파수(Hz) · 색=강도(dB)</td></tr>"
+        "<tr><td valign='top'><b>판독&nbsp;:</b></td><td>비트마다 반복되는 수직 줄무늬(에너지 버스트) 구조 관찰 (raw STFT)</td></tr>"
+        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("창:"), this));

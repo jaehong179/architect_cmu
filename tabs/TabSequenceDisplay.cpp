@@ -18,9 +18,6 @@ bool TabSequenceDisplay::isHorizontal(const QString &pos)
 TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(new QLabel(QStringLiteral(
-        "<b>Multi-Position Sequence</b> — 포지션별 Rate·Beat·Ampl 캡처(최대 10) + 요약 "
-        "X(평균)·D(최대-최소)·DVH(수직−수평)·Di(수직 불균형). 포지션 수동 선택. (FR-MPS-1)"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("포지션:"), this));
