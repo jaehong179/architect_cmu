@@ -10,8 +10,7 @@
 #include "SimWorker.h"
 #include "WavStreamWriter.h"
 #include "Timegrapher.h"
-#include "RollingLeastSquares.h"
-#include "RollingAverage.h"
+#include "MeasurementEngine.h"
 #include "WatchSynthStream.h"
 
 
@@ -24,47 +23,7 @@ class TabManager;   // [탭 모듈] 디스플레이 탭 등록·갱신 브로드
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
 
-typedef struct
-{
- uint64_t             TicTocBeatNumber;
- QVector<double>      xTic;
- QVector<double>      xToc;
- QVector<double>      yTic;
- QVector<double>      yToc;
- int                  xTicIndex;
- int                  xTocIndex;
- bool                 HaveStartTime;
- bool                 HaveZeroOffset;
- double               StartTime;
- double               ZeroOffsetValue;
- int                  MaxTicTocDataPoints;
- RollingLeastSquares *RlsTicRate;
- RollingLeastSquares *RlsTocRate;
- double               RlsRate;
- bool                 RlsRateValid;
- int                  BPH;
- bool                 BPH_Valid;
- int                  WatchHertz;
-} TRateErrorEvents;
-
-typedef struct
-{
- double             BeatErrorTimes[3];
- int                BeatErrorIdx;
- double             BeatErrorMs;
- RollingAverage    *RollBeatError;
-} TBeatErrorEvents;
-
-
-typedef struct
-{
- double             Last_A_Event;
- bool               Have_A_Event;
- RollingAverage    *RollAmplitude;
- double             Amplitude_Tic;
- double             Amplitude_Toc;
- bool               Amplitude_Tic_Valid;
-} TAmplitudeErrorEvents;
+// rate/beat/amplitude 측정 상태·계산은 MeasurementEngine 로 분리됨(구 T*Events 구조체 대체).
 
 
 class MainWindow : public QMainWindow
@@ -123,7 +82,6 @@ private:
     void   StopPlaybackThread(void);
     void   StartSimThread(WatchSynthStreamConfig cfg);
     void   StopSimThread(void);
-    void   AddOrOverwrite(QVector<double>& xvec,QVector<double>& yvec, double value, int maxS, int& index);
     void   AddVerticalMarker(QCustomPlot *Plot, double x,double height,const QColor color);
     void   AddHorizontalMarkerOutward(QCustomPlot *Plot,double xLeft,double xRight,double Height,const QColor Color);
     void   AddHorizontalMarkerInward(QCustomPlot *Plot,double xLeft,double xRight,double Length,double Height,const QColor Color);
@@ -131,23 +89,17 @@ private:
     void   RemoveMarkersAndText(QCustomPlot *Plot, double rangeMin,double rangeMax);
     bool   OpenFile(const QString &FileName);
     void   HandleInputData(TMasterAudioDataRaw *SharedDataPtr);
-    void   CreateEvents(void);
     void   EventsReset(void);
-    double WrapInToRange(double number, double lower_bound, double upper_bound);
     bool   RecordSessionCheck(void);
     void   AudioCloseCheck(void);
     bool   SetAudioRate(int Rate);
     bool   SetAudioDevice(QString Name);
     void   GetAudioRate(int &Rate);
     void   GetAudioDevice(QString &Name);
-    double Amplitude(double LiftAngle,double T1,double BPH);
     void   ProcessSamples(TMasterAudioDataRaw *SharedDataPtr);
     void   PopulateSampleRates(QComboBox *comboBox, const QAudioDevice &device);
     void   A_Event(double A_EventTime,bool haveValidBPH, double BPH);
     void   C_Event(double C_EventTime,bool haveValidBPH, double BPH);
-    void   ComputeRateError(double A_EventTime,bool haveValidBPH, double BPH);
-    void   ComputeBeatError(double A_EventTime,bool haveValidBPH, double BPH);
-    void   ComputeAmplitude(double A_EventTime,bool haveValidBPH, double BPH);
     void   DisplayResults(void);
     void   LoadBPH(void);
     void   LoadSimBPH(void);
@@ -161,9 +113,7 @@ private:
 
 
     WavStreamWriter           *mWavWriter= nullptr;
-    TRateErrorEvents           mRateErrorEvents;
-    TBeatErrorEvents           mBeatErrorEvents;
-    TAmplitudeErrorEvents      mAmplitudeEvents;
+    MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산(구 T*Events 대체)
     TMasterAudioDataRaw       *mRawAudio= nullptr;
     QThread                   *mAudioWorkerThread= nullptr;
     TAudioWorker              *mAudioWorker= nullptr;

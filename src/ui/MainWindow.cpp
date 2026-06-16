@@ -133,7 +133,6 @@ MainWindow::MainWindow(QWidget *parent)
     //QFont fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     //ui->Results->setFont(fixedFont);
 
-    CreateEvents();
     LoadBPH();
     LoadSimBPH();
     LoadAudioDevices();
@@ -191,17 +190,18 @@ void MainWindow::RegisterDisplayTabs(void)
 void MainWindow::PublishMeasurementToTabs(void)
 {
     if (!mTabManager) return;
+    MeasurementEngine::Results res = mEngine.results();
     MeasurementSnapshot snap;
     snap.timeMs         = Perf::nowMs();
-    snap.bphValid       = mRateErrorEvents.BPH_Valid;
-    snap.bph            = mRateErrorEvents.BPH;
-    snap.rateValid      = mRateErrorEvents.RlsRateValid;
-    snap.rate           = mRateErrorEvents.RlsRate;
-    snap.beatErrorValid = mBeatErrorEvents.RollBeatError->CurrentSize() > 0;
-    snap.beatErrorMs    = snap.beatErrorValid ? mBeatErrorEvents.RollBeatError->GetAverage() : 0.0;
-    snap.amplitudeValid = mAmplitudeEvents.RollAmplitude->CurrentSize() > 0;
-    snap.amplitudeDeg   = snap.amplitudeValid ? mAmplitudeEvents.RollAmplitude->GetAverage() : 0.0;
-    snap.synced         = mRateErrorEvents.BPH_Valid;
+    snap.bphValid       = res.bphValid;
+    snap.bph            = res.bph;
+    snap.rateValid      = res.rateValid;
+    snap.rate           = res.rateSecPerDay;
+    snap.beatErrorValid = res.beatErrorValid;
+    snap.beatErrorMs    = res.beatErrorMs;
+    snap.amplitudeValid = res.amplitudeValid;
+    snap.amplitudeDeg   = res.amplitudeDeg;
+    snap.synced         = res.bphValid;
     snap.sampleRateHz   = mCurrentSamplesPerSecond;
     snap.totalSamples   = mLocalTotalSamplesWritten;
     snap.liftAngle      = (int)mLiftAngle;
@@ -258,57 +258,12 @@ void   MainWindow::ConfigureSoundCard(void)
     WindowsSetSoundParameters(WINDOWS_SOUND_ENDPOINT_NAME,WINDOWS_SOUND_MIC_NAME,WINDOWS_SOUND_MIC_PERCENT_VOLUME);
 #endif
 }
-void   MainWindow::CreateEvents(void)
-{
-    mAmplitudeEvents.Have_A_Event=false;
-    mAmplitudeEvents.Amplitude_Tic_Valid=false;
-    mAmplitudeEvents.RollAmplitude= new RollingAverage(10);
-
-    mBeatErrorEvents.BeatErrorIdx=0;
-    mBeatErrorEvents.RollBeatError= new RollingAverage(10);
-
-    mRateErrorEvents.BPH_Valid=false;
-    mRateErrorEvents.MaxTicTocDataPoints=ERROR_RATE_X_DATA_POINTS;
-    mRateErrorEvents.xTicIndex=0;
-    mRateErrorEvents.xTocIndex=0;
-    mRateErrorEvents.HaveStartTime=false;
-    mRateErrorEvents.HaveZeroOffset=false;
-    mRateErrorEvents.ZeroOffsetValue=0.0;
-    mRateErrorEvents.xTic.reserve(mRateErrorEvents.MaxTicTocDataPoints);
-    mRateErrorEvents.xToc.reserve(mRateErrorEvents.MaxTicTocDataPoints);
-    mRateErrorEvents.yTic.reserve(mRateErrorEvents.MaxTicTocDataPoints);
-    mRateErrorEvents.yToc.reserve(mRateErrorEvents.MaxTicTocDataPoints);
-    mRateErrorEvents.RlsTicRate=new RollingLeastSquares(RLS_WINDOW_INIT);
-    mRateErrorEvents.RlsTocRate=new RollingLeastSquares(RLS_WINDOW_INIT);
-    mRateErrorEvents.RlsRateValid=false;
-}
-
 void MainWindow::EventsReset(void)
 {
-    mAmplitudeEvents.Have_A_Event=false;
-    mAmplitudeEvents.Amplitude_Tic_Valid=false;
-    mAmplitudeEvents.RollAmplitude->Reset();
-
-    mBeatErrorEvents.BeatErrorIdx=0;
-    mBeatErrorEvents.RollBeatError->Reset();
-
-    mRateErrorEvents.BPH_Valid=false;
-    mRateErrorEvents.xTicIndex=0;
-    mRateErrorEvents.xTocIndex=0;
-    mRateErrorEvents.StartTime=0;
-    mRateErrorEvents.HaveStartTime=false;
-    mRateErrorEvents.HaveZeroOffset=false;
-    mRateErrorEvents.ZeroOffsetValue=0.0;
-    mRateErrorEvents.xTic.clear();
-    mRateErrorEvents.xToc.clear();
-    mRateErrorEvents.yTic.clear();
-    mRateErrorEvents.yToc.clear();
-    mRateErrorEvents.RlsTicRate->Reset();
-    mRateErrorEvents.RlsTocRate->Reset();
-    mRateErrorEvents.RlsRateValid=false;
+    mEngine.reset();   // 측정 상태/시리즈 비움(롤링 통계 리셋)
 
     ui->RatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    ui->RatePlot->xAxis->setRange(0, mRateErrorEvents.MaxTicTocDataPoints);
+    ui->RatePlot->xAxis->setRange(0, mEngine.maxDataPoints());
 
     for (int i=0;i<ui->RatePlot->graphCount();i++)
     {
@@ -410,161 +365,41 @@ void MainWindow::LoadMode(void)
     ui->ModeComboBox->setCurrentIndex(0);
 }
 
-double MainWindow::WrapInToRange(double number, double lower_bound, double upper_bound) {
-    double range_size = upper_bound - lower_bound;
-    double shifted = number - lower_bound;
-    double wrapped = fmod(shifted, range_size);
-    if (wrapped < 0) {
-        wrapped += range_size;
-    }
-    return wrapped + lower_bound;
-}
-void  MainWindow::AddOrOverwrite(QVector<double>& xvec,QVector<double>& yvec, double value, int maxS, int& index)
-{
-    if (yvec.size() < maxS) {
-        yvec.append(value); // Growing
-        xvec.append(index); // Never Changes once added
-        index = (index + 1) % maxS; // Circular pointer
-    } else {
-        yvec[index] = value; // Overwriting
-        index = (index + 1) % maxS; // Circular pointer
-    }
-}
-#define TIC 0
-#define TOC 1
-void MainWindow::ComputeRateError(double A_EventTime,bool haveValidBPH, double BPH)
-{
-   if ((!haveValidBPH) && (mRateErrorEvents.HaveStartTime))
-    {
-     mRateErrorEvents.HaveStartTime=false;
-     mRateErrorEvents.BPH_Valid=false;
-
-       //TODO More reset needed
-    }
-    else if ((haveValidBPH) && (!mRateErrorEvents.HaveStartTime))
-    {
-        mRateErrorEvents.HaveStartTime=true;
-        mRateErrorEvents.TicTocBeatNumber=0;
-        mRateErrorEvents.BPH_Valid=true;
-        mRateErrorEvents.BPH=BPH;
-        mRateErrorEvents.StartTime=A_EventTime/((double)mCurrentSamplesPerSecond);
-        mRateErrorEvents.HaveZeroOffset=false;
-        mRateErrorEvents.ZeroOffsetValue=0.0;
-        mRateErrorEvents.RlsRateValid=false;
-        mRateErrorEvents.WatchHertz=mRateErrorEvents.BPH/3600;
-        mRateErrorEvents.RlsTicRate->Resize(mAveragingPeriod*mRateErrorEvents.WatchHertz);
-        mRateErrorEvents.RlsTocRate->Resize(mAveragingPeriod*mRateErrorEvents.WatchHertz);
-        mRateErrorEvents.RlsTicRate->Reset();
-        mRateErrorEvents.RlsTocRate->Reset();
-
-        mBeatErrorEvents.RollBeatError->Reset();
-        mAmplitudeEvents.RollAmplitude->Reset();
-    }
-    if ((haveValidBPH) && (mRateErrorEvents.HaveStartTime))
-    {
-        double    InstTimingError;
-        double    InstTimingErrorMs;
-        double    ExpectedTimeTarget;
-        double    ExpectedTimeTargetSamePhase;
-        double    TimeMeasured;
-        int       TicOrToc;
-
-        TimeMeasured=A_EventTime/((double)mCurrentSamplesPerSecond);
-        ExpectedTimeTarget =3600.0f/BPH;
-
-        mRateErrorEvents.TicTocBeatNumber++;
-
-        // This is not a good idea ----> TicTocBeatNumber=qRound64((TimeMeasured-mRateErrorEvents.StartTime)/ExpectedTimeTarget);
-        TicOrToc=((mRateErrorEvents.TicTocBeatNumber-1)&1);
-
-        InstTimingError=(mRateErrorEvents.StartTime+mRateErrorEvents.TicTocBeatNumber*ExpectedTimeTarget)-TimeMeasured;
-        InstTimingErrorMs=InstTimingError*1000.00; // to Miliiseconds
-        if (!mRateErrorEvents.HaveZeroOffset)
-        {
-            mRateErrorEvents.HaveZeroOffset=true;
-            mRateErrorEvents.ZeroOffsetValue=-InstTimingErrorMs;
-        }
-        InstTimingErrorMs=InstTimingErrorMs+mRateErrorEvents.ZeroOffsetValue;
-
-        double WrappedRateError=WrapInToRange(InstTimingErrorMs,-ERROR_RATE_Y_SCALE,ERROR_RATE_Y_SCALE);
-        //qInfo()<<"Error "<<InstTimingError<<"Wrap "<<WrappedError;
-        if (TicOrToc==TIC)
-        {
-            mRateErrorEvents.RlsTicRate->AddPoint(TimeMeasured,InstTimingError);
-            AddOrOverwrite(mRateErrorEvents.xTic,mRateErrorEvents.yTic,WrappedRateError,mRateErrorEvents.MaxTicTocDataPoints,mRateErrorEvents.xTicIndex);
-            ui->RatePlot->graph(0)->setData(mRateErrorEvents.xTic, mRateErrorEvents.yTic);
-        }
-        else // else TOC
-        {
-            mRateErrorEvents.RlsTocRate->AddPoint(TimeMeasured,InstTimingError);
-            AddOrOverwrite(mRateErrorEvents.xToc,mRateErrorEvents.yToc,WrappedRateError,mRateErrorEvents.MaxTicTocDataPoints,mRateErrorEvents.xTocIndex);
-            ui->RatePlot->graph(1)->setData(mRateErrorEvents.xToc, mRateErrorEvents.yToc);
-        }
-
-        ui->RatePlot->replot(QCustomPlot::rpQueuedReplot);
-        if (TicOrToc==TOC)
-        {
-              double SlopeTic,RlsTic, SlopeToc,RlsToc;
-
-            if ((mRateErrorEvents.RlsTicRate->GetRate(SlopeTic)) &&
-                (mRateErrorEvents.RlsTocRate->GetRate(SlopeToc)))
-            {
-                RlsTic=SlopeTic*86400.00;
-                RlsToc=SlopeToc*86400.00;
-                mRateErrorEvents.RlsRate=(RlsTic+RlsToc)/2.0;
-                mRateErrorEvents.RlsRateValid=true;
-            }
-            else
-            {
-               mRateErrorEvents.RlsRateValid=false;
-            }
-        }
-    }
-}
-void MainWindow::ComputeBeatError(double A_EventTime,bool haveValidBPH, double BPH)
-{
-    mBeatErrorEvents.BeatErrorTimes[mBeatErrorEvents.BeatErrorIdx]=A_EventTime;
-    mBeatErrorEvents.BeatErrorIdx++;
-    if (mBeatErrorEvents.BeatErrorIdx==3)
-    {
-        double t1=(mBeatErrorEvents.BeatErrorTimes[1]-mBeatErrorEvents.BeatErrorTimes[0])/(double)mCurrentSamplesPerSecond;
-        double t2=(mBeatErrorEvents.BeatErrorTimes[2]-mBeatErrorEvents.BeatErrorTimes[1])/(double)mCurrentSamplesPerSecond;
-
-        mBeatErrorEvents.BeatErrorMs=qAbs(((t1-t2)/2.0)*1000.0);
-        mBeatErrorEvents.RollBeatError->Add(mBeatErrorEvents.BeatErrorMs);
-        mBeatErrorEvents.BeatErrorTimes[0]=mBeatErrorEvents.BeatErrorTimes[2];
-        mBeatErrorEvents.BeatErrorIdx=1;
-    }
-}
 void MainWindow::A_Event(double A_EventTime,bool haveValidBPH, double BPH)
 {
-  ComputeRateError(A_EventTime,haveValidBPH,BPH);
-  ComputeBeatError(A_EventTime,haveValidBPH,BPH);
-  mAmplitudeEvents.Have_A_Event=true;
-  mAmplitudeEvents.Last_A_Event=A_EventTime;
+  // 측정 계산은 engine 이 수행, rate 그래프 갱신만 여기서(갱신된 시리즈만 setData/replot).
+  MeasurementEngine::SeriesUpdate upd = mEngine.onAEvent(A_EventTime,haveValidBPH,BPH);
+  if (upd==MeasurementEngine::TicUpdated) {
+      ui->RatePlot->graph(0)->setData(mEngine.ticX(), mEngine.ticY());
+      ui->RatePlot->replot(QCustomPlot::rpQueuedReplot);
+  } else if (upd==MeasurementEngine::TocUpdated) {
+      ui->RatePlot->graph(1)->setData(mEngine.tocX(), mEngine.tocY());
+      ui->RatePlot->replot(QCustomPlot::rpQueuedReplot);
+  }
 }
 void MainWindow::DisplayResults(void)
 {
+    MeasurementEngine::Results res = mEngine.results();
     QString BeatsPerHour,RateError,BeatError,Amplitude, Results;
-    if (mRateErrorEvents.BPH_Valid)
+    if (res.bphValid)
     {
-        BeatsPerHour= QString("%1").arg(mRateErrorEvents.BPH, 5, 10, QChar(' '));
+        BeatsPerHour= QString("%1").arg(res.bph, 5, 10, QChar(' '));
     }
     else BeatsPerHour="-----";
 
-    if (mRateErrorEvents.RlsRateValid)
+    if (res.rateValid)
     {
-        RateError= QString::asprintf("%+6.1f", mRateErrorEvents.RlsRate); //QString("%1").arg(mRateErrorEvents.RlsRate, 6, 'f', 1);
+        RateError= QString::asprintf("%+6.1f", res.rateSecPerDay);
     }
     else RateError="------";
-    if (mBeatErrorEvents.RollBeatError->CurrentSize()>0)
+    if (res.beatErrorValid)
     {
-        BeatError= QString("%1").arg(mBeatErrorEvents.RollBeatError->GetAverage(), 4, 'f', 1);
+        BeatError= QString("%1").arg(res.beatErrorMs, 4, 'f', 1);
     }
     else BeatError="----";
-    if (mAmplitudeEvents.RollAmplitude->CurrentSize()>0)
+    if (res.amplitudeValid)
     {
-        Amplitude=  QString("%1°").arg(qRound64(mAmplitudeEvents.RollAmplitude->GetAverage()), 3, 10, QChar(' '));
+        Amplitude=  QString("%1°").arg(qRound64(res.amplitudeDeg), 3, 10, QChar(' '));
     }
     else Amplitude="---";
 
@@ -575,19 +410,19 @@ void MainWindow::DisplayResults(void)
     //  Sim 모드에서만 유효(설정값을 알고 있으므로). Rate/BeatError/Amplitude 의
     //  (측정값 - 설정값)을 기록 → 목표(±1 s/d, ±0.1 ms, ±5°) 달성 여부 판단.
     if (mSimActive) {
-        if (mRateErrorEvents.RlsRateValid)
+        if (res.rateValid)
             Perf::log("G-1","QA-CO-01","rate_err_s_per_d",
-                      mRateErrorEvents.RlsRate - mLastSimCfg.rate_error_s_per_day, "s/d",
-                      QString("meas=%1;set=%2").arg(mRateErrorEvents.RlsRate,0,'f',2)
+                      res.rateSecPerDay - mLastSimCfg.rate_error_s_per_day, "s/d",
+                      QString("meas=%1;set=%2").arg(res.rateSecPerDay,0,'f',2)
                                                .arg(mLastSimCfg.rate_error_s_per_day,0,'f',2));
-        if (mBeatErrorEvents.RollBeatError->CurrentSize()>0) {
-            double measBE = mBeatErrorEvents.RollBeatError->GetAverage();
+        if (res.beatErrorValid) {
+            double measBE = res.beatErrorMs;
             double setBE  = qAbs(mLastSimCfg.beat_error_ms);   // cfg 는 부호 반전 저장 → 크기 비교
             Perf::log("G-1","QA-CO-01","beaterr_err_ms", measBE - setBE, "ms",
                       QString("meas=%1;set=%2").arg(measBE,0,'f',3).arg(setBE,0,'f',3));
         }
-        if (mAmplitudeEvents.RollAmplitude->CurrentSize()>0) {
-            double measAmp = mAmplitudeEvents.RollAmplitude->GetAverage();
+        if (res.amplitudeValid) {
+            double measAmp = res.amplitudeDeg;
             Perf::log("G-1","QA-CO-01","amp_err_deg", measAmp - mLastSimCfg.watch_amplitude_degrees, "deg",
                       QString("meas=%1;set=%2").arg(measAmp,0,'f',1).arg(mLastSimCfg.watch_amplitude_degrees,0,'f',1));
         }
@@ -598,48 +433,9 @@ void MainWindow::DisplayResults(void)
     // [탭 모듈] 현재 측정값을 모든 디스플레이 탭에 스냅샷으로 게시.
     PublishMeasurementToTabs();
 }
-double MainWindow::Amplitude(double LiftAngle,double T1,double BPH)
-{
-  double Amplitude;
-  //Amplitude=(3600.00*LiftAngle)/(T1*M_PI*BPH);    // Other Equation 1
-  //Amplitude=(LiftAngle*(7200.0/BPH))/(2*M_PI*T1); // Other Equation 2
-  Amplitude=LiftAngle/sin((2.0*M_PI*T1)/(7200.0/BPH));
-  return(Amplitude);
-}
-void MainWindow::ComputeAmplitude(double C_EventTime,bool haveValidBPH, double BPH)
-{
- if ((mAmplitudeEvents.Have_A_Event) & (mRateErrorEvents.BPH_Valid))
-    {
-     double Time;
-     double TempAmp;
-     int    TicOrToc=((mRateErrorEvents.TicTocBeatNumber-1)&1);
-
-     Time=(C_EventTime-mAmplitudeEvents.Last_A_Event)/(double)mCurrentSamplesPerSecond;
-     TempAmp=Amplitude(mLiftAngle,Time,BPH);
-     if (TempAmp<360.00)
-     {
-      if (TicOrToc==TIC)
-      {
-        mAmplitudeEvents.Amplitude_Tic_Valid=true;
-        mAmplitudeEvents.Amplitude_Tic=TempAmp;
-      }
-      else //TOC
-      {
-       mAmplitudeEvents.Amplitude_Toc=TempAmp;
-       if (mAmplitudeEvents.Amplitude_Tic_Valid)
-        {
-         double AverageAmplitudeTicToc=(mAmplitudeEvents.Amplitude_Tic+mAmplitudeEvents.Amplitude_Toc)/2.0;
-         mAmplitudeEvents.RollAmplitude->Add(AverageAmplitudeTicToc);
-         mAmplitudeEvents.Amplitude_Tic_Valid=false;
-        }
-      }
-     }
-     else if (TicOrToc==TIC) mAmplitudeEvents.Amplitude_Tic_Valid=false;
-    }
-}
 void MainWindow::C_Event(double C_EventTime,bool haveValidBPH, double BPH)
 {
-  ComputeAmplitude(C_EventTime,haveValidBPH,BPH);
+  mEngine.onCEvent(C_EventTime,haveValidBPH,BPH);
   DisplayResults();
 }
 void MainWindow::CreateDectectors(void)
@@ -723,7 +519,7 @@ void MainWindow::CreateGraphs(void)
     ui->RatePlot->yAxis->setTickLabels(true);
     ui->RatePlot->xAxis->setLabel("Time");
     ui->RatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    ui->RatePlot->xAxis->setRange(0, mRateErrorEvents.MaxTicTocDataPoints);
+    ui->RatePlot->xAxis->setRange(0, mEngine.maxDataPoints());
     ui->RatePlot->xAxis->setTickLabels(false);
     ui->RatePlot->clearGraphs();
     ui->RatePlot->addGraph();
@@ -1062,6 +858,8 @@ void MainWindow::HandleSimDone()
 }
 void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
 {
+    // 측정 엔진에 현재 설정 반영(샘플레이트·평균구간·lift angle) — 이벤트 계산 전에 1회.
+    mEngine.setConfig(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
     int    SamplesToAdd=mLocalTotalSamplesWritten-SharedDataPtr->MainThrd_LastTotalSamplesWritten;
 
     int slice;
@@ -1178,7 +976,7 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                    QString text;
                    if (r.sync_status==TG_SYNC_SYNCED) // Have BPH
                    {
-                       int Amp=qRound(Amplitude(mLiftAngle,delta/mCurrentSamplesPerSecond,r.detected_bph));
+                       int Amp=qRound(MeasurementEngine::amplitude(mLiftAngle,delta/mCurrentSamplesPerSecond,r.detected_bph));
                        if (Amp<360)
                        {
                         text= QString(" %1 ms\n%2°").arg(delta*1000.0/mCurrentSamplesPerSecond, 0, 'f', 1).arg(Amp);

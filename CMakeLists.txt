@@ -83,6 +83,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         # [perf] 성능 계측 (횡단 관심사)
         src/perf/PerfInstrumentation.h
         src/perf/PerfInstrumentation.cpp
+        # [engine] 측정 계산 오케스트레이션 (rate/beat/amplitude)
+        src/engine/MeasurementEngine.h
+        src/engine/MeasurementEngine.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h
@@ -168,10 +171,11 @@ target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/recording
 )
 
-# [render·perf 모듈] 평면 include("SoundImageRenderer.h"·"PerfInstrumentation.h" 등) 유지
+# [render·perf·engine 모듈] 평면 include 유지
 target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
     ${CMAKE_CURRENT_SOURCE_DIR}/src/perf
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/engine
 )
 
 # [ui 모듈] MainWindow 헤더 탐색 경로 ("MainWindow.h" + "tabs/..." 접두사 include 해결)
