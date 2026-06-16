@@ -131,6 +131,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->Results->setAlignment(Qt::AlignHCenter);
     ui->LiftAngleSpinBox->setValue(mLiftAngle);
     ui->SoundImage->CreateImage();
+    // Sound Print 위젯이 resize로 QImage를 재생성하면 렌더러를 새 이미지에 다시 바인딩(use-after-free 방지).
+    connect(ui->SoundImage, &SoundImageWidget::imageRecreated, this, &MainWindow::onSoundImageResized);
 
     //QFont fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     //ui->Results->setFont(fixedFont);
@@ -1334,21 +1336,40 @@ void MainWindow::PurgeHistory(void)
         }
     }
 }
+// Sound Print 렌더러 Config 단일 소스 — Reset()과 resize 재바인딩(onSoundImageResized)이 공유한다.
+SoundImageRenderer::Config MainWindow::buildSoundImageConfig(void) const
+{
+    SoundImageRenderer::Config cfg;
+    cfg.bph = 0.0; // unknown at initialization
+    cfg.sample_rate_hz = mCurrentSamplesPerSecond;
+    cfg.sound_color = qRgba(255, 0, 0, 255);          // red intensity for sound
+    cfg.background_color = qRgba(255, 255, 255, 255); // white background
+    cfg.vertical_time_direction = SoundImageRenderer::TimeStartsAtTopMovesDown;
+    cfg.warmup_columns = 2;
+    cfg.anchor_columns = 12;
+    cfg.gamma = 0.5f;
+    cfg.live_preview_current_column = true;
+    return cfg;
+}
+
+// Sound Print 탭으로 전환하면 위젯이 resize되며 내부 QImage를 재생성한다. 그러면 렌더러가
+// 캐싱하던 옛 QImage 포인터가 무효화되어 다음 processSamples에서 use-after-free로 앱이 죽는다.
+// 새 이미지로 렌더러를 다시 초기화해 이 크래시를 막는다.
+void MainWindow::onSoundImageResized(void)
+{
+    if (!mSoundRenderInitialized) return;          // 최초 Reset 전에는 Reset이 초기화를 담당
+    QImage *img = ui->SoundImage->GetImage();
+    if (!img || img->isNull()) return;             // 0 크기: 다음 resize에서 처리
+    SoundImageRenderer::Config cfg = buildSoundImageConfig();
+    if (!mSoundRenderer.initialize(img, cfg)) return;
+    mSoundRenderer.reset();
+    mSoundRenderHasBPH = false;                    // 다음 동기 프레임에서 BPH 재적용
+}
+
 void MainWindow::Reset(void)
 {
-    SoundImageRenderer::Config SoundImageCfg;
     qInfo()<<"RESET";
-    SoundImageCfg.bph = 0.0; // unknown at initialization
-    SoundImageCfg.sample_rate_hz = mCurrentSamplesPerSecond;
-    SoundImageCfg.sound_color = qRgba(255, 0, 0, 255);         // red intensity for sound
-    SoundImageCfg.background_color = qRgba(255, 255, 255, 255); // white background
-    //SoundImageCfg.vertical_time_direction = SoundImageRenderer::TimeStartsAtBottomMovesUp;
-    SoundImageCfg.vertical_time_direction = SoundImageRenderer::TimeStartsAtTopMovesDown;
-
-    SoundImageCfg.warmup_columns = 2;
-    SoundImageCfg.anchor_columns = 12;
-    SoundImageCfg.gamma = 0.5f;//1.0f;
-    SoundImageCfg.live_preview_current_column = true;
+    SoundImageRenderer::Config SoundImageCfg = buildSoundImageConfig();
 
     mSoundRenderHasBPH=false;
 
@@ -1359,6 +1380,7 @@ void MainWindow::Reset(void)
         throw std::runtime_error("Failed to initialize SoundImageRenderer.");
     }
     mSoundRenderer.reset();
+    mSoundRenderInitialized = true;   // 이후 resize 시 onSoundImageResized가 재바인딩 수행
 
     mLocalGraphTicks=0;
     mInputAbsSample=0;   // [탭 모듈] 원신호 게시 인덱스 리셋

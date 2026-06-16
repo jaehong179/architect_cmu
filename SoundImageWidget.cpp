@@ -42,14 +42,17 @@ void  SoundImageWidget::DrawImage(void)
 void SoundImageWidget::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    // Recreate image to match new widget size.
-    // Note: the SoundImageRenderer must be re-initialized via Reset() after a resize.
+    // 크기가 실제로 바뀐 경우에만 재생성한다. (Qt는 레이아웃 중 같은 크기로 resizeEvent를
+    //  여러 번 보내므로, 무조건 재생성하면 sound print가 매번 리셋되어 느려 보인다.)
+    if (image && image->size() == size()) return;
     delete image;
     image = nullptr;
     if (width() > 0 && height() > 0) {
         image = new QImage(size(), QImage::Format_ARGB32);
         image->fill(Qt::white);
     }
+    // QImage 포인터가 교체됐으므로, 옛 포인터를 캐싱한 렌더러를 재바인딩하도록 통지한다.
+    emit imageRecreated();
 }
 
 void SoundImageWidget::paintEvent(QPaintEvent *event) {
