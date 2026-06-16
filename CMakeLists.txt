@@ -65,16 +65,18 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/core/stats/RollingLeastSquares.cpp
         src/core/stats/RollingAverage.h
         src/core/stats/RollingAverage.cpp
-        SoundImageWidget.h
-        SoundImageWidget.cpp
-        SoundImageRenderer.h
-        SoundImageRenderer.cpp
+        # [render] Sound Print 폴딩 렌더러 + 위젯 (표현)
+        src/render/SoundImageWidget.h
+        src/render/SoundImageWidget.cpp
+        src/render/SoundImageRenderer.h
+        src/render/SoundImageRenderer.cpp
         src/audio/sim/SimWorker.cpp
         src/audio/sim/SimWorker.h
         src/audio/sim/WatchSynthStream.cpp
         src/audio/sim/WatchSynthStream.h
-        PerfInstrumentation.h
-        PerfInstrumentation.cpp
+        # [perf] 성능 계측 (횡단 관심사)
+        src/perf/PerfInstrumentation.h
+        src/perf/PerfInstrumentation.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         tabs/MeasurementModel.h
         tabs/TabView.h
@@ -156,6 +158,12 @@ target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/playback
     ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/sim
     ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/recording
+)
+
+# [render·perf 모듈] 평면 include("SoundImageRenderer.h"·"PerfInstrumentation.h" 등) 유지
+target_include_directories(TimeGrapher PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/perf
 )
 
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
