@@ -117,12 +117,7 @@ MainWindow::MainWindow(QWidget *parent)
     if (temp.exists()) mCurrentDir=temp;
     mCurrentSamplesPerSecond=48000;
     mLiftAngle=52;
-    mCtx=NULL;
-    mInputBlock=NULL;
-
-    mBackgroundLastFPS=0.0;
-    mBackgroundLastSPF=0.0;
-    mBackgroundLastSPS=0.0;
+    // 검출기/파이프라인/FPS 상태는 CaptureController 로 이동(초기화도 그쪽에서).
 
     ui->setupUi(this);
     this->setWindowTitle("TimeGrapher");
@@ -164,13 +159,18 @@ MainWindow::MainWindow(QWidget *parent)
     // [탭 모듈] 신규 디스플레이 탭들을 생성·등록. 코어 DSP 불변(QA-MOD-01).
     RegisterDisplayTabs();
 
-    // 오디오 소스 오케스트레이션(스레드·워커·버퍼)은 CaptureController 담당.
-    //  워커가 채운 블록 → dataReady → HandleInputData(처리). 소스 종료 → 정지 핸들러.
-    //  (cross-thread 는 워커→컨트롤러 큐 연결 1곳뿐, dataReady→HandleInputData 는 메인 스레드 직접)
-    mCapture = new CaptureController(this);
-    connect(mCapture, &CaptureController::dataReady,              this, &MainWindow::HandleInputData);
+    // 입력 소스 + 신호 파이프라인은 CaptureController 담당(엔진·탭에 직접 게시).
+    //  UI 갱신은 저빈도 신호로만: 상태바(FPS/정지) · readout(비트당). 핫패스는 컨트롤러 내부 직접 호출.
+    mCapture = new CaptureController(&mEngine, mTabManager, this);
+    connect(mCapture, &CaptureController::statusMessage,  this, [this](const QString &m){ statusBar()->showMessage(m); });
+    connect(mCapture, &CaptureController::measurementReady, this, &MainWindow::DisplayResults);
     connect(mCapture, &CaptureController::playbackDoneReadingFile, this, &MainWindow::HandlePlaybackDoneReadingFile);
     connect(mCapture, &CaptureController::simDone,                 this, &MainWindow::HandleSimDone);
+    // UseConset 체크박스는 런타임 토글 → 컨트롤러에 반영(구 ProcessSamples 가 매 이벤트 isChecked() 읽던 것)
+    connect(ui->UseConsetCheckBox, &QCheckBox::toggled, this, [this](bool c){ mCapture->setUseConset(c); });
+    mCapture->setUseConset(ui->UseConsetCheckBox->isChecked());
+    // 탭 ScopePlot 의 실제 paint 완료 → 컨트롤러 perf(disp_paint/e2e_full/paint_fps)
+    if (mRateScope) connect(mRateScope, &TabRateScope::scopeReplotted, mCapture, &CaptureController::onScopeReplotted);
 }
 
 // [탭 모듈 · QA-MOD-01] 기존 2개 탭(RateTab/SoundTab, MainWindow.ui 정의)에 더해 신규 탭
@@ -180,10 +180,9 @@ void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
-    TabRateScope *rateScope = new TabRateScope(this);
-    mTabManager->registerTab(rateScope);                        // rate 시계열 + 실시간 스코프(구 정적 RateTab)
-    //  ScopePlot 의 실제 paint 완료 → perf 기록(상태는 MainWindow 잔류).
-    connect(rateScope, &TabRateScope::scopeReplotted, this, &MainWindow::OnScopeReplotted);
+    mRateScope = new TabRateScope(this);
+    mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프(구 정적 RateTab)
+    //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지(구 정적 SoundTab)
     mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
@@ -216,7 +215,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.amplitudeDeg   = res.amplitudeDeg;
     snap.synced         = res.bphValid;
     snap.sampleRateHz   = mCurrentSamplesPerSecond;
-    snap.totalSamples   = mLocalTotalSamplesWritten;
+    snap.totalSamples   = mCapture ? mCapture->totalSamples() : 0;
     snap.liftAngle      = (int)mLiftAngle;
     snap.mode           = ui->ModeComboBox->currentIndex();
     // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사). 구 mRateErrorEvents.x/yTic/Toc.
@@ -229,27 +228,8 @@ void MainWindow::PublishMeasurementToTabs(void)
 // [PERF 계측 · §A-1/A-2 · QA-LT-01] ScopePlot 이 '실제로 다 그려진' 직후 호출됨.
 //  disp_paint_ms = (페인트 완료 − replot 요청) = 미뤄졌던 그리기 시간.
 //  e2e_full_ms   = (페인트 완료 − 캡처)        = ★진짜 종단간★ = (캡처→요청) + (요청→페인트) 의 합.
-void MainWindow::OnScopeReplotted()
-{
-    if (!mPerfReplotPending) return;     // ProcessSamples가 요청한 replot 에만 반응(잡음 replot 무시)
-    mPerfReplotPending = false;
-    double now = Perf::nowMs();
-    Perf::log("A-2","QA-LT-01","disp_paint_ms", now - mPerfReplotRequestMs, "ms","");   // 요청→실제 페인트
-    if (mPerfReplotLive && mPerfCaptureForReplotMs > 0.0)
-        Perf::log("A-1","QA-LT-01","e2e_full_ms", now - mPerfCaptureForReplotMs, "ms", "paint_included");
-
-    // ── [PERF 계측 · §F-1 · QA-SC-01] 프레임(실제 화면 갱신) 비율 ──
-    //  paint_fps = 초당 실제 paint 수(화면이 실제로 갱신된 횟수). 부하 시 떨어지면 frame drop.
-    //  extra 의 replot_req = 요청 수. 요청>paint 는 정상(rpQueuedReplot 코얼레싱), 둘 다 같이 떨어지면 과부하.
-    mPaintCount++;
-    if (!mPaintHave) { mPaintLastEmitMs = now; mPaintHave = true; }
-    if (now - mPaintLastEmitMs >= 1000.0) {
-        double sec = (now - mPaintLastEmitMs) / 1000.0;
-        Perf::log("F-1","QA-SC-01","paint_fps", (double)mPaintCount / sec, "frame/s",
-                  QString("replot_req=%1").arg(mReplotReqCount));
-        mPaintCount = 0; mReplotReqCount = 0; mPaintLastEmitMs = now;
-    }
-}
+// OnScopeReplotted(실제 paint 완료 perf) 은 CaptureController::onScopeReplotted 로 이동
+//  — 탭 ScopePlot afterReplot → mCapture->onScopeReplotted 로 연결(생성자 배선).
 
 // [PERF 계측 · §A-3 · QA-RT-01] 100ms 하트비트의 실제 간격에서 100ms를 뺀 '초과 지연'을 기록.
 //  값이 클수록 메인 스레드가 막혀 UI가 늦게 반응한다는 뜻.
@@ -372,11 +352,8 @@ void MainWindow::LoadMode(void)
     ui->ModeComboBox->setCurrentIndex(0);
 }
 
-void MainWindow::A_Event(double A_EventTime,bool haveValidBPH, double BPH)
-{
-  // 측정 계산만 — RatePlot 그리기는 TabRateScope(onMeasurement, snapshot 의 rate 시리즈)가 담당.
-  mEngine.onAEvent(A_EventTime,haveValidBPH,BPH);
-}
+// A_Event/C_Event(측정 이벤트)·ProcessSamples·HandleInputData·검출기 생성은
+//  CaptureController 로 이동했다. MainWindow 는 measurementReady 신호로 DisplayResults 만 한다.
 void MainWindow::DisplayResults(void)
 {
     MeasurementEngine::Results res = mEngine.results();
@@ -406,76 +383,12 @@ void MainWindow::DisplayResults(void)
     Results="RATE "+RateError+" s/d   AMPLITUDE "+Amplitude+"   BEAT ERROR "+BeatError+" ms   BEAT "+BeatsPerHour+" bph";
     ui->Results->setText(Results);
 
-    // ── [PERF 계측 · §G-1 · QA-CO-01] 측정 정확도: 측정값 - Sim 설정(정답) 오차 ──
-    //  Sim 모드에서만 유효(설정값을 알고 있으므로). Rate/BeatError/Amplitude 의
-    //  (측정값 - 설정값)을 기록 → 목표(±1 s/d, ±0.1 ms, ±5°) 달성 여부 판단.
-    if (mSimActive) {
-        if (res.rateValid)
-            Perf::log("G-1","QA-CO-01","rate_err_s_per_d",
-                      res.rateSecPerDay - mLastSimCfg.rate_error_s_per_day, "s/d",
-                      QString("meas=%1;set=%2").arg(res.rateSecPerDay,0,'f',2)
-                                               .arg(mLastSimCfg.rate_error_s_per_day,0,'f',2));
-        if (res.beatErrorValid) {
-            double measBE = res.beatErrorMs;
-            double setBE  = qAbs(mLastSimCfg.beat_error_ms);   // cfg 는 부호 반전 저장 → 크기 비교
-            Perf::log("G-1","QA-CO-01","beaterr_err_ms", measBE - setBE, "ms",
-                      QString("meas=%1;set=%2").arg(measBE,0,'f',3).arg(setBE,0,'f',3));
-        }
-        if (res.amplitudeValid) {
-            double measAmp = res.amplitudeDeg;
-            Perf::log("G-1","QA-CO-01","amp_err_deg", measAmp - mLastSimCfg.watch_amplitude_degrees, "deg",
-                      QString("meas=%1;set=%2").arg(measAmp,0,'f',1).arg(mLastSimCfg.watch_amplitude_degrees,0,'f',1));
-        }
-        // [§G-2 · QA-AC-01] 검출률 분모(정답 비트 누적 수). a_match/c_match 합과 비교해 검출률 산출.
-        Perf::log("G-2","QA-AC-01","gt_total", (double)mLocalGtTotal, "beats","");
-    }
-
+    // 측정 정확도(G-1)·검출률(G-2) perf 는 CaptureController::cEvent 로 이동(Sim 정답 비교).
     // [탭 모듈] 현재 측정값을 모든 디스플레이 탭에 스냅샷으로 게시.
     PublishMeasurementToTabs();
 }
-void MainWindow::C_Event(double C_EventTime,bool haveValidBPH, double BPH)
-{
-  mEngine.onCEvent(C_EventTime,haveValidBPH,BPH);
-  DisplayResults();
-}
-void MainWindow::CreateDectectors(void)
-{
-    DeleteDectectors(); // Delete old ones if present
-    tg_config_default(&mCfg);
-    mCfg.sample_rate     = mCurrentSamplesPerSecond;
-    if (ui->BPHComboBox->currentIndex()==0)
-        mCfg.bph_mode= TG_BPH_MODE_AUTO;
-    else
-    {
-     mCfg.bph_mode=TG_BPH_MODE_MANUAL;
-     mCfg.manual_bph=ManualAutoBPH[ui->BPHComboBox->currentIndex()];
-    }
-    //mCfg.onset_fraction_init=0.2;
-    mCfg.suppress_pre_sync_events=true;
 
-    mCfg.hpf_cutoff_hz=ui->HighLineEdit->text().toDouble();
-
-    mCtx = tg_init(&mCfg);
-    if (mCtx==NULL)
-        throw std::runtime_error("allocation failed-could not initialize detector");
-
-    qInfo()<<"Rate "<<mCurrentSamplesPerSecond;
-
-    mInputBlock = (float *)malloc(DETECTOR_NUMBER_OF_SAMPLES * SAMPLE_SIZE);
-    if (!mInputBlock)
-    {
-        tg_destroy(mCtx);
-        mCtx=NULL;
-        throw std::runtime_error("allocation failed");
-    }
-}
-void MainWindow::DeleteDectectors(void)
-{
-  if (mInputBlock) free(mInputBlock);
-  mInputBlock=NULL;
-  if (mCtx) tg_destroy(mCtx);
-  mCtx=NULL;
-}
+// C_Event·CreateDectectors·DeleteDectectors 는 CaptureController 로 이동했다.
 
 // RatePlot/ScopePlot 그래프 설정(구 CreateGraphs)은 TabRateScope::setupPlots 로 이동했다.
 
@@ -490,56 +403,8 @@ MainWindow::~MainWindow()
 // 스코프 마커 헬퍼(AddVerticalMarker/AddText/AddHorizontalMarker*·RemoveMarkersAndText)는
 //  ScopePlot 과 함께 TabRateScope 로 이동했다.
 
-void MainWindow::HandleInputData(TMasterAudioDataRaw *SharedDataPtr)
-{
-        SharedDataPtr->Mutex.lock();
-        mLocalWriteIndex=SharedDataPtr->WriteIndex;
-        mLocalTotalSamplesWritten=SharedDataPtr->TotalSamplesWritten;
-        // [PERF 계측 · §A-1/A-2 · QA-LT-01] 동일 Mutex 안에서 최신 블록 캡처 시각/드롭 추정을
-        //   원자적으로 스냅샷. (이후 ProcessSamples에서 표시 시각과 비교해 지연 산출)
-        mLocalLastBlockCaptureMs=SharedDataPtr->LastBlockCaptureMs;
-        mLocalDroppedSamples=SharedDataPtr->DroppedSampleEstimate;
-        // [PERF 계측 · §E/§G-2] Sim 모드에서만 정답(GT) 이벤트 링을 동일 Mutex 안에서 스냅샷
-        if (ui->ModeComboBox->currentIndex()==SIM) {
-            memcpy(mLocalGt, SharedDataPtr->GtBeats, sizeof(mLocalGt));
-            mLocalGtHead  = SharedDataPtr->GtHead;
-            mLocalGtTotal = SharedDataPtr->GtTotal;
-            mLocalGtValid = true;
-        } else {
-            mLocalGtValid = false;
-        }
-        SharedDataPtr->Mutex.unlock();
-
-        ProcessSamples(SharedDataPtr);
-        if ((mBackgroundLastFPS!=SharedDataPtr->FPS) ||
-            (mBackgroundLastSPS!=SharedDataPtr->SPS) ||
-            (mBackgroundLastSPF!=SharedDataPtr->SPF) ||
-            (mForegroundLastFPS!=mForegroundFPS) ||
-            (mForegroundLastSPS!=mForegroundSPS) ||
-            (mForegroundLastSPF!=mForegroundSPF))
-        {
-            mBackgroundLastFPS=SharedDataPtr->FPS;
-            mBackgroundLastSPS=SharedDataPtr->SPS;
-            mBackgroundLastSPF=SharedDataPtr->SPF;
-            mForegroundLastFPS=mForegroundFPS;
-            mForegroundLastSPS=mForegroundSPS;
-            mForegroundLastSPF=mForegroundSPF;
-
-            statusBar()->showMessage(
-                QString("Backgroud Audio Thread Average - FPS:%1, SPS:%2, SPF: %3 Foregroud Audio Handler Average - FPS:%4, SPS:%5, SPF: %6")
-                    .arg(mBackgroundLastFPS, 0, 'f', 0)
-                    .arg(mBackgroundLastSPS, 0, 'f', 0)
-                    .arg(mBackgroundLastSPF, 0, 'f', 0)
-                    .arg(mForegroundLastFPS, 0, 'f', 0)
-                    .arg(mForegroundLastSPS, 0, 'f', 0)
-                    .arg(mForegroundLastSPF, 0, 'f', 0));
-        }
-
-       // qDebug() << "Main thread: handleResults slot is running in thread" << QThread::currentThreadId()<<" "<<count;
-}
-
-// HandleAudioInput/HandlePlaybackInput/HandleSimInput 은 제거 — CaptureController::dataReady 가
-//  직접 HandleInputData(raw) 로 연결된다(생성자 배선 참조).
+// HandleInputData(워커 블록 수신·GT 스냅샷·FPS) 는 CaptureController 로 이동했다.
+//  상태바 FPS 메시지는 CaptureController::statusMessage 신호로 전달된다(생성자 배선).
 void MainWindow::HandlePlaybackDoneReadingFile()
 {
     SetGuiStopMode();
@@ -553,7 +418,7 @@ void MainWindow::HandlePlaybackDoneReadingFile()
 }
 void MainWindow::HandleSimDone()
 {
-    mSimActive=false;   // [PERF 계측 · §G-1] Sim 측정 종료 → 측정값 비교 중단
+    // mSimActive=false 는 CaptureController::onSimWorkerDone 에서 처리(G-1 비교 중단).
     SetGuiStopMode();
     if (ui->ModeComboBox->currentIndex()==SIM)
     {
@@ -563,222 +428,14 @@ void MainWindow::HandleSimDone()
     AudioCloseCheck();
     statusBar()->showMessage("Stopped");
 }
-void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
-{
-    // 측정 엔진에 현재 설정 반영(샘플레이트·평균구간·lift angle) — 이벤트 계산 전에 1회.
-    mEngine.setConfig(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
-    int    SamplesToAdd=mLocalTotalSamplesWritten-SharedDataPtr->MainThrd_LastTotalSamplesWritten;
-
-    int slice;
-    if (!mForegroundTimerStarted)
-    {
-        mForegroundTimer.restart();
-        mForegroundTimerStarted=true;
-        mForegroundLastTime=0.0;
-        mForegroundFrameCount=0;
-        mForegroundSampleCount=0;
-    }
-    if (SamplesToAdd>0)
-    {
-        // ── [PERF 계측 · §A-2 · QA-LT-01] 처리 단계 시작 시각 + 백로그 ─────────────
-        //  backlog_samples = 이번 호출 시점에 아직 처리 못한 누적 샘플 수(대기량).
-        //  cap2proc_latency_ms = (처리 시작 - 최신 블록 캡처 시각) = 캡처→처리 지연(Live).
-        //  ※ Live 모드에서만 캡처 시각이 의미 있음(Playback/Sim 은 인위적 타이밍).
-        const double perfProcStartMs = Perf::nowMs();
-        const bool   perfIsLive      = (ui->ModeComboBox->currentIndex()==LIVE);
-        Perf::log("A-2","QA-LT-01","backlog_samples",(double)SamplesToAdd,"samp",
-                  perfIsLive ? "mode=Live" : "mode=PlaybackOrSim");
-        if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
-            Perf::log("A-2","QA-LT-01","cap2proc_latency_ms",
-                      perfProcStartMs - mLocalLastBlockCaptureMs, "ms",
-                      QString("backlog=%1;drop_est=%2").arg(SamplesToAdd).arg(mLocalDroppedSamples));
-
-        while (SamplesToAdd>0)
-        {
-         if ( SamplesToAdd>DETECTOR_NUMBER_OF_SAMPLES) slice= DETECTOR_NUMBER_OF_SAMPLES;
-         else slice=SamplesToAdd;
-
-         for (int i=0;i<slice;i++)
-          {
-           mInputBlock[i]=SharedDataPtr->Samples[SharedDataPtr->MainThrd_LastWriteIndex];
-           SharedDataPtr->MainThrd_LastWriteIndex=(SharedDataPtr->MainThrd_LastWriteIndex+1)%SharedDataPtr->NumberOfAudioSamples;
-          }
-          if (mWavWriter) mWavWriter->write(mInputBlock,slice);
-
-          tg_result_t r;
-          if (tg_process(mCtx,mInputBlock, slice, &r) != 0) {
-              qInfo()<<"tg_process failed";
-              return ;
-          }
-
-          // ── [PERF 계측 · §A-4 · QA-AC-04/US-01/LT-03] 결함/관측 이벤트 발생 시각 ──
-          //  sync_lost=동기 상실(신호 손실·과잡음 신호), detector_reset=신호 레짐 급변.
-          //  결함 주입 시각과 이 로그 시각의 차이로 '결함→인지 지연(≤2초)'을 산출한다.
-          //  (드롭/누락 카운터의 화면 반영(≤5초)은 §B-1 로그가 2초 주기로 관찰 보장)
-          if (r.sync_lost_event)      Perf::log("A-4","QA-US-01","fault_sync_lost", 1, "event","");
-          if (r.sync_acquired_event)  Perf::log("A-4","QA-US-01","sync_acquired",   1, "event","");
-          if (r.detector_reset_event) Perf::log("A-4","QA-US-01","detector_reset",  1, "event","");
-
-          // [탭] 엔벨로프/임계선 + 이벤트 마커(ScopePlot) 렌더링은 TabRateScope.onWave 가 담당.
-          for (int i=0;i<r.num_events;i++)
-             {
-               double val;
-               if (r.events[i].type==TG_EVENT_A)
-               {
-                    val=r.events[i].sample_index+r.events[i].sub_sample_offset;
-                    A_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
-                    // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 A(onset) vs 정답 A 대조 ──
-                    //  검출된 A 샘플위치와 가장 가까운 정답 A 의 차이 = onset 식별 오차(ms).
-                    //  허용창(반 비트) 안이면 검출 성공(a_match), 아니면 a_unmatched(검출률/FP 계산용).
-                    if (mLocalGtValid && mLastSimCfg.bph>0.0) {
-                        double tol = 0.5 * ((double)mCurrentSamplesPerSecond * 3600.0 / mLastSimCfg.bph);
-                        double bestErr=0.0; bool found=false;
-                        for (unsigned k=0;k<GT_EVENT_RING;k++){
-                            uint64_t a=mLocalGt[k].a_sample; if(a==0) continue;
-                            double e=val-(double)a;
-                            if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
-                        }
-                        if (found && qAbs(bestErr)<tol){
-                            Perf::log("E-2","QA-AC-02","onset_err_ms", bestErr*1000.0/mCurrentSamplesPerSecond,"ms","");
-                            Perf::log("G-2","QA-AC-01","a_match",1,"event","");
-                        } else Perf::log("G-2","QA-AC-01","a_unmatched",1,"event","");
-                    }
-               }
-               else if (r.events[i].type==TG_EVENT_C)
-               {
-                   if(ui->UseConsetCheckBox->isChecked())
-                   {
-                       if (r.events[i].onset_valid)
-                       {
-                           val=r.events[i].onset_sample_index+r.events[i].onset_sub_sample_offset;
-                       }
-                       else
-                       {
-                           qInfo()<< "Invalid C Onset using C peak";
-                           val=r.events[i].sample_index+r.events[i].sub_sample_offset; // Use C PEAK
-                       }
-                   }
-                   else val=r.events[i].sample_index+r.events[i].sub_sample_offset; // C PEAK
-
-                   C_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
-                   // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 C vs 정답 C 대조 ──
-                   //  검출된 C 샘플위치(onset 또는 peak)와 가장 가까운 정답 C 의 차이 = 식별 오차(ms).
-                   if (mLocalGtValid && mLastSimCfg.bph>0.0) {
-                       double tol = 0.5 * ((double)mCurrentSamplesPerSecond * 3600.0 / mLastSimCfg.bph);
-                       double bestErr=0.0; bool found=false;
-                       for (unsigned k=0;k<GT_EVENT_RING;k++){
-                           uint64_t c=mLocalGt[k].c_sample; if(c==0) continue;
-                           double e=val-(double)c;
-                           if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
-                       }
-                       if (found && qAbs(bestErr)<tol){
-                           Perf::log("E-2","QA-AC-02","peak_err_ms", bestErr*1000.0/mCurrentSamplesPerSecond,"ms","");
-                           Perf::log("G-2","QA-AC-01","c_match",1,"event","");
-                       } else Perf::log("G-2","QA-AC-01","c_unmatched",1,"event","");
-                   }
-               }
-               else qInfo()<< "Unkown Event Type";
-
-             }
-
-          // [탭 모듈] 이 슬라이스의 엔벨로프 + 검출 이벤트(A/C)를 스코프 계열 탭에 게시.
-          //  (포인터는 이 호출 동안만 유효 → 각 탭이 WaveBuffer 로 복사)
-          if (mTabManager) {
-              QVarLengthArray<WaveEvent, 32> wevs;
-              const bool useConset = ui->UseConsetCheckBox->isChecked();
-              for (size_t ei = 0; ei < r.num_events; ++ei) {
-                  // 표시용 마커 위치(markSample): A=검출위치, C=UseConset+onset_valid면 onset, 아니면 peak.
-                  uint64_t mark = r.events[ei].sample_index;
-                  if (r.events[ei].type == TG_EVENT_C && useConset && r.events[ei].onset_valid)
-                      mark = r.events[ei].onset_sample_index;
-                  wevs.append(WaveEvent{ r.events[ei].sample_index,
-                                         (int)r.events[ei].type,
-                                         r.events[ei].peak_value,
-                                         mark });
-              }
-              WaveBlock wb;
-              wb.env          = r.processed_pcm;
-              wb.n            = (int)r.processed_pcm_len;
-              wb.startSample  = r.processed_pcm_start_sample;
-              wb.sampleRateHz = mCurrentSamplesPerSecond;
-              wb.bph          = r.detected_bph;
-              wb.synced       = (r.sync_status == TG_SYNC_SYNCED);
-              wb.events       = wevs.data();
-              wb.numEvents    = wevs.size();
-              wb.raw          = mInputBlock;       // 정류 전 원신호(F0~F3 필터 뷰용)
-              wb.rawN         = slice;
-              wb.rawStart     = mInputAbsSample;
-              wb.onsetThreshold = r.onset_threshold;   // Escapement threshold 선 출처
-              mTabManager->broadcastWave(wb);
-          }
-          mInputAbsSample += (uint64_t)slice;      // 다음 슬라이스의 원신호 시작 인덱스
-
-        mForegroundSampleCount+=slice;
-        SamplesToAdd=SamplesToAdd-slice;
-        }
-
-        SharedDataPtr->MainThrd_LastTotalSamplesWritten=mLocalTotalSamplesWritten;
-        // [탭] ScopePlot 의 purge/축/replot 은 TabRateScope.onWave 가 담당.
-
-        // ── [PERF 계측 · §A-2/§A-1 · QA-LT-01] 표시 완료 시각 → 지연 산출 ──────────
-        //  proc2disp_latency_ms = (표시 완료 - 처리 시작) = 처리→표시(그래프 replot) 지연.
-        //  e2e_latency_ms       = (표시 완료 - 최신 블록 캡처) = 종단간 지연(Live, ≤50ms 목표).
-        const double perfDispMs = Perf::nowMs();
-        Perf::log("A-2","QA-LT-01","proc2disp_latency_ms", perfDispMs - perfProcStartMs, "ms","");
-        if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
-            Perf::log("A-1","QA-LT-01","e2e_latency_ms", perfDispMs - mLocalLastBlockCaptureMs, "ms",
-                      QString("set_sps=%1").arg(mCurrentSamplesPerSecond));
-
-        // [PERF 계측 · §A-1/A-2] 이 replot 요청 시점·캡처시각을 보관 → afterReplot(OnScopeReplotted)에서
-        //  실제 페인트 완료 시각과 비교해 disp_paint_ms·e2e_full_ms 산출.
-        mPerfReplotRequestMs    = perfDispMs;
-        mPerfCaptureForReplotMs = mLocalLastBlockCaptureMs;
-        mPerfReplotLive         = perfIsLive;
-        mPerfReplotPending      = true;
-        mReplotReqCount++;   // [F-1] replot 요청 수(코얼레싱 대비 paint 수와 비교)
-
-        mForegroundFrameCount++;
-        double CurrentTime;
-        CurrentTime = mForegroundTimer.elapsed()/1000.0;
-
-        if (CurrentTime-mForegroundLastTime > 2) // average fps over 2 seconds
-        {
-            double fdelta;
-            fdelta=CurrentTime-mForegroundLastTime;
-            mForegroundFPS=mForegroundFrameCount/fdelta;
-            mForegroundSPS=mForegroundSampleCount/fdelta;
-            mForegroundSPF=mForegroundSampleCount/mForegroundFrameCount;
-            mForegroundLastTime=CurrentTime;
-            mForegroundFrameCount=0;
-            mForegroundSampleCount=0;
-
-            // [PERF 계측 · §B-3/§A-3 · QA-RT-01] 전경(핸들러+렌더) 실효 처리량/프레임율.
-            //  fg_fps 가 떨어지면 렌더 부하로 표시가 밀린다는 신호(§F-1과 연계).
-            Perf::log("B-3","QA-RT-01","fg_sps", mForegroundSPS, "samp/s","");
-            Perf::log("B-3","QA-RT-01","fg_fps", mForegroundFPS, "frame/s","");
-            Perf::log("B-3","QA-RT-01","fg_spf", mForegroundSPF, "samp/frame","");
-        }
-    }
-}
 // 스코프 히스토리 정리(구 PurgeHistory)는 TabRateScope::purgeHistory 로 이동했다.
 void MainWindow::Reset(void)
 {
     qInfo()<<"RESET";
-    // Rate/Scope·Sound Print 렌더링은 각 탭(TabRateScope/TabSoundPrint)이 담당.
-    //  세션 리셋은 broadcastReset 으로 전파되어 각 탭이 자기 그래프/누적을 비운다.
-
-    mInputAbsSample=0;   // [탭 모듈] 원신호 게시 인덱스 리셋
-
-    // [탭 모듈] 세션 리셋을 모든 디스플레이 탭에 전파(누적 데이터·그래프 비움).
+    // 세션 리셋: 탭 비움(broadcastReset) + 측정엔진 리셋(EventsReset → readout).
+    //  검출기 생성·파이프라인 상태(mInputAbsSample·FPS) 리셋은 CaptureController::startX 가 담당.
     if (mTabManager) mTabManager->broadcastReset();
-
-    CreateDectectors();
     EventsReset();
-
-    mBackgroundLastFPS=0.0;
-    mBackgroundLastSPF=0.0;
-    mBackgroundLastSPS=0.0;
-    mForegroundTimerStarted=false;
 }
 
 
@@ -824,6 +481,7 @@ void MainWindow::AudioCloseCheck(void)
 {
     if (mWavWriter)
     {
+        if (mCapture) mCapture->setWavWriter(nullptr);   // 컨트롤러의 비소유 포인터 무효화(삭제 전)
         mWavWriter->close();
         delete mWavWriter;
         mWavWriter=NULL;
@@ -1017,10 +675,21 @@ void   MainWindow::SetGuiStopMode(void)
     ui->UseConsetCheckBox->setEnabled(true);
     ui->HighLineEdit->setEnabled(true);
 }
+// 캡처/파이프라인 설정을 UI 에서 읽어 CaptureController 에 주입(세션 시작 직전).
+void   MainWindow::pushCaptureConfig(void)
+{
+    mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
+    bool bphAuto   = (ui->BPHComboBox->currentIndex()==0);
+    int  manualBph = bphAuto ? 0 : ManualAutoBPH[ui->BPHComboBox->currentIndex()];
+    mCapture->setDetectorConfig(bphAuto, manualBph, ui->HighLineEdit->text().toDouble());
+    mCapture->setUseConset(ui->UseConsetCheckBox->isChecked());
+    mCapture->setWavWriter(mWavWriter);   // 녹음 대상(없으면 nullptr)
+}
 void   MainWindow::LiveStart(void)
 {
     if (!RecordSessionCheck()) return;
-    Reset();   // 세션 리셋(탭·검출기·측정) — 구 StartAudioThread 가 하던 것
+    Reset();              // 탭·측정엔진 리셋
+    pushCaptureConfig();  // 검출기/엔진/녹음 설정 주입(구 UI 읽기 대체)
     QAudioDevice dev = ui->InputDeviceComboBox->currentData().value<QAudioDevice>();
     mCapture->startLive(dev, mCurrentSamplesPerSecond, ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
     SetGuiRunMode();
@@ -1039,6 +708,7 @@ void   MainWindow::PlaybackStart(void)
     }
     if (!status) return;
     Reset();
+    pushCaptureConfig();
     mCapture->startPlayback(fileDialog.selectedFiles().constFirst(), mCurrentSamplesPerSecond);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
@@ -1068,10 +738,9 @@ void   MainWindow::SimStart(void)
     {
         qInfo()<< "SetAudioRate Failed";
     }
-    // [PERF 계측 · §G-1 · QA-CO-01] Sim 정답 설정값 보관 — DisplayResults에서 측정값과 대비.
-    mLastSimCfg = cfg;
-    mSimActive  = true;
     Reset();
+    pushCaptureConfig();
+    // Sim 정답 설정값(mLastSimCfg)·mSimActive 보관은 CaptureController::startSim 이 담당(G-1 비교용).
     mCapture->startSim(cfg, mCurrentSamplesPerSecond);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
@@ -1121,16 +790,18 @@ void MainWindow::on_RefreshPushButton_clicked()
 void MainWindow::on_LiftAngleSpinBox_valueChanged(int arg1)
 {
     mLiftAngle=ui->LiftAngleSpinBox->value();
+    if (mCapture) mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
     qInfo()<<"Lift Angle Value="<<mLiftAngle;
 }
 void MainWindow::on_AveragingPeriodComboBox_currentIndexChanged(int index)
 {
     mAveragingPeriod=AveragingPeriodList[ui->AveragingPeriodComboBox->currentIndex()];
+    if (mCapture) mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
     qInfo()<<"Averaging Period Value="<<mAveragingPeriod;
 }
 void MainWindow::on_MicrophoneHorizontalSlider_sliderMoved(int position)
 {
-    mCapture->setInputVolume(ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
+    if (mCapture) mCapture->setInputVolume(ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
 }
 void MainWindow::on_StartPushButton_clicked()
 {
@@ -1164,6 +835,7 @@ void MainWindow::on_StopPushButton_clicked()
 
         if (mWavWriter)
         {
+            if (mCapture) mCapture->setWavWriter(nullptr);
             mWavWriter->close();
             delete mWavWriter;
             mWavWriter=NULL;

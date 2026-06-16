@@ -13,6 +13,9 @@
 #  의존성: 파이썬 표준 라이브러리만.  ※ 합격/미달은 '참고'이며 최종 판정은 가이드 기준으로.
 # =============================================================================
 import argparse, csv, sys
+# Windows 한글 콘솔(cp949)에서도 '—'·한글 출력이 깨지거나 죽지 않도록 stdout 을 UTF-8 로 고정.
+try: sys.stdout.reconfigure(encoding='utf-8')
+except Exception: pass
 
 # 워밍업 제외: 각 지표의 첫 N샘플을 무조건 버린다(시작 직후 미수렴 이상치 제거).
 #  예) rate_err 는 비트가 쌓이기 전 첫 2샘플이 -3.5 로 튀므로, 통계·판정에서 제외해야 정확하다.
@@ -36,7 +39,7 @@ def pct(sorted_vals, p):
 
 def read_perf(path):
     epoch_ms_t0=None; header=None; rows=[]
-    for line in open(path):
+    for line in open(path, encoding='utf-8'):
         line=line.rstrip('\n')
         if line.startswith('#'):
             for tok in line.split():
@@ -105,7 +108,7 @@ def main():
 
     # ── 외부 자원 (Pi: pss/temp/throttle  ·  Windows: working_set/private/cpu — 있는 컬럼만) ──
     if args.resource:
-        rr=list(csv.DictReader(open(args.resource)))
+        rr=list(csv.DictReader(open(args.resource, encoding='utf-8')))
         def col(name):  # 해당 컬럼의 float 리스트(비어있으면 빈 리스트)
             return [float(r[name]) for r in rr if r.get(name) not in (None,"")]
         if rr:
