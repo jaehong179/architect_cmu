@@ -48,22 +48,26 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         WaveHeader.h
         WavStreamWriter.h
         WavStreamWriter.cpp
-        Timegrapher.h
-        Timegrapher.cpp
-        Bph.h
-        Bph.cpp
-        Detector.h
-        Detector.cpp
-        Dsp.h
-        Dsp.cpp
-        RollingLeastSquares.h
-        RollingLeastSquares.cpp
+        # [core/timing] 타이밍·동기·파이프라인 (순수 C, Qt 의존 0)
+        src/core/timing/Timegrapher.h
+        src/core/timing/Timegrapher.cpp
+        src/core/timing/Bph.h
+        src/core/timing/Bph.cpp
+        # [core/detection] 이벤트 검출 상태머신
+        src/core/detection/Detector.h
+        src/core/detection/Detector.cpp
+        # [core/dsp] 신호 필터(HPF·envelope)
+        src/core/dsp/Dsp.h
+        src/core/dsp/Dsp.cpp
+        # [core/stats] 윈도 통계 유틸
+        src/core/stats/RollingLeastSquares.h
+        src/core/stats/RollingLeastSquares.cpp
+        src/core/stats/RollingAverage.h
+        src/core/stats/RollingAverage.cpp
         SoundImageWidget.h
         SoundImageWidget.cpp
         SoundImageRenderer.h
         SoundImageRenderer.cpp
-        RollingAverage.h
-        RollingAverage.cpp
         SimWorker.cpp
         SimWorker.h
         WatchSynthStream.cpp
@@ -135,6 +139,14 @@ endif()
 
 # [탭 모듈] tabs/ 헤더 탐색 경로 (TabView.h 등 형제 include + AUTOMOC)
 target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tabs)
+
+# [core 모듈] 평면 include("Detector.h" 등) 유지를 위한 탐색 경로 — 소비자 수정 없이 물리적 분리
+target_include_directories(TimeGrapher PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/dsp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/detection
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/timing
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/stats
+)
 
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)

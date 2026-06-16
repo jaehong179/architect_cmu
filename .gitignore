@@ -1,6 +1,7 @@
 .qtcreator
 TimeGrapher
 build
+build_cli/
 
 # 성능 계측 작업 — 생성물/로컬 (커밋 제외)
 docs/doxygen/
