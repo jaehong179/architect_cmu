@@ -28,10 +28,10 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets)
 #DP-END
 
 set(PROJECT_SOURCES
-    Main.cpp
-        MainWindow.cpp
-        MainWindow.h
-        MainWindow.ui
+    src/ui/Main.cpp
+        src/ui/MainWindow.cpp
+        src/ui/MainWindow.h
+        src/ui/MainWindow.ui
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -165,6 +165,9 @@ target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
     ${CMAKE_CURRENT_SOURCE_DIR}/src/perf
 )
+
+# [ui 모듈] MainWindow 헤더 탐색 경로 ("MainWindow.h" + "tabs/..." 접두사 include 해결)
+target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/ui)
 
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
