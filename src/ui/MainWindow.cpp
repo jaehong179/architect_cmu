@@ -7,6 +7,7 @@
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
 #include <QVarLengthArray>
 #include "tabs/TabManager.h"
+#include "tabs/TabSoundPrint.h"
 #include "tabs/TabTraceDisplay.h"
 #include "tabs/TabVarioStability.h"
 #include "tabs/TabSequenceDisplay.h"
@@ -45,7 +46,6 @@
 #define  ERROR_RATE_Y_SCALE                 10
 #define  ERROR_RATE_X_DATA_POINTS          250
 #define  RLS_WINDOW_INIT                   100
-#define  SND_PIXEL_SIZE                      3
 #define  INWARD_MARKER_LENGTH             (500*(mCurrentSamplesPerSecond/48000.0))
 
 #define PLAYBACK_OR_SIM_PCM             "Playback/Sim"
@@ -130,10 +130,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->Results->setAlignment(Qt::AlignHCenter);
     ui->LiftAngleSpinBox->setValue(mLiftAngle);
-    ui->SoundImage->CreateImage();
-    // Sound Print 위젯이 resize로 QImage를 재생성하면 렌더러를 새 이미지에 다시 바인딩(use-after-free 방지).
-    connect(ui->SoundImage, &SoundImageWidget::imageRecreated, this, &MainWindow::onSoundImageResized);
-
     //QFont fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
     //ui->Results->setFont(fixedFont);
 
@@ -176,6 +172,7 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
+    mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지(구 정적 SoundTab)
     mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
@@ -1103,10 +1100,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
           }
           if (mWavWriter) mWavWriter->write(mInputBlock,slice);
 
-
-          mSoundRenderer.processSamples(mInputBlock,slice);
-
-
           tg_result_t r;
           if (tg_process(mCtx,mInputBlock, slice, &r) != 0) {
               qInfo()<<"tg_process failed";
@@ -1128,12 +1121,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
             ui->ScopePlot->graph(0)->addData(mLocalGraphTicks, pcm);
             ui->ScopePlot->graph(1)->addData(mLocalGraphTicks, threshhold);
             mLocalGraphTicks++;
-           }
-
-          if ((!mSoundRenderHasBPH) &&(r.sync_status==TG_SYNC_SYNCED))
-           {
-              mSoundRenderHasBPH=true;
-              mSoundRenderer.setBph(r.detected_bph);
            }
 
           for (int i=0;i<r.num_events;i++)
@@ -1168,10 +1155,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                             Perf::log("E-2","QA-AC-02","onset_err_ms", bestErr*1000.0/mCurrentSamplesPerSecond,"ms","");
                             Perf::log("G-2","QA-AC-01","a_match",1,"event","");
                         } else Perf::log("G-2","QA-AC-01","a_unmatched",1,"event","");
-                    }
-                    if (mSoundRenderHasBPH)
-                    {
-                     mSoundRenderer.markAEventAbsoluteSampleIndex(val, qRgba(0, 255, 0, 255), SND_PIXEL_SIZE);
                     }
                }
                else if (r.events[i].type==TG_EVENT_C)
@@ -1223,10 +1206,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                            Perf::log("G-2","QA-AC-01","c_match",1,"event","");
                        } else Perf::log("G-2","QA-AC-01","c_unmatched",1,"event","");
                    }
-                   if (mSoundRenderHasBPH)
-                   {
-                    mSoundRenderer.markCEventAbsoluteSampleIndex(val, qRgba(0, 0, 255,255), SND_PIXEL_SIZE);
-                   }
                }
                else qInfo()<< "Unkown Event Type";
 
@@ -1236,10 +1215,17 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
           //  (포인터는 이 호출 동안만 유효 → 각 탭이 WaveBuffer 로 복사)
           if (mTabManager) {
               QVarLengthArray<WaveEvent, 32> wevs;
-              for (size_t ei = 0; ei < r.num_events; ++ei)
+              const bool useConset = ui->UseConsetCheckBox->isChecked();
+              for (size_t ei = 0; ei < r.num_events; ++ei) {
+                  // 표시용 마커 위치(markSample): A=검출위치, C=UseConset+onset_valid면 onset, 아니면 peak.
+                  uint64_t mark = r.events[ei].sample_index;
+                  if (r.events[ei].type == TG_EVENT_C && useConset && r.events[ei].onset_valid)
+                      mark = r.events[ei].onset_sample_index;
                   wevs.append(WaveEvent{ r.events[ei].sample_index,
                                          (int)r.events[ei].type,
-                                         r.events[ei].peak_value });
+                                         r.events[ei].peak_value,
+                                         mark });
+              }
               WaveBlock wb;
               wb.env          = r.processed_pcm;
               wb.n            = (int)r.processed_pcm_len;
@@ -1267,7 +1253,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
         //ui->ScopePlot->xAxis->rescale();
         ui->ScopePlot->yAxis->rescale();
         ui->ScopePlot->replot(QCustomPlot::rpQueuedReplot);
-        ui->SoundImage->DrawImage();
 
         // ── [PERF 계측 · §A-2/§A-1 · QA-LT-01] 표시 완료 시각 → 지연 산출 ──────────
         //  proc2disp_latency_ms = (표시 완료 - 처리 시작) = 처리→표시(그래프 replot) 지연.
@@ -1336,51 +1321,10 @@ void MainWindow::PurgeHistory(void)
         }
     }
 }
-// Sound Print 렌더러 Config 단일 소스 — Reset()과 resize 재바인딩(onSoundImageResized)이 공유한다.
-SoundImageRenderer::Config MainWindow::buildSoundImageConfig(void) const
-{
-    SoundImageRenderer::Config cfg;
-    cfg.bph = 0.0; // unknown at initialization
-    cfg.sample_rate_hz = mCurrentSamplesPerSecond;
-    cfg.sound_color = qRgba(255, 0, 0, 255);          // red intensity for sound
-    cfg.background_color = qRgba(255, 255, 255, 255); // white background
-    cfg.vertical_time_direction = SoundImageRenderer::TimeStartsAtTopMovesDown;
-    cfg.warmup_columns = 2;
-    cfg.anchor_columns = 12;
-    cfg.gamma = 0.5f;
-    cfg.live_preview_current_column = true;
-    return cfg;
-}
-
-// Sound Print 탭으로 전환하면 위젯이 resize되며 내부 QImage를 재생성한다. 그러면 렌더러가
-// 캐싱하던 옛 QImage 포인터가 무효화되어 다음 processSamples에서 use-after-free로 앱이 죽는다.
-// 새 이미지로 렌더러를 다시 초기화해 이 크래시를 막는다.
-void MainWindow::onSoundImageResized(void)
-{
-    if (!mSoundRenderInitialized) return;          // 최초 Reset 전에는 Reset이 초기화를 담당
-    QImage *img = ui->SoundImage->GetImage();
-    if (!img || img->isNull()) return;             // 0 크기: 다음 resize에서 처리
-    SoundImageRenderer::Config cfg = buildSoundImageConfig();
-    if (!mSoundRenderer.initialize(img, cfg)) return;
-    mSoundRenderer.reset();
-    mSoundRenderHasBPH = false;                    // 다음 동기 프레임에서 BPH 재적용
-}
-
 void MainWindow::Reset(void)
 {
     qInfo()<<"RESET";
-    SoundImageRenderer::Config SoundImageCfg = buildSoundImageConfig();
-
-    mSoundRenderHasBPH=false;
-
-    ui->SoundImage->CreateImage(); // Ensure image matches current widget size before initializing renderer
-
-    if (!mSoundRenderer.initialize(ui->SoundImage->GetImage(), SoundImageCfg)) {
-        qCritical() << "Failed to initialize SoundImageRenderer.";
-        throw std::runtime_error("Failed to initialize SoundImageRenderer.");
-    }
-    mSoundRenderer.reset();
-    mSoundRenderInitialized = true;   // 이후 resize 시 onSoundImageResized가 재바인딩 수행
+    // Sound Print 렌더링은 TabSoundPrint 가 담당(onResetSession 으로 비움). 여기선 다루지 않는다.
 
     mLocalGraphTicks=0;
     mInputAbsSample=0;   // [탭 모듈] 원신호 게시 인덱스 리셋

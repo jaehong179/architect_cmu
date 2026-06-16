@@ -729,29 +729,6 @@
       </property>
      </widget>
     </widget>
-    <widget class="QWidget" name="SoundTab">
-     <property name="font">
-      <font>
-       <bold>false</bold>
-      </font>
-     </property>
-     <attribute name="title">
-      <string>Sound Print</string>
-     </attribute>
-     <widget class="SoundImageWidget" name="SoundImage" native="true">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="geometry">
-       <rect>
-        <x>0</x>
-        <y>0</y>
-        <width>1019</width>
-        <height>654</height>
-       </rect>
-      </property>
-     </widget>
-    </widget>
    </widget>
    <widget class="QFrame" name="WatchFrame">
     <property name="geometry">

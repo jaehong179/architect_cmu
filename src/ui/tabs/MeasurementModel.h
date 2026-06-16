@@ -54,9 +54,10 @@ struct MeasurementSnapshot
 //   - 포인터(env/events)는 호출 동안만 유효 → 탭은 필요한 만큼 자기 버퍼로 복사할 것.
 struct WaveEvent
 {
-    uint64_t sample = 0;   // 절대 샘플 인덱스 (A=onset/peak, C=peak)
+    uint64_t sample = 0;   // 절대 샘플 인덱스 (A=onset/peak, C=peak) — 원시 검출 위치
     int      type   = 0;   // 1=A(unlock), 2=C(drop/lock)  (tg_event_type_t)
     float    peak   = 0.0f;// 엔벨로프 피크값
+    uint64_t markSample = 0; // 표시용 해상 위치(A=sample, C=onset 또는 peak; UseConset 선택 반영)
 };
 
 struct WaveBlock

@@ -11,7 +11,6 @@
 #include "WavStreamWriter.h"
 #include "Timegrapher.h"
 #include "RollingLeastSquares.h"
-#include "SoundImageRenderer.h"
 #include "RollingAverage.h"
 #include "WatchSynthStream.h"
 
@@ -159,8 +158,6 @@ private:
     void   LiveStart(void);
     void   PlaybackStart(void);
     void   SimStart(void);
-    SoundImageRenderer::Config buildSoundImageConfig(void) const;  // Sound Print 렌더러 설정 빌더(Reset/재바인딩 공용)
-    void   onSoundImageResized(void);                             // 위젯 QImage 재생성 시 렌더러를 새 이미지에 재바인딩
 
 
     WavStreamWriter           *mWavWriter= nullptr;
@@ -188,9 +185,6 @@ private:
     tg_config_t                mCfg;
     tg_context_t              *mCtx= nullptr;
     float                     *mInputBlock = nullptr;
-    SoundImageRenderer         mSoundRenderer;
-    bool                       mSoundRenderHasBPH=false;
-    bool                       mSoundRenderInitialized=false;   // Reset 1회 후 true(resize 재바인딩 가드)
     double                     mLastA;
     bool                       mHaveLastA=false;
     double                     mBackgroundLastFPS=0.0;
