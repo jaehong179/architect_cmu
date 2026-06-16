@@ -99,6 +99,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         tabs/TabWaveformCompare.cpp
         tabs/TabSyncSweepScope.h
         tabs/TabSyncSweepScope.cpp
+        tabs/TabFilterViews.h
+        tabs/TabFilterViews.cpp
+        tabs/ScopeFilters.h
+        tabs/ScopeFilters.cpp
         Splash.qrc
         LinuxAudio.cpp
         LinuxAudio.h

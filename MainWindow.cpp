@@ -17,6 +17,7 @@
 #include "tabs/TabSpectrogram.h"
 #include "tabs/TabWaveformCompare.h"
 #include "tabs/TabSyncSweepScope.h"
+#include "tabs/TabFilterViews.h"
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -182,7 +183,8 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(new TabEscapementAnalyzer(this));  // FR-EAM
     mTabManager->registerTab(new TabSpectrogram(this));         // FR-TFS
     mTabManager->registerTab(new TabWaveformCompare(this));     // FR-WCD
-    mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS + FR-SFM(F0~F3)
+    mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS
+    mTabManager->registerTab(new TabFilterViews(this));         // FR-SFM(F0~F3)
 }
 
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
