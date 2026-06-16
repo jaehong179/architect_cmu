@@ -78,40 +78,40 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/perf/PerfInstrumentation.h
         src/perf/PerfInstrumentation.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
-        tabs/MeasurementModel.h
-        tabs/TabView.h
-        tabs/TabScaffold.h
-        tabs/WaveBuffer.h
-        tabs/ScopeRender.h
-        tabs/ReadoutBar.h
-        tabs/TabManager.h
-        tabs/TabManager.cpp
-        tabs/TabTraceDisplay.h
-        tabs/TabTraceDisplay.cpp
-        tabs/TabVarioStability.h
-        tabs/TabVarioStability.cpp
-        tabs/TabSequenceDisplay.h
-        tabs/TabSequenceDisplay.cpp
-        tabs/TabBeatNoiseScope.h
-        tabs/TabBeatNoiseScope.cpp
-        tabs/TabBeatErrorTrace.h
-        tabs/TabBeatErrorTrace.cpp
-        tabs/TabLongTermPerformance.h
-        tabs/TabLongTermPerformance.cpp
-        tabs/TabEscapementAnalyzer.h
-        tabs/TabEscapementAnalyzer.cpp
-        tabs/TabSpectrogram.h
-        tabs/TabSpectrogram.cpp
-        tabs/TabWaveformCompare.h
-        tabs/TabWaveformCompare.cpp
-        tabs/TabSyncSweepScope.h
-        tabs/TabSyncSweepScope.cpp
-        tabs/TabFilterViews.h
-        tabs/TabFilterViews.cpp
-        tabs/ScopeFilters.h
-        tabs/ScopeFilters.cpp
-        tabs/LegendBox.h
-        tabs/LegendBox.cpp
+        src/ui/tabs/MeasurementModel.h
+        src/ui/tabs/TabView.h
+        src/ui/tabs/TabScaffold.h
+        src/ui/tabs/WaveBuffer.h
+        src/ui/tabs/ScopeRender.h
+        src/ui/tabs/ReadoutBar.h
+        src/ui/tabs/TabManager.h
+        src/ui/tabs/TabManager.cpp
+        src/ui/tabs/TabTraceDisplay.h
+        src/ui/tabs/TabTraceDisplay.cpp
+        src/ui/tabs/TabVarioStability.h
+        src/ui/tabs/TabVarioStability.cpp
+        src/ui/tabs/TabSequenceDisplay.h
+        src/ui/tabs/TabSequenceDisplay.cpp
+        src/ui/tabs/TabBeatNoiseScope.h
+        src/ui/tabs/TabBeatNoiseScope.cpp
+        src/ui/tabs/TabBeatErrorTrace.h
+        src/ui/tabs/TabBeatErrorTrace.cpp
+        src/ui/tabs/TabLongTermPerformance.h
+        src/ui/tabs/TabLongTermPerformance.cpp
+        src/ui/tabs/TabEscapementAnalyzer.h
+        src/ui/tabs/TabEscapementAnalyzer.cpp
+        src/ui/tabs/TabSpectrogram.h
+        src/ui/tabs/TabSpectrogram.cpp
+        src/ui/tabs/TabWaveformCompare.h
+        src/ui/tabs/TabWaveformCompare.cpp
+        src/ui/tabs/TabSyncSweepScope.h
+        src/ui/tabs/TabSyncSweepScope.cpp
+        src/ui/tabs/TabFilterViews.h
+        src/ui/tabs/TabFilterViews.cpp
+        src/ui/tabs/ScopeFilters.h
+        src/ui/tabs/ScopeFilters.cpp
+        src/ui/tabs/LegendBox.h
+        src/ui/tabs/LegendBox.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h
@@ -141,7 +141,7 @@ endif()
 #DP-END
 
 # [탭 모듈] tabs/ 헤더 탐색 경로 (TabView.h 등 형제 include + AUTOMOC)
-target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tabs)
+target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/tabs)
 
 # [core 모듈] 평면 include("Detector.h" 등) 유지를 위한 탐색 경로 — 소비자 수정 없이 물리적 분리
 target_include_directories(TimeGrapher PRIVATE
