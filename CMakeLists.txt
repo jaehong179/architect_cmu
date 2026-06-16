@@ -10,6 +10,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+# [빌드 메모리] 거대 TU(qcustomplot 등) 병렬 컴파일 시 cc1plus 'out of memory' 방지 —
+#  동시 컴파일 작업 수를 4로 제한(가용 RAM 대비 코어수 기본 병렬이 메모리를 초과하는 문제).
+#  Ninja 제너레이터에서만 적용. 고사양/대용량 RAM 머신이면 숫자를 올려도 된다.
+set_property(GLOBAL PROPERTY JOB_POOLS compile_pool=4)
+set(CMAKE_JOB_POOL_COMPILE compile_pool)
+
 if(MINGW)
     add_compile_options("-Wa,-mbig-obj")
 endif()
