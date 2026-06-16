@@ -124,7 +124,14 @@ void TabBeatNoiseScope::processNewBeats()
         last = beat;
         // Σ 사이클: 50 tic + 50 tac 간격 완료 시 누적 정지(축별 평균 진폭 확정 후 새 사이클).
         if (cnt < kCycleN) {
-            if (sum.size() != mWin) { sum.assign(mWin, 0.0); cnt = 0; }
+            if (sum.size() != mWin) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 6, 0)
+                sum.assign(mWin, 0.0);
+#else
+                sum.fill(0.0, mWin);
+#endif
+                cnt = 0;
+            }
             for (int i = 0; i < mWin; ++i) sum[i] += beat[i];
             ++cnt;
             const double amp = beatAmplitudeDeg(e.sample);
