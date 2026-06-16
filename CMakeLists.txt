@@ -40,14 +40,15 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         ${PROJECT_SOURCES}
         qcustomplot.h
         qcustomplot.cpp
-        AudioWorker.h
-        AudioWorker.cpp
-        SharedAudio.h
-        PlaybackWorker.h
-        PlaybackWorker.cpp
-        WaveHeader.h
-        WavStreamWriter.h
-        WavStreamWriter.cpp
+        # [audio] 공유 링버퍼 + 입력 소스/녹음 (capture·playback·sim·recording)
+        src/audio/SharedAudio.h
+        src/audio/capture/AudioWorker.h
+        src/audio/capture/AudioWorker.cpp
+        src/audio/playback/PlaybackWorker.h
+        src/audio/playback/PlaybackWorker.cpp
+        src/audio/recording/WaveHeader.h
+        src/audio/recording/WavStreamWriter.h
+        src/audio/recording/WavStreamWriter.cpp
         # [core/timing] 타이밍·동기·파이프라인 (순수 C, Qt 의존 0)
         src/core/timing/Timegrapher.h
         src/core/timing/Timegrapher.cpp
@@ -68,10 +69,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         SoundImageWidget.cpp
         SoundImageRenderer.h
         SoundImageRenderer.cpp
-        SimWorker.cpp
-        SimWorker.h
-        WatchSynthStream.cpp
-        WatchSynthStream.h
+        src/audio/sim/SimWorker.cpp
+        src/audio/sim/SimWorker.h
+        src/audio/sim/WatchSynthStream.cpp
+        src/audio/sim/WatchSynthStream.h
         PerfInstrumentation.h
         PerfInstrumentation.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
@@ -110,10 +111,10 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         tabs/LegendBox.h
         tabs/LegendBox.cpp
         Splash.qrc
-        LinuxAudio.cpp
-        LinuxAudio.h
-        WindowsAudio.h
-        WindowsAudio.cpp
+        src/audio/capture/LinuxAudio.cpp
+        src/audio/capture/LinuxAudio.h
+        src/audio/capture/WindowsAudio.h
+        src/audio/capture/WindowsAudio.cpp
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET TimeGrapher APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -146,6 +147,15 @@ target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/detection
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/timing
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/stats
+)
+
+# [audio 모듈] 평면 include("SharedAudio.h"·"AudioWorker.h" 등) 유지를 위한 탐색 경로
+target_include_directories(TimeGrapher PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/capture
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/playback
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/sim
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/audio/recording
 )
 
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
