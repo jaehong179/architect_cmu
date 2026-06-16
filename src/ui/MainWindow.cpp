@@ -7,6 +7,7 @@
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
 #include <QVarLengthArray>
 #include "tabs/TabManager.h"
+#include "tabs/TabRateScope.h"
 #include "tabs/TabSoundPrint.h"
 #include "tabs/TabTraceDisplay.h"
 #include "tabs/TabVarioStability.h"
@@ -114,7 +115,6 @@ MainWindow::MainWindow(QWidget *parent)
     if (temp.exists()) mCurrentDir=temp;
     mCurrentSamplesPerSecond=48000;
     mLiftAngle=52;
-    mLocalGraphTicks=0;
     mCtx=NULL;
     mInputBlock=NULL;
 
@@ -136,7 +136,6 @@ MainWindow::MainWindow(QWidget *parent)
     LoadBPH();
     LoadSimBPH();
     LoadAudioDevices();
-    CreateGraphs();
     LoadAverageingPeriod();
     DisplayResults();
 
@@ -157,11 +156,10 @@ MainWindow::MainWindow(QWidget *parent)
     mPerfUiTimer->start(100);
 
     // ── [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 '그리기 완료' 시점 포착 ──
-    //  replot 은 rpQueuedReplot(지연 렌더)이라, 실제 픽셀이 그려지면 ScopePlot 이 afterReplot 을 낸다.
-    //  그 순간을 잡아 (요청→페인트) 구간과 진짜 종단간(캡처→페인트)을 기록한다.
-    connect(ui->ScopePlot, &QCustomPlot::afterReplot, this, &MainWindow::OnScopeReplotted);
+    //  ScopePlot 은 TabRateScope 로 이동했다 → 그 탭의 scopeReplotted() 시그널을 RegisterDisplayTabs 에서
+    //  OnScopeReplotted 에 연결해, (요청→페인트)·진짜 종단간(캡처→페인트)을 기록한다.
 
-    // [탭 모듈] 신규 디스플레이 탭들을 생성·등록(기존 2개 + 신규 10개 = 12개). 코어 DSP 불변(QA-MOD-01).
+    // [탭 모듈] 신규 디스플레이 탭들을 생성·등록. 코어 DSP 불변(QA-MOD-01).
     RegisterDisplayTabs();
 }
 
@@ -171,6 +169,11 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
+    // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
+    TabRateScope *rateScope = new TabRateScope(this);
+    mTabManager->registerTab(rateScope);                        // rate 시계열 + 실시간 스코프(구 정적 RateTab)
+    //  ScopePlot 의 실제 paint 완료 → perf 기록(상태는 MainWindow 잔류).
+    connect(rateScope, &TabRateScope::scopeReplotted, this, &MainWindow::OnScopeReplotted);
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지(구 정적 SoundTab)
     mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
@@ -264,17 +267,7 @@ void   MainWindow::ConfigureSoundCard(void)
 }
 void MainWindow::EventsReset(void)
 {
-    mEngine.reset();   // 측정 상태/시리즈 비움(롤링 통계 리셋)
-
-    ui->RatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    ui->RatePlot->xAxis->setRange(0, mEngine.maxDataPoints());
-
-    for (int i=0;i<ui->RatePlot->graphCount();i++)
-    {
-        ui->RatePlot->graph(i)->data()->clear();
-    }
-    ui->RatePlot->clearItems();
-    ui->RatePlot->replot();
+    mEngine.reset();   // 측정 상태/시리즈 비움(롤링 통계 리셋). RatePlot 비우기는 TabRateScope(onResetSession).
     DisplayResults();
 }
 
@@ -371,15 +364,8 @@ void MainWindow::LoadMode(void)
 
 void MainWindow::A_Event(double A_EventTime,bool haveValidBPH, double BPH)
 {
-  // 측정 계산은 engine 이 수행, rate 그래프 갱신만 여기서(갱신된 시리즈만 setData/replot).
-  MeasurementEngine::SeriesUpdate upd = mEngine.onAEvent(A_EventTime,haveValidBPH,BPH);
-  if (upd==MeasurementEngine::TicUpdated) {
-      ui->RatePlot->graph(0)->setData(mEngine.ticX(), mEngine.ticY());
-      ui->RatePlot->replot(QCustomPlot::rpQueuedReplot);
-  } else if (upd==MeasurementEngine::TocUpdated) {
-      ui->RatePlot->graph(1)->setData(mEngine.tocX(), mEngine.tocY());
-      ui->RatePlot->replot(QCustomPlot::rpQueuedReplot);
-  }
+  // 측정 계산만 — RatePlot 그리기는 TabRateScope(onMeasurement, snapshot 의 rate 시리즈)가 담당.
+  mEngine.onAEvent(A_EventTime,haveValidBPH,BPH);
 }
 void MainWindow::DisplayResults(void)
 {
@@ -481,66 +467,7 @@ void MainWindow::DeleteDectectors(void)
   mCtx=NULL;
 }
 
-void MainWindow::CreateGraphs(void)
-{
-    QPen pen;
-    QFont legendFont = font();
-    legendFont.setPointSize(10);
-
-    /* Setup plot */
-    ui->ScopePlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    ui->ScopePlot->legend->setVisible(true);
-    ui->ScopePlot->legend->setFont(legendFont);
-    ui->ScopePlot->legend->setSelectedFont(legendFont);
-    ui->ScopePlot->legend->setSelectableParts(QCPLegend::spItems);
-    ui->ScopePlot->yAxis->setLabel("Amplitude");
-    ui->ScopePlot->xAxis->setLabel("Time");
-    ui->ScopePlot->yAxis->setRange(0, 0.1);
-    ui->ScopePlot->xAxis->setTickLabels(false);
-    ui->ScopePlot->legend->setVisible(false);
-    ui->ScopePlot->clearGraphs();
-    ui->ScopePlot->addGraph();
-
-    pen.setWidth(1); // Set line width
-    pen.setColor(Qt::blue);
-    ui->ScopePlot->graph(0)->setPen(pen);
-    ui->ScopePlot->graph(0)->setBrush(QBrush(QColor(0, 0, 255, 20)));
-    ui->ScopePlot->graph(0)->setName("Rectified");
-    ui->ScopePlot->addGraph();
-
-    pen.setWidth(1); // Set line width
-    pen.setColor(Qt::red);
-    ui->ScopePlot->graph(1)->setPen(pen);
-    ui->ScopePlot->graph(1)->setName("Trigger");
-    ui->ScopePlot->legend->setVisible(true);
-
-    //ui->Rate->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    ui->RatePlot->legend->setVisible(true);
-    ui->RatePlot->legend->setFont(legendFont);
-    ui->RatePlot->legend->setSelectedFont(legendFont);
-    ui->RatePlot->legend->setSelectableParts(QCPLegend::spItems);
-    ui->RatePlot->yAxis->setLabel("Rate Error (milliseconds)");
-    ui->RatePlot->yAxis->setTickLabels(true);
-    ui->RatePlot->xAxis->setLabel("Time");
-    ui->RatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    ui->RatePlot->xAxis->setRange(0, mEngine.maxDataPoints());
-    ui->RatePlot->xAxis->setTickLabels(false);
-    ui->RatePlot->clearGraphs();
-    ui->RatePlot->addGraph();
-    ui->RatePlot->graph(0)->setScatterStyle(QCPScatterStyle::ssDisc);
-    ui->RatePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
-    ui->RatePlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    ui->RatePlot->graph(0)->setPen(QPen(Qt::red));
-    //ui->RatePlot->graph(0)->setBrush(QBrush(Qt::red));
-    ui->RatePlot->graph(0)->setName("Tic Rate");
-    ui->RatePlot->addGraph();
-    ui->RatePlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
-    ui->RatePlot->graph(1)->setLineStyle(QCPGraph::lsNone);
-    ui->RatePlot->graph(1)->setPen(QPen(Qt::blue));
-    //ui->RatePlot->graph(1)->setBrush(QBrush(Qt::blue));
-    ui->RatePlot->graph(1)->setName("Toc Rate");
-    ui->RatePlot->legend->setVisible(true);
-}
+// RatePlot/ScopePlot 그래프 설정(구 CreateGraphs)은 TabRateScope::setupPlots 로 이동했다.
 
 MainWindow::~MainWindow()
 {
@@ -670,112 +597,8 @@ void MainWindow::StopSimThread(void)
 }
 
 
-void MainWindow::AddVerticalMarker(QCustomPlot *Plot,double x,double height,const QColor color)
-{
-// Create the line
-QCPItemLine *marker = new QCPItemLine(Plot);
-marker->start->setCoords(x, 0.0); //Plot->yAxis->range().lower);
-marker->end->setCoords(x, height); //Plot->yAxis->range().upper);
-
-// Make it look like a marker
-QPen pen;
-pen.setColor(color);
-pen.setWidth(2);
-pen.setStyle(Qt::DashLine);
-//pen.setStyle(Qt::SolidLine);
-marker->setPen(pen);
-}
-void MainWindow::AddText(QCustomPlot *Plot, double x,double height,QString text,const QColor color,Qt::Alignment alignment)
-{
-    QCPItemText *textLabel = new QCPItemText(Plot);
-    textLabel->setColor(color);
-    textLabel->setFont(QFont(font().family(), 10));
-
-    textLabel->setPositionAlignment(alignment);
-    textLabel->position->setType(QCPItemPosition::ptPlotCoords);
-    //QFontMetricsF fm(textLabel->font());
-    //QRectF textRect = fm.boundingRect(text);
-
-    textLabel->position->setCoords(x,height);
-
-    textLabel->setText(text);
-    textLabel->setFont(QFont(font().family(), 10));
-    textLabel->setPen(QPen(color));
-}
-void  MainWindow::AddHorizontalMarkerInward(QCustomPlot *Plot,double xLeft,double xRight,double Length,double Height,const QColor Color)
-{
-    // Make it look like a marker
-    QPen pen;
-    pen.setColor(Color);
-    pen.setWidth(1);
-    //pen.setStyle(Qt::DashLine);
-    pen.setStyle(Qt::SolidLine);
-
-    // Create the lines
-    QCPItemLine *markerLeft = new QCPItemLine(Plot);
-    markerLeft->start->setCoords(xLeft-Length,Height); //Plot->yAxis->range().lower);
-    markerLeft->end->setCoords(xLeft, Height); //Plot->yAxis->range().upper);
-    markerLeft->setHead(QCPLineEnding::esSpikeArrow); // Arrow at start
-    markerLeft->setPen(pen);
-
-    // Create the lines
-    QCPItemLine *markerRight = new QCPItemLine(Plot);
-    markerRight->start->setCoords(xRight,Height); //Plot->yAxis->range().lower);
-    markerRight->end->setCoords(xRight+Length, Height); //Plot->yAxis->range().upper);
-    markerRight->setTail(QCPLineEnding::esSpikeArrow); // Arrow at start
-    markerRight->setPen(pen);
-
-}
-void MainWindow::AddHorizontalMarkerOutward(QCustomPlot *Plot,double xLeft,double xRight,double Height,const QColor Color)
-{
-    // Create the line
-    QCPItemLine *marker = new QCPItemLine(Plot);
-    marker->start->setCoords(xLeft,Height); //Plot->yAxis->range().lower);
-    marker->end->setCoords(xRight, Height); //Plot->yAxis->range().upper);
-
-    // Make it look like a marker
-    QPen pen;
-    pen.setColor(Color);
-    pen.setWidth(1);
-    //pen.setStyle(Qt::DashLine);
-    pen.setStyle(Qt::SolidLine);
-    marker->setHead(QCPLineEnding::esSpikeArrow); // Arrow at end
-    marker->setTail(QCPLineEnding::esSpikeArrow); // Arrow at start
-    marker->setPen(pen);
-}
-void MainWindow::RemoveMarkersAndText(QCustomPlot *Plot,double rangeMin,double rangeMax)
-{
- // Iterate backwards to safely remove items while iterating
- for (int i = Plot->itemCount() - 1; i >= 0; --i)
- {
-    QCPAbstractItem *baseItem = Plot->item(i);
-    QCPItemLine *lineItem = qobject_cast<QCPItemLine*>(baseItem);
-    QCPItemText *textLabel= qobject_cast<QCPItemText*>(baseItem);
-
-    if (lineItem) {
-        // Get key coordinates for start and end
-        double startKey = lineItem->start->coords().x();
-        double endKey = lineItem->end->coords().x();
-
-        // logic: Remove if any part of the line is within range
-        if ((startKey >= rangeMin && startKey <= rangeMax) ||
-            (endKey >= rangeMin && endKey <= rangeMax)) {
-            Plot->removeItem(lineItem);
-        }
-    }
-    else if (textLabel)
-    {
-        // Get key coordinates for start and end
-        double Key = textLabel->position->coords().x();
-
-        // logic: Remove if any part of the line is within range
-        if (Key >= rangeMin && Key <= rangeMax)
-        {
-            Plot->removeItem(textLabel);
-        }
-    }
- }
-}
+// 스코프 마커 헬퍼(AddVerticalMarker/AddText/AddHorizontalMarker*·RemoveMarkersAndText)는
+//  ScopePlot 과 함께 TabRateScope 로 이동했다.
 
 void MainWindow::HandleInputData(TMasterAudioDataRaw *SharedDataPtr)
 {
@@ -916,31 +739,13 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
           if (r.sync_acquired_event)  Perf::log("A-4","QA-US-01","sync_acquired",   1, "event","");
           if (r.detector_reset_event) Perf::log("A-4","QA-US-01","detector_reset",  1, "event","");
 
-          double threshhold=r.onset_threshold;
-          for (int i=0;i<r.processed_pcm_len;i++)
-           {
-            double pcm=r.processed_pcm[i];
-            ui->ScopePlot->graph(0)->addData(mLocalGraphTicks, pcm);
-            ui->ScopePlot->graph(1)->addData(mLocalGraphTicks, threshhold);
-            mLocalGraphTicks++;
-           }
-
+          // [탭] 엔벨로프/임계선 + 이벤트 마커(ScopePlot) 렌더링은 TabRateScope.onWave 가 담당.
           for (int i=0;i<r.num_events;i++)
              {
                double val;
                if (r.events[i].type==TG_EVENT_A)
                {
                     val=r.events[i].sample_index+r.events[i].sub_sample_offset;
-                    AddVerticalMarker(ui->ScopePlot,val,r.events[i].peak_value,Qt::green);
-                    if (mHaveLastA)
-                    {
-                      double delta=val-mLastA;
-                      AddHorizontalMarkerOutward(ui->ScopePlot,mLastA,val,r.events[i].peak_value/2.0,Qt::black);
-                      QString text = QString(" %1 ms ").arg(delta*1000.0/mCurrentSamplesPerSecond, 0, 'f', 2);
-                      AddText(ui->ScopePlot,mLastA+(delta/2.0),r.events[i].peak_value/2.0,text,Qt::black,Qt::AlignHCenter | Qt::AlignTop);
-                    }
-                    mLastA=val;
-                    mHaveLastA=true;
                     A_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
                     // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 A(onset) vs 정답 A 대조 ──
                     //  검출된 A 샘플위치와 가장 가까운 정답 A 의 차이 = onset 식별 오차(ms).
@@ -961,7 +766,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                }
                else if (r.events[i].type==TG_EVENT_C)
                {
-                   double delta;
                    if(ui->UseConsetCheckBox->isChecked())
                    {
                        if (r.events[i].onset_valid)
@@ -975,22 +779,6 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
                        }
                    }
                    else val=r.events[i].sample_index+r.events[i].sub_sample_offset; // C PEAK
-
-                   delta=val-mLastA;
-                   QString text;
-                   if (r.sync_status==TG_SYNC_SYNCED) // Have BPH
-                   {
-                       int Amp=qRound(MeasurementEngine::amplitude(mLiftAngle,delta/mCurrentSamplesPerSecond,r.detected_bph));
-                       if (Amp<360)
-                       {
-                        text= QString(" %1 ms\n%2°").arg(delta*1000.0/mCurrentSamplesPerSecond, 0, 'f', 1).arg(Amp);
-                       }
-                       else text= QString(" %1 ms ").arg(delta*1000.0/mCurrentSamplesPerSecond, 0, 'f', 1);
-                   }
-                   else text= QString(" %1 ms ").arg(delta*1000.0/mCurrentSamplesPerSecond, 0, 'f', 1);
-                   AddVerticalMarker(ui->ScopePlot,val,r.events[i].peak_value, Qt::red);
-                   AddHorizontalMarkerInward(ui->ScopePlot,mLastA,val,INWARD_MARKER_LENGTH,r.events[i].peak_value,Qt::black);
-                   AddText(ui->ScopePlot,val+INWARD_MARKER_LENGTH,r.events[i].peak_value,text,Qt::black,Qt::AlignLeft | Qt::AlignTop);
 
                    C_Event(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
                    // ── [PERF 계측 · §E-2/§G-2 · QA-AC-02/AC-01] 검출 C vs 정답 C 대조 ──
@@ -1050,11 +838,7 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
         }
 
         SharedDataPtr->MainThrd_LastTotalSamplesWritten=mLocalTotalSamplesWritten;
-        PurgeHistory();
-        ui->ScopePlot->xAxis->setRange(mLocalGraphTicks, (double)mCurrentSamplesPerSecond/ui->ScopeScaleSpinBox->value(), Qt::AlignRight);
-        //ui->ScopePlot->xAxis->rescale();
-        ui->ScopePlot->yAxis->rescale();
-        ui->ScopePlot->replot(QCustomPlot::rpQueuedReplot);
+        // [탭] ScopePlot 의 purge/축/replot 은 TabRateScope.onWave 가 담당.
 
         // ── [PERF 계측 · §A-2/§A-1 · QA-LT-01] 표시 완료 시각 → 지연 산출 ──────────
         //  proc2disp_latency_ms = (표시 완료 - 처리 시작) = 처리→표시(그래프 replot) 지연.
@@ -1096,51 +880,18 @@ void MainWindow::ProcessSamples(TMasterAudioDataRaw *SharedDataPtr)
         }
     }
 }
-void MainWindow::PurgeHistory(void)
-{
-    for (int i=0;i<ui->ScopePlot->graphCount();i++)
-    {
-        if (ui->ScopePlot->graph(i)->data()->size()>(GRAPH_HISTORY_IN_SECONDS*mCurrentSamplesPerSecond))
-        {
-            //qInfo()<<"Data Size 1 -"<<ui->Scope->graph(i)->data()->size();
-            bool foundRange;
-            QCPRange keyRange = ui->ScopePlot->graph(i)->getKeyRange(foundRange, QCP::sdBoth);
-            if (foundRange)
-            {
-                double minKey = keyRange.lower;
-                double maxKey = keyRange.upper;
-                double NumKeys=maxKey-minKey;
-                //qInfo()<<"Min "<< minKey<<" Max "<<maxKey;
-                //qInfo()<<"Data Size 2 -"<< NumKeys;
-                double NumToRemove= NumKeys-((GRAPH_HISTORY_IN_SECONDS*mCurrentSamplesPerSecond)/2);
-                double RemoveStart=minKey;
-                double RemoveEnd=minKey+NumToRemove;
-                // qInfo()<<"Remove "<< RemoveStart<<"  "<<RemoveEnd;
-                RemoveMarkersAndText(ui->ScopePlot,RemoveStart, RemoveEnd);
-                ui->ScopePlot->graph(i)->data()->remove(RemoveStart, RemoveEnd);
-            }
-            else  qInfo()<<"getKeyRange not found";
-        }
-    }
-}
+// 스코프 히스토리 정리(구 PurgeHistory)는 TabRateScope::purgeHistory 로 이동했다.
 void MainWindow::Reset(void)
 {
     qInfo()<<"RESET";
-    // Sound Print 렌더링은 TabSoundPrint 가 담당(onResetSession 으로 비움). 여기선 다루지 않는다.
+    // Rate/Scope·Sound Print 렌더링은 각 탭(TabRateScope/TabSoundPrint)이 담당.
+    //  세션 리셋은 broadcastReset 으로 전파되어 각 탭이 자기 그래프/누적을 비운다.
 
-    mLocalGraphTicks=0;
     mInputAbsSample=0;   // [탭 모듈] 원신호 게시 인덱스 리셋
 
     // [탭 모듈] 세션 리셋을 모든 디스플레이 탭에 전파(누적 데이터·그래프 비움).
     if (mTabManager) mTabManager->broadcastReset();
 
-    for (int i=0;i<ui->ScopePlot->graphCount();i++)
-    {
-     ui->ScopePlot->graph(i)->data()->clear();
-    }
-    ui->ScopePlot->clearItems();
-    ui->ScopePlot->replot();
-    mHaveLastA=false;
     CreateDectectors();
     EventsReset();
 

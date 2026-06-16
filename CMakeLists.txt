@@ -123,6 +123,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/LegendBox.cpp
         src/ui/tabs/TabSoundPrint.h
         src/ui/tabs/TabSoundPrint.cpp
+        src/ui/tabs/TabRateScope.h
+        src/ui/tabs/TabRateScope.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h

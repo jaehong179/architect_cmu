@@ -72,8 +72,6 @@ private:
     void   StartAudioThread(void);
     void   ConfigureSoundCard(void);
     void   Reset(void);
-    void   PurgeHistory(void);
-    void   CreateGraphs(void);
     void   CreateDectectors(void);
     void   DeleteDectectors(void);
     void   LoadAudioDevices(void);
@@ -82,11 +80,6 @@ private:
     void   StopPlaybackThread(void);
     void   StartSimThread(WatchSynthStreamConfig cfg);
     void   StopSimThread(void);
-    void   AddVerticalMarker(QCustomPlot *Plot, double x,double height,const QColor color);
-    void   AddHorizontalMarkerOutward(QCustomPlot *Plot,double xLeft,double xRight,double Height,const QColor Color);
-    void   AddHorizontalMarkerInward(QCustomPlot *Plot,double xLeft,double xRight,double Length,double Height,const QColor Color);
-    void   AddText(QCustomPlot *Plot, double x,double height,QString text,const QColor color,Qt::Alignment alignment);
-    void   RemoveMarkersAndText(QCustomPlot *Plot, double rangeMin,double rangeMax);
     bool   OpenFile(const QString &FileName);
     void   HandleInputData(TMasterAudioDataRaw *SharedDataPtr);
     void   EventsReset(void);
@@ -127,7 +120,6 @@ private:
     int                        mAveragingPeriod;
     unsigned int               mLocalWriteIndex;
     uint64_t                   mLocalTotalSamplesWritten;
-    uint64_t                   mLocalGraphTicks;
     QDir                       mCurrentDir;
     int                        mCurrentSamplesPerSecond;
     int                        mRateBeforePlaybackOrSim;
@@ -135,8 +127,6 @@ private:
     tg_config_t                mCfg;
     tg_context_t              *mCtx= nullptr;
     float                     *mInputBlock = nullptr;
-    double                     mLastA;
-    bool                       mHaveLastA=false;
     double                     mBackgroundLastFPS=0.0;
     double                     mBackgroundLastSPF=0.0;
     double                     mBackgroundLastSPS=0.0;
