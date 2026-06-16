@@ -206,6 +206,10 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.totalSamples   = mLocalTotalSamplesWritten;
     snap.liftAngle      = (int)mLiftAngle;
     snap.mode           = ui->ModeComboBox->currentIndex();
+    // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사). 구 mRateErrorEvents.x/yTic/Toc.
+    snap.rateTicX = mEngine.ticX().constData(); snap.rateTicY = mEngine.ticY().constData(); snap.rateTicN = mEngine.ticX().size();
+    snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
+    snap.rateMaxPoints = mEngine.maxDataPoints();
     mTabManager->broadcastMeasurement(snap);
 }
 

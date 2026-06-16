@@ -42,6 +42,14 @@ struct MeasurementSnapshot
     uint64_t totalSamples  = 0;     // 누적 처리 샘플 수
     int      liftAngle     = 0;     // 현재 lift angle 설정(°)
     int      mode          = 0;     // 0=Live,1=Playback,2=Sim (ModeComboBox 인덱스)
+
+    // ── rate 오차 그래프 시리즈(RatePlot 용) ──────────────────────────────────
+    //  rate(s/d) 한 값이 아니라 '시간에 따른 tic/toc 래핑 오차 점들'(최근 N개)의 배열.
+    //  Rate/Scope 탭이 RatePlot 선을 그리는 데 필요. 포인터는 broadcast 동안만 유효 →
+    //  탭은 필요분을 자기 버퍼로 복사할 것. (WaveBlock 의 env/raw 포인터와 동일 규약)
+    const double *rateTicX = nullptr;  const double *rateTicY = nullptr;  int rateTicN = 0;
+    const double *rateTocX = nullptr;  const double *rateTocY = nullptr;  int rateTocN = 0;
+    int           rateMaxPoints = 0;   // RatePlot x축 범위(0..rateMaxPoints), 롤링 윈도 크기
 };
 
 // ── 파형(PCM/엔벨로프) 게시 ────────────────────────────────────────────────
