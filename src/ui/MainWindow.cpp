@@ -129,8 +129,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->Results->setAlignment(Qt::AlignHCenter);
     ui->LiftAngleSpinBox->setValue(mLiftAngle);
-    //QFont fixedFont = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    //ui->Results->setFont(fixedFont);
 
     LoadBPH();
     LoadSimBPH();

@@ -3,15 +3,10 @@
 #include <QDir>
 #include <QMainWindow>
 #include <QComboBox>
-#include <QTimer>     // [PERF 계측] CPU/메모리 1Hz 샘플링 타이머 (docs/PERF_VERIFICATION_GUIDE.md §C/§D)
-#include "qcustomplot.h"
-#include "SharedAudio.h"
-#include "WavStreamWriter.h"
-#include "Timegrapher.h"
-#include "MeasurementEngine.h"
-#include "CaptureController.h"
-#include "WatchSynthStream.h"
-#include "SimConfigBuilder.h"   // Sim 합성 설정 조립(도메인 지식 분리)
+#include "WavStreamWriter.h"      // mWavWriter (녹음 대상)
+#include "MeasurementEngine.h"    // mEngine (측정 계산)
+#include "CaptureController.h"    // mCapture (오디오 소스/파이프라인) — tg_*·TMasterAudioDataRaw 도 여기서 전이 제공
+#include "SimConfigBuilder.h"     // SimStart 의 합성 설정 조립(WatchSynthStreamConfig 포함)
 
 
 QT_BEGIN_NAMESPACE

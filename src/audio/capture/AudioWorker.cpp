@@ -26,8 +26,6 @@ TAudioWorker::TAudioWorker(TMasterAudioDataRaw *RawAudio,QObject *parent) : QObj
 
 TAudioWorker::~TAudioWorker()
 {
-    // Clean up if necessary
-    //qInfo() << "AudioWorker Destructor";
 }
 
 void TAudioWorker::stateChangeAudioInput(QAudio::State s)
@@ -140,7 +138,6 @@ void TAudioWorker::ProcessAudioInput()
         }
 #endif
     }
-    //qDebug() << "worker thread: handleResults slot is running in thread" << QThread::currentThreadId()<<" "<<count;
     emit AudioDataReady(); // Emit data to the main thread
 
 }

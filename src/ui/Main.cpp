@@ -2,6 +2,11 @@
 #include "PerfInstrumentation.h"   // [PERF 계측] 성능 검증 로그 (docs/PERF_VERIFICATION_GUIDE.md)
 
 #include <QApplication>
+#include <QGuiApplication>
+#include <QScreen>
+#include <QSplashScreen>
+#include <QPixmap>
+#include <QThread>
 #if PERF_ENABLE && defined(Q_OS_LINUX)
 #include <QProcess>
 #include <QFileInfo>

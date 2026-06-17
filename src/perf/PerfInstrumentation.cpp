@@ -14,7 +14,7 @@
 #include <QCoreApplication>   // applicationDirPath() — 실행파일 옆에 CSV 고정
 #include <QDir>
 #include <chrono>
-//  자원(CPU/메모리/온도) 측정은 ResourceSampler.cpp 가 담당 → 이 파일엔 OS별 /proc·WinAPI include 불필요.
+//  자원(CPU/메모리/온도)은 외부 스크립트(tools/perf_resources.sh)가 측정 → 이 파일엔 OS별 /proc·WinAPI include 불필요.
 
 namespace {
 // --- 로그 파일/동기화 (워커 스레드 + 메인 스레드 + 1Hz 타이머가 함께 기록) ---
