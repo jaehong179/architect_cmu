@@ -48,6 +48,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         qcustomplot.cpp
         # [audio] 공유 링버퍼 + 입력 소스/녹음 (capture·playback·sim·recording)
         src/audio/SharedAudio.h
+        src/audio/AudioRingBuffer.h
         src/audio/capture/AudioWorker.h
         src/audio/capture/AudioWorker.cpp
         src/audio/playback/PlaybackWorker.h

@@ -5,6 +5,7 @@
 #include <QDebug>
 #include "PlaybackWorker.h"
 #include "WaveHeader.h"
+#include "AudioRingBuffer.h"        // 공용 링버퍼 쓰기(3개 워커 DRY)
 
 #if defined(Q_OS_WIN)
 #define PLAYBACK_SAMPLE_PERIOD_MSEC 10
@@ -147,20 +148,10 @@ void TPlaybackWorker::StartPlayback(const QString &FileName)
         }
         unsigned int NumberOfSamples=BytesIn/SAMPLE_SIZE;
 
-        mRawAudio->Mutex.lock();
-        unsigned int TempWriteIndex = mRawAudio->WriteIndex;
-        mRawAudio->Mutex.unlock();
-        int SamplesLeft=std::min(NumberOfSamples,mRawAudio->NumberOfAudioSamples-TempWriteIndex);
-        memcpy(&mRawAudio->Samples[TempWriteIndex], mDataIn, SamplesLeft * SAMPLE_SIZE);
-        if(SamplesLeft < NumberOfSamples)
-        {
-            memcpy(mRawAudio->Samples, &mDataIn[SamplesLeft], (NumberOfSamples - SamplesLeft) * SAMPLE_SIZE);
-            qInfo() << "MasterPlaybackData Samples Rollover";
-        }
-        mRawAudio->Mutex.lock();
-        mRawAudio->WriteIndex = (TempWriteIndex+ NumberOfSamples) %  mRawAudio->NumberOfAudioSamples;
-        mRawAudio->TotalSamplesWritten+=NumberOfSamples;
-        mRawAudio->Mutex.unlock();
+        // 공용 링버퍼 쓰기(부가 작업 없음 — 재생은 캡처 시각/정답 이벤트가 불필요).
+        //  mDataIn 은 원시 바이트 버퍼(char*)지만 내용은 f32 PCM 이므로 float* 로 해석한다.
+        //  (이로써 롤오버 시 잔여 샘플 오프셋이 capture/sim 워커와 동일하게 '샘플' 단위로 맞춰진다.)
+        writeSamplesToRing(mRawAudio, reinterpret_cast<const float *>(mDataIn), NumberOfSamples, []{});
         emit PlaybackDataReady(); // Emit data to the main thread
 
         ++mFrameCount;

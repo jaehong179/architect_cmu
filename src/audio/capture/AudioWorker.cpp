@@ -1,6 +1,7 @@
 // AudioWorker.cpp
 #include "AudioWorker.h"
 #include <QThread>
+#include "AudioRingBuffer.h"        // 공용 링버퍼 쓰기(3개 워커 DRY)
 #include "PerfInstrumentation.h"   // [PERF 계측] 캡처 지연/드롭/처리량 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 
 
@@ -94,25 +95,10 @@ void TAudioWorker::ProcessAudioInput()
 
     unsigned int NumberOfSamples = ba.length() / SAMPLE_SIZE;
     float *AudioSamples=(float *)ba.constData();
-    mRawAudio->Mutex.lock();
-    unsigned int TempWriteIndex = mRawAudio->WriteIndex;
-    mRawAudio->Mutex.unlock();
-    int SamplesLeft=std::min(NumberOfSamples,mRawAudio->NumberOfAudioSamples-TempWriteIndex);
-    memcpy(&mRawAudio->Samples[TempWriteIndex], AudioSamples, SamplesLeft * SAMPLE_SIZE);
-    //qInfo() << "Bytes in "<< ba.length();
-    if(SamplesLeft < NumberOfSamples)
-    {
-        memcpy(mRawAudio->Samples, &AudioSamples[SamplesLeft], (NumberOfSamples - SamplesLeft) * SAMPLE_SIZE);
-        qInfo() << "MasterAudioData Samples Rollover";
-    }
-    mRawAudio->Mutex.lock();
-    mRawAudio->WriteIndex = (TempWriteIndex+ NumberOfSamples) % mRawAudio->NumberOfAudioSamples;
-    mRawAudio->TotalSamplesWritten+=NumberOfSamples;
-    // [PERF 계측 · §A-1/§A-2 · QA-LT-01] 종단간 지연 측정의 시작점:
-    //   이 오디오 블록이 캡처되어 링버퍼에 막 기록된 시각을 남긴다.
-    //   메인 스레드가 동일 Mutex 안에서 읽어 (표시시각 - 이 값) = 종단간 지연을 산출.
-    mRawAudio->LastBlockCaptureMs = Perf::nowMs();
-    mRawAudio->Mutex.unlock();
+    // 공용 링버퍼 쓰기. [PERF §A-1/A-2] 인덱스 갱신과 원자적으로 이 블록의 캡처 시각을 남긴다
+    //  (종단간 지연 시작점: 메인 스레드가 동일 Mutex 안에서 읽어 (표시시각 − 이 값) = e2e 지연).
+    writeSamplesToRing(mRawAudio, AudioSamples, NumberOfSamples,
+                       [this]{ mRawAudio->LastBlockCaptureMs = Perf::nowMs(); });
     ++FrameCount;
     SampleCount+=NumberOfSamples;
     CurrentTime = Timer.elapsed()/1000.0;

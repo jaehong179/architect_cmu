@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <cstring>            // [PERF 계측] memset (GT 링 초기화)
 #include "SimWorker.h"
+#include "AudioRingBuffer.h"  // 공용 링버퍼 쓰기(3개 워커 DRY)
 
 #if defined(Q_OS_WIN)
 #define SIM_SAMPLE_PERIOD_MSEC 10
@@ -93,32 +94,21 @@ void TSimWorker::StartSim(WatchSynthStreamConfig cfg)
         }
         unsigned int NumberOfSamples=r.samples_written;
 
-        mRawAudio->Mutex.lock();
-        unsigned int TempWriteIndex = mRawAudio->WriteIndex;
-        mRawAudio->Mutex.unlock();
-        int SamplesLeft=std::min(NumberOfSamples,mRawAudio->NumberOfAudioSamples-TempWriteIndex);
-        memcpy(&mRawAudio->Samples[TempWriteIndex], mDataIn, SamplesLeft * SAMPLE_SIZE);
-        if(SamplesLeft < NumberOfSamples)
-        {
-            memcpy(mRawAudio->Samples, &mDataIn[SamplesLeft], (NumberOfSamples - SamplesLeft) * SAMPLE_SIZE);
-            qInfo() << "MasterPlaybackData Samples Rollover";
-        }
-        mRawAudio->Mutex.lock();
-        mRawAudio->WriteIndex = (TempWriteIndex+ NumberOfSamples) %  mRawAudio->NumberOfAudioSamples;
-        mRawAudio->TotalSamplesWritten+=NumberOfSamples;
-        // ── [PERF 계측 · §E/§G-2 · QA-AC-01/02/03] 이번 블록의 정답(ground-truth) 이벤트 적재 ──
+        // 공용 링버퍼 쓰기. 인덱스 갱신과 원자적으로(같은 Mutex 안에서) 이번 블록의 정답 이벤트를 적재한다.
+        //  ── [PERF 계측 · §E/§G-2 · QA-AC-01/02/03] ──
         //  합성기가 알려준 각 비트의 A(onset) 절대샘플과, A→C 시간으로 환산한 C 절대샘플을
         //  링버퍼에 넣는다. 메인 스레드가 검출 이벤트와 대조하여 타이밍/검출 오차를 측정.
-        for (size_t e=0; e<r.events_written; ++e)
-        {
-            uint64_t a = events[e].sample_index;
-            uint64_t c = a + (uint64_t)(events[e].a_to_c_time_s * (double)mSamplesPerSecond + 0.5);
-            mRawAudio->GtBeats[mRawAudio->GtHead].a_sample = a;
-            mRawAudio->GtBeats[mRawAudio->GtHead].c_sample = c;
-            mRawAudio->GtHead = (mRawAudio->GtHead + 1) % GT_EVENT_RING;
-            mRawAudio->GtTotal++;
-        }
-        mRawAudio->Mutex.unlock();
+        writeSamplesToRing(mRawAudio, mDataIn, NumberOfSamples, [&]{
+            for (size_t e=0; e<r.events_written; ++e)
+            {
+                uint64_t a = events[e].sample_index;
+                uint64_t c = a + (uint64_t)(events[e].a_to_c_time_s * (double)mSamplesPerSecond + 0.5);
+                mRawAudio->GtBeats[mRawAudio->GtHead].a_sample = a;
+                mRawAudio->GtBeats[mRawAudio->GtHead].c_sample = c;
+                mRawAudio->GtHead = (mRawAudio->GtHead + 1) % GT_EVENT_RING;
+                mRawAudio->GtTotal++;
+            }
+        });
         emit SimDataReady(); // Emit data to the main thread
 
         ++mFrameCount;
