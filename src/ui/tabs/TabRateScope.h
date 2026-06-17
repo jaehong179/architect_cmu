@@ -39,5 +39,9 @@ private:
     double       mLastA = 0.0; bool mHaveLastA = false;
     int          mSampleRateHz = 48000;
     int          mLiftAngle = 52;        // C 마커 진폭 라벨용(onMeasurement 에서 갱신)
+    // min/max 데시메이션 누적 상태(고레이트 스코프: 점 수↓ + 피크 보존). 구간을 onWave 경계 넘어 누적.
+    int          mDecimCount = 0;
+    float        mDecimMin = 0.0f, mDecimMax = 0.0f;
+    uint64_t     mDecimMinTick = 0, mDecimMaxTick = 0;
 };
 #endif // TABRATESCOPE_H

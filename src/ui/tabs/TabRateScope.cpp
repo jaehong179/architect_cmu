@@ -126,15 +126,39 @@ void TabRateScope::onWave(const WaveBlock &wave)
 
     const double threshold = wave.onsetThreshold;
     // 고샘플레이트(예: 384kHz)에서 스코프 점이 레이트×시간으로 폭증(384만 점) → QCustomPlot 렌더가 멈춘다.
-    //  48k 기준 1/decim 으로 점만 솎되, x(키)는 실제 샘플 인덱스를 그대로 유지해 마커 정렬은 보존한다.
-    const int decim = qMax(1, mSampleRateHz / 48000);   // 48k→1(원동작), 96k→2, 192k→4, 384k→8
+    //  검출은 풀 레이트 그대로(정확도 보존)이고, '그리기'만 줄인다:
+    //  min/max 데시메이션 — decim 샘플 구간마다 최저·최고점 2개만 찍어 점 수는 줄이되 '피크'는 보존한다.
+    //  x(키)는 실제 샘플 인덱스라 A/C 마커 정렬도 유지. 48k(decim=1)는 샘플마다 1점(원동작 동일).
+    const int decim = qMax(1, mSampleRateHz / 48000);   // 48k→1, 96k→2, 192k→4, 384k→8
     if (wave.env) {
-        for (int i = 0; i < wave.n; ++i) {
-            if ((mGraphTicks % (uint64_t)decim) == 0) {
+        if (decim == 1) {
+            for (int i = 0; i < wave.n; ++i) {
                 mScopePlot->graph(0)->addData((double)mGraphTicks, wave.env[i]);
                 mScopePlot->graph(1)->addData((double)mGraphTicks, threshold);
+                mGraphTicks++;
             }
-            mGraphTicks++;
+        } else {
+            for (int i = 0; i < wave.n; ++i) {
+                const float v = wave.env[i];
+                if (mDecimCount == 0) { mDecimMin = mDecimMax = v; mDecimMinTick = mDecimMaxTick = mGraphTicks; }
+                else {
+                    if (v < mDecimMin) { mDecimMin = v; mDecimMinTick = mGraphTicks; }
+                    if (v > mDecimMax) { mDecimMax = v; mDecimMaxTick = mGraphTicks; }
+                }
+                mGraphTicks++;
+                if (++mDecimCount >= decim) {
+                    // 구간의 최저·최고를 x(시간) 순서로 2점 추가 → 피크 보존.
+                    if (mDecimMinTick <= mDecimMaxTick) {
+                        mScopePlot->graph(0)->addData((double)mDecimMinTick, mDecimMin);
+                        mScopePlot->graph(0)->addData((double)mDecimMaxTick, mDecimMax);
+                    } else {
+                        mScopePlot->graph(0)->addData((double)mDecimMaxTick, mDecimMax);
+                        mScopePlot->graph(0)->addData((double)mDecimMinTick, mDecimMin);
+                    }
+                    mScopePlot->graph(1)->addData((double)(mGraphTicks - 1), threshold);
+                    mDecimCount = 0;
+                }
+            }
         }
     }
 
@@ -177,7 +201,7 @@ void TabRateScope::onWave(const WaveBlock &wave)
 
 void TabRateScope::onResetSession()
 {
-    mGraphTicks = 0; mLastA = 0.0; mHaveLastA = false;
+    mGraphTicks = 0; mLastA = 0.0; mHaveLastA = false; mDecimCount = 0;
 
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();
     mScopePlot->clearItems();
