@@ -4,6 +4,7 @@
 #include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices) — 구 AudioWorker.h 전이 include 대체
 #include <QAudioDevice>
 #include "WaveHeader.h"
+#include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
@@ -490,80 +491,27 @@ void MainWindow::AudioCloseCheck(void)
 
 bool MainWindow::OpenFile(const QString &FileName)
 {
-    QFile *file = new QFile(FileName);
-    TWaveHeader header;
-    if (!file->exists()) {
+    // 헤더 파싱은 WavFileReader 가 담당(순수 파일 I/O). 여기서는 UI 정책만:
+    //  파싱 실패 안내 → 재생용 장치/레이트로 전환 → 포맷·레이트 수용 여부 판정.
+    WavFileInfo info = WavFileReader::readHeader(FileName);
+    if (!info.ok) {
         statusBar()->showMessage(tr("File %1 could not be opened").arg(QDir::toNativeSeparators(FileName)));
-        delete file;
         return false;
     }
+    mCurrentDir = QFileInfo(FileName).dir();
 
-    QFileInfo fileInfo(*file);
-    mCurrentDir = fileInfo.dir();
-
-    if (!file->open(QIODevice::ReadOnly))
-    {
-        statusBar()->showMessage(tr("File %1 could not be opened")
-                                     .arg(QDir::toNativeSeparators(FileName)));
-        delete file;
-        return false;
-    }
-
-    QDataStream in(file);
-    in.setByteOrder(QDataStream::LittleEndian); // WAV is Little Endian
-
-    file->read(header.riffId, 4);
-    in >> header.fileSize;
-    file->read(header.waveId, 4);
-    file->read(header.fmtId, 4);
-    in >> header.fmtSize;
-    in >> header.audioFormat;
-    in >> header.numChannels;
-    in >> header.sampleRate;
-    in >> header.byteRate;
-    in >> header.blockAlign;
-    in >> header.bitsPerSample;
-
-    // Skip any extra fmt bytes if fmtSize > 16
-    if (header.fmtSize > 16) file->seek(file->pos() + (header.fmtSize - 16));
-
-    // Look for "data" chunk (it might not be immediately after fmt)
-    char chunkId[4];
-    while (!file->atEnd()) {
-        file->read(chunkId, 4);
-        uint32_t chunkSize;
-        in >> chunkSize;
-        if (qstrncmp(chunkId, "data", 4) == 0) {
-            header.dataSize = chunkSize;
-            break;
-        }
-        file->seek(file->pos() + chunkSize);
-    }
     GetAudioRate(mRateBeforePlaybackOrSim);
     GetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-    if (!SetAudioDevice(PLAYBACK_OR_SIM_PCM))
-    {
-      qInfo()<< "SetAudioDevice Failed";
-    }
-    if (!SetAudioRate(header.sampleRate))
-    {
-        qInfo()<< "SetAudioRate Failed";
-    }
+    if (!SetAudioDevice(PLAYBACK_OR_SIM_PCM)) qInfo()<< "SetAudioDevice Failed";
+    if (!SetAudioRate(info.header.sampleRate)) qInfo()<< "SetAudioRate Failed";
 
-    if (qstrncmp(header.riffId, "RIFF", 4) != 0 || (header.sampleRate!=mCurrentSamplesPerSecond) ||
-        (header.numChannels!=1)|| (header.bitsPerSample != 32)||
-        (header.audioFormat != 3))
-      {
-        statusBar()->showMessage(tr("File %1 Not a 48K, single channel 32-bit Float WAV file")
-                                     .arg(FileName));
-        file->close();
-        delete file;
+    if (!WavFileReader::isSupportedFormat(info.header) ||
+        info.header.sampleRate != (uint32_t)mCurrentSamplesPerSecond)
+    {
+        statusBar()->showMessage(tr("File %1 Not a 48K, single channel 32-bit Float WAV file").arg(FileName));
         QMessageBox::critical(this, "Error", "Invalid PCM Wave File");
         return false;
-      }
-
-    file->close();
-    delete file;
+    }
     return true;
 }
 

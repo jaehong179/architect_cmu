@@ -56,6 +56,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/audio/recording/WaveHeader.h
         src/audio/recording/WavStreamWriter.h
         src/audio/recording/WavStreamWriter.cpp
+        src/audio/recording/WavFileReader.h
+        src/audio/recording/WavFileReader.cpp
         # [core/timing] 타이밍·동기·파이프라인 (순수 C, Qt 의존 0)
         src/core/timing/Timegrapher.h
         src/core/timing/Timegrapher.cpp
