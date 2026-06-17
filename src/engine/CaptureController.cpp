@@ -204,6 +204,28 @@ void CaptureController::cEvent(double t, bool haveValidBph, double bph)
     emit measurementReady();   // → MainWindow DisplayResults(readout + 탭 게시)
 }
 
+// [PERF · §E-2/§G-2] 검출 이벤트(val, 절대 샘플 위치)를 Sim 정답 이벤트 링과 대조해
+//  타이밍/검출 오차를 기록한다. A/C 두 경로가 필드·로그 이름만 다르고 알고리즘이 동일해 공용화.
+//   isAEvent=true  → 정답 A(onset, a_sample) / onset_err_ms / a_match·a_unmatched
+//   isAEvent=false → 정답 C(c_sample)        / peak_err_ms  / c_match·c_unmatched
+//  Sim 모드(정답 유효)에서만 동작. tol = 비트 주기의 절반(가장 가까운 정답에 매칭).
+void CaptureController::matchGroundTruth(double val, bool isAEvent)
+{
+    if (!(mLocalGtValid && mLastSimCfg.bph>0.0)) return;
+    const double tol = 0.5 * ((double)mSampleRate * 3600.0 / mLastSimCfg.bph);
+    double bestErr=0.0; bool found=false;
+    for (unsigned k=0;k<GT_EVENT_RING;k++){
+        uint64_t g = isAEvent ? mLocalGt[k].a_sample : mLocalGt[k].c_sample;
+        if (g==0) continue;
+        double e=val-(double)g;
+        if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
+    }
+    if (found && qAbs(bestErr)<tol){
+        Perf::log("E-2","QA-AC-02", isAEvent?"onset_err_ms":"peak_err_ms", bestErr*1000.0/mSampleRate,"ms","");
+        Perf::log("G-2","QA-AC-01", isAEvent?"a_match":"c_match", 1,"event","");
+    } else Perf::log("G-2","QA-AC-01", isAEvent?"a_unmatched":"c_unmatched", 1,"event","");
+}
+
 // ── 샘플 처리 파이프라인 (구 MainWindow::ProcessSamples) — 핫패스(전부 직접 호출) ──
 void CaptureController::processSamples(TMasterAudioDataRaw *p)
 {
@@ -248,20 +270,7 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
                 if (r.events[i].type==TG_EVENT_A) {
                     val = r.events[i].sample_index + r.events[i].sub_sample_offset;
                     aEvent(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
-                    // [PERF · §E-2/§G-2] 검출 A vs 정답 A 대조.
-                    if (mLocalGtValid && mLastSimCfg.bph>0.0) {
-                        double tol = 0.5 * ((double)mSampleRate * 3600.0 / mLastSimCfg.bph);
-                        double bestErr=0.0; bool found=false;
-                        for (unsigned k=0;k<GT_EVENT_RING;k++){
-                            uint64_t a=mLocalGt[k].a_sample; if(a==0) continue;
-                            double e=val-(double)a;
-                            if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
-                        }
-                        if (found && qAbs(bestErr)<tol){
-                            Perf::log("E-2","QA-AC-02","onset_err_ms", bestErr*1000.0/mSampleRate,"ms","");
-                            Perf::log("G-2","QA-AC-01","a_match",1,"event","");
-                        } else Perf::log("G-2","QA-AC-01","a_unmatched",1,"event","");
-                    }
+                    matchGroundTruth(val, /*isAEvent=*/true);   // [PERF · §E-2/§G-2] 검출 A vs 정답 A 대조
                 } else if (r.events[i].type==TG_EVENT_C) {
                     if (mUseConset) {
                         if (r.events[i].onset_valid)
@@ -270,20 +279,7 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
                     } else val = r.events[i].sample_index + r.events[i].sub_sample_offset;
 
                     cEvent(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
-                    // [PERF · §E-2/§G-2] 검출 C vs 정답 C 대조.
-                    if (mLocalGtValid && mLastSimCfg.bph>0.0) {
-                        double tol = 0.5 * ((double)mSampleRate * 3600.0 / mLastSimCfg.bph);
-                        double bestErr=0.0; bool found=false;
-                        for (unsigned k=0;k<GT_EVENT_RING;k++){
-                            uint64_t c=mLocalGt[k].c_sample; if(c==0) continue;
-                            double e=val-(double)c;
-                            if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
-                        }
-                        if (found && qAbs(bestErr)<tol){
-                            Perf::log("E-2","QA-AC-02","peak_err_ms", bestErr*1000.0/mSampleRate,"ms","");
-                            Perf::log("G-2","QA-AC-01","c_match",1,"event","");
-                        } else Perf::log("G-2","QA-AC-01","c_unmatched",1,"event","");
-                    }
+                    matchGroundTruth(val, /*isAEvent=*/false);  // [PERF · §E-2/§G-2] 검출 C vs 정답 C 대조
                 } else qInfo()<<"Unkown Event Type";
             }
 
