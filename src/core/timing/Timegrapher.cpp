@@ -343,13 +343,13 @@ int tg_process(tg_context_t *ctx,
     if (num_samples > 0) {
         if (ensure_buf(ctx, num_samples) != 0) return -2;
         if (ensure_env_out(ctx, num_samples) != 0) return -2;
-        double _pH0 = Perf::nowMs();                                            // [PERF §B-4] HPF 시작
+        double _pH0 = PERF_NOW();                                            // [PERF §B-4] HPF 시작
         tg_hpf_process     (&ctx->hpf, pcm,            ctx->buf_filt, num_samples);
-        double _pH1 = Perf::nowMs(); pdHpf = _pH1 - _pH0;                        // [PERF §B-4] HPF 소요
+        double _pH1 = PERF_NOW(); pdHpf = _pH1 - _pH0;                        // [PERF §B-4] HPF 소요
         tg_envelope_process(&ctx->env, ctx->buf_filt,  ctx->buf_env,  num_samples);
         env_out_len = delay_push_pop(ctx, ctx->buf_env, num_samples,
                                      ctx->buf_env_out);
-        pdEnv = Perf::nowMs() - _pH1;                                           // [PERF §B-4] 엔벨로프+지연 소요
+        pdEnv = PERF_NOW() - _pH1;                                           // [PERF §B-4] 엔벨로프+지연 소요
     }
 
     /* Compute absolute index of first sample of the delayed envelope */
@@ -372,15 +372,15 @@ int tg_process(tg_context_t *ctx,
         size_t worst = (2 * num_samples) / window + 4;
         if (ensure_raw_events(ctx, worst) != 0) return -2;
         size_t got = 0;
-        double _pD0 = Perf::nowMs();                                            // [PERF §B-4] 검출 시작
+        double _pD0 = PERF_NOW();                                            // [PERF §B-4] 검출 시작
         tg_detector_process(&ctx->det,
                             ctx->buf_env, num_samples,
                             ctx->raw_events,
                             &got, ctx->raw_events_capacity);
-        pdDet = Perf::nowMs() - _pD0;                                           // [PERF §B-4] 검출 소요
+        pdDet = PERF_NOW() - _pD0;                                           // [PERF §B-4] 검출 소요
         raw_count = got;
     }
-    pdSyncStart = Perf::nowMs();   // [PERF §B-4] 이후 = 동기(BPH·sync·이벤트출력) 단계 시작
+    pdSyncStart = PERF_NOW();   // [PERF §B-4] 이후 = 동기(BPH·sync·이벤트출력) 단계 시작
 
     /* V5.6: regime-change reset.
      *
@@ -657,23 +657,30 @@ int tg_process(tg_context_t *ctx,
     // ── [PERF 계측 · §B-4 · QA-RT-01] DSP 단계별 시간 누적 → 1초마다 평균/최대 기록 ──
     //  per-call 로 다 남기면 양이 많아, 1초 윈도우로 평균+최대만 emit (저오버헤드).
     //  단일 스레드(메인 ProcessSamples)에서만 호출되므로 static 누적 안전.
-    pdSync = Perf::nowMs() - pdSyncStart;   // 동기 단계 소요(이벤트 출력·임계 포함)
+#if PERF_ENABLE
+    // ── [PERF 계측 · §B-4 · QA-RT-01] DSP 단계별 시간 누적 → 1초마다 평균/최대 기록 (계측 전용) ──
+    //  per-call 로 다 남기면 양이 많아, 1초 윈도우로 평균+최대만 emit (저오버헤드).
+    //  단일 스레드(메인 ProcessSamples)에서만 호출되므로 static 누적 안전.
+    pdSync = PERF_NOW() - pdSyncStart;   // 동기 단계 소요(이벤트 출력·임계 포함)
     {
         static double aH=0,aE=0,aD=0,aS=0, mH=0,mE=0,mD=0,mS=0;
         static long   aN=0; static double lastEmit=0; static int initE=0;
         aH+=pdHpf; aE+=pdEnv; aD+=pdDet; aS+=pdSync; aN++;
         if(pdHpf>mH)mH=pdHpf; if(pdEnv>mE)mE=pdEnv; if(pdDet>mD)mD=pdDet; if(pdSync>mS)mS=pdSync;
-        double now = Perf::nowMs();
+        double now = PERF_NOW();
         if(!initE){ lastEmit=now; initE=1; }
         if(now-lastEmit >= 1000.0 && aN>0){
-            Perf::log("B-4","QA-RT-01","dsp_hpf_ms",    aH/aN, "ms", QString("max=%1;n=%2").arg(mH,0,'f',3).arg(aN));
-            Perf::log("B-4","QA-RT-01","dsp_env_ms",    aE/aN, "ms", QString("max=%1").arg(mE,0,'f',3));
-            Perf::log("B-4","QA-RT-01","dsp_detect_ms", aD/aN, "ms", QString("max=%1").arg(mD,0,'f',3));
-            Perf::log("B-4","QA-RT-01","dsp_sync_ms",   aS/aN, "ms", QString("max=%1").arg(mS,0,'f',3));
-            Perf::log("B-4","QA-RT-01","dsp_total_ms",  (aH+aE+aD+aS)/aN, "ms", QString("n=%1").arg(aN));
+            PERF_LOG("B-4","QA-RT-01","dsp_hpf_ms",    aH/aN, "ms", QString("max=%1;n=%2").arg(mH,0,'f',3).arg(aN));
+            PERF_LOG("B-4","QA-RT-01","dsp_env_ms",    aE/aN, "ms", QString("max=%1").arg(mE,0,'f',3));
+            PERF_LOG("B-4","QA-RT-01","dsp_detect_ms", aD/aN, "ms", QString("max=%1").arg(mD,0,'f',3));
+            PERF_LOG("B-4","QA-RT-01","dsp_sync_ms",   aS/aN, "ms", QString("max=%1").arg(mS,0,'f',3));
+            PERF_LOG("B-4","QA-RT-01","dsp_total_ms",  (aH+aE+aD+aS)/aN, "ms", QString("n=%1").arg(aN));
             aH=aE=aD=aS=0; mH=mE=mD=mS=0; aN=0; lastEmit=now;
         }
     }
+#else
+    (void)pdHpf; (void)pdEnv; (void)pdDet; (void)pdSync; (void)pdSyncStart;
+#endif
     return 0;
 }
 

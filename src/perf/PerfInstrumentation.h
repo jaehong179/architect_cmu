@@ -16,8 +16,9 @@
 //    'section'(예 "A-1") 과 'qa'(예 "QA-LT-01") 로 PERF_VERIFICATION_GUIDE.md /
 //    M1 문서를 바로 찾을 수 있다. (grep "A-1" perf_log.csv → 종단간 지연만 추출)
 //
-//  [플랫폼]  Windows / Raspberry Pi(Linux) 모두 지원.
-//            CPU·메모리·스로틀 측정만 OS별로 분기(#if)하고, 나머지는 공통.
+//  [플랫폼]  Windows / Raspberry Pi(Linux) 모두 지원(공통 코드).
+//            CPU·메모리·온도·스로틀 등 OS 자원은 인앱이 아니라 외부 스크립트가 측정한다
+//            (tools/perf_resources.sh — epoch_ms_t0 로 본 로그와 시간 정렬).
 //
 //  ── 태그 ↔ 문서(PERF_VERIFICATION_GUIDE.md) ↔ M1 QA 매핑 ─────────────────────
 //   section  qa         metric                 측정 의미 (가이드 항목)
@@ -72,7 +73,13 @@
 //    PERF_GRP_FRAME       §F-1      paint_fps
 //    PERF_GRP_ACCURACY    §G-1/G-2  rate/amp/beat_err·a_match/c_match·gt_total
 // -----------------------------------------------------------------------------
-#define PERF_MASTER_ENABLE   1   // 0 = 전체 로그 OFF (아래 그룹 설정 전부 무시)
+//  ★ PERF_ENABLE = 마스터 컴파일 스위치 ★
+//    1 = 인앱 성능 계측 전부 ON(지연 단계·DSP·UI랙·정확도). 이 빌드를 외부 자원 스크립트와 짝으로 운용.
+//    0 = 아래 PERF_* 매크로가 전부 no-op 으로 컴파일 + #if PERF_ENABLE 로 감싼 누적/배선 블록도 제거
+//        → 핫패스의 타임스탬프 캡처(Perf::nowMs)·로깅·DSP 타이머·UI랙 샘플러가 '컴파일에서 사라짐'.
+//    ※ 단, 하단 상태바 FPS(Background/Foreground Audio FPS)는 원래 제품 기능이라 이 스위치와 무관하게
+//      항상 계산·표시된다(그 값의 CSV 기록(Perf::log)만 off). 자원(CPU/PSS/온도)은 외부 스크립트 담당.
+#define PERF_ENABLE          1   // 0 = 인앱 성능 계측 전체 컴파일 아웃 (아래 그룹 설정 무시)
 
 #define PERF_GRP_LATENCY     1   // §A-1/A-2  지연(종단간·단계분해·백로그)
 #define PERF_GRP_UI          1   // §A-3      UI 응답성
@@ -102,15 +109,33 @@ void   log(const char *section, const char *qa, const char *metric,
 // 콘솔 echo(qDebug) on/off — 기본 OFF. 측정 중엔 OFF(관측자 효과 제거), 디버깅 시에만 ON.
 void   setConsoleEcho(bool on);
 
-// CPU%·RSS(메모리)·SoC 온도는 ResourceSampler 가 1Hz 로 앱 내부에서 측정한다(§C-1/C-2/§D-1).
-//  저빈도 파일 읽기(/proc·/sys)·WinAPI 라 관측자 효과는 µs 수준 → Pi 단독 실행에서도 직접 기록.
-//  단, 서멀 스로틀 플래그(vcgencmd get_throttled)는 서브프로세스가 필요해 외부 도구로 둔다:
-//        watch -n1 vcgencmd get_throttled
-//  런북: docs/*/PERF_VERIFICATION_GUIDE.md
+// CPU%·PSS(메모리)·SoC 온도·서멀 스로틀 같은 OS 자원은 앱 내부에서 측정하지 않는다.
+//  외부에서 측정 가능하고 스로틀은 어차피 vcgencmd(외부)가 필요하므로, 자원은 외부 스크립트
+//  하나로 통합한다(인앱 상시 부하 0). tools/perf_resources.sh 가 한 CSV 로 남기고,
+//  본 perf_log.csv 헤더의 epoch_ms_t0 로 시간 정렬한다. 런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
 // 논리 코어 수 (세션 헤더 기록용).
 int    cpuCoreCount();
 
 } // namespace Perf
+
+// =============================================================================
+//  ★ 계측 매크로 — 호출부는 Perf::* 대신 이 매크로를 쓴다 ★
+//   PERF_ENABLE=0 이면 전부 no-op 으로 치환되어, 타임스탬프 캡처·로깅이 컴파일에서 사라진다.
+//   (no-op 으로 죽은 값은 -O3 죽은코드 제거가 함께 정리. 누적/배선이 있는 블록은 #if PERF_ENABLE 사용.)
+// =============================================================================
+#if PERF_ENABLE
+#  define PERF_NOW()                 (::Perf::nowMs())
+#  define PERF_LOG(s,q,m,v,u,...)    (::Perf::log((s),(q),(m),(v),(u),##__VA_ARGS__))
+#  define PERF_INIT(tag)             (::Perf::init(tag))
+#  define PERF_SHUTDOWN()            (::Perf::shutdown())
+#  define PERF_SET_ECHO(on)          (::Perf::setConsoleEcho(on))
+#else
+#  define PERF_NOW()                 (0.0)
+#  define PERF_LOG(s,q,m,v,u,...)    ((void)0)
+#  define PERF_INIT(tag)             ((void)0)
+#  define PERF_SHUTDOWN()            ((void)0)
+#  define PERF_SET_ECHO(on)          ((void)0)
+#endif
 
 #endif // PERFINSTRUMENTATION_H

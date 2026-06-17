@@ -146,9 +146,11 @@ MainWindow::MainWindow(QWidget *parent)
     //  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
     //  자세한 외부 측정 런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
+#if PERF_ENABLE
     // [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 상시 샘플러 — 자체 타이머 소유.
     //  this 에 부모로 묶여 자동 소멸. (계측 책임을 UI 밖으로 분리)
     new UiResponsivenessSampler(this);
+#endif
 
     // ── [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 '그리기 완료' 시점 포착 ──
     //  ScopePlot 은 TabRateScope 로 이동했다 → 그 탭의 scopeReplotted() 시그널을 RegisterDisplayTabs 에서
@@ -168,7 +170,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->UseConsetCheckBox, &QCheckBox::toggled, this, [this](bool c){ mCapture->setUseConset(c); });
     mCapture->setUseConset(ui->UseConsetCheckBox->isChecked());
     // 탭 ScopePlot 의 실제 paint 완료 → 컨트롤러 perf(disp_paint/e2e_full/paint_fps)
+#if PERF_ENABLE
+    // 탭 ScopePlot 실제 paint 완료 → 컨트롤러 perf(disp_paint/e2e_full/paint_fps). 계측 OFF 면 배선 자체 제거.
     if (mRateScope) connect(mRateScope, &TabRateScope::scopeReplotted, mCapture, &CaptureController::onScopeReplotted);
+#endif
 }
 
 // [탭 모듈 · QA-MOD-01] 기존 2개 탭(RateTab/SoundTab, MainWindow.ui 정의)에 더해 신규 탭

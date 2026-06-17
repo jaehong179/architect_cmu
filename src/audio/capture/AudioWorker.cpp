@@ -34,7 +34,7 @@ void TAudioWorker::stateChangeAudioInput(QAudio::State s)
 {
     qDebug() << "Input Audio State change: " << s;
     // [PERF 계측 · §B-1 · QA-RT-02] 캡처 장치 상태 전이 기록(예: 예기치 않은 Idle = 캡처 중단 신호)
-    Perf::log("B-1","QA-RT-02","audio_state", (double)(int)s, "state","");
+    PERF_LOG("B-1","QA-RT-02","audio_state", (double)(int)s, "state","");
 }
 
 void TAudioWorker::StartAudioRecording(QAudioDevice InputDevice,int SampleRate,float Volume)
@@ -79,6 +79,7 @@ void TAudioWorker::ProcessAudioInput()
     }
     double CurrentTime;
 
+#if PERF_ENABLE
     // ── [PERF 계측 · §B-1 · QA-RT-02] 장치 직접 보고 캡처 오류(xrun/overrun) ──
     //  Qt가 ALSA 핸들을 소유하므로 snd_pcm_status를 직접 못 읽는 대신, QAudioSource::error()로
     //  장치 레벨 under/overrun을 받는다(Pi의 ALSA xrun도 Qt가 이 값으로 surface). 변화 시에만 기록.
@@ -86,10 +87,11 @@ void TAudioWorker::ProcessAudioInput()
     if (mAudioInput) {
         int err = (int)mAudioInput->error();   // 0=NoError,1=Open,2=IO,3=Underrun,4=Fatal
         if (err != 0 && err != mLastAudioErr)
-            Perf::log("B-1","QA-RT-02","audio_xrun", (double)err, "errcode",
+            PERF_LOG("B-1","QA-RT-02","audio_xrun", (double)err, "errcode",
                       QString("state=%1").arg((int)mAudioInput->state()));
         mLastAudioErr = err;
     }
+#endif
 
     QByteArray ba =  mAudioInputDevice->readAll();
 
@@ -98,7 +100,7 @@ void TAudioWorker::ProcessAudioInput()
     // 공용 링버퍼 쓰기. [PERF §A-1/A-2] 인덱스 갱신과 원자적으로 이 블록의 캡처 시각을 남긴다
     //  (종단간 지연 시작점: 메인 스레드가 동일 Mutex 안에서 읽어 (표시시각 − 이 값) = e2e 지연).
     writeSamplesToRing(mRawAudio, AudioSamples, NumberOfSamples,
-                       [this]{ mRawAudio->LastBlockCaptureMs = Perf::nowMs(); });
+                       [this]{ mRawAudio->LastBlockCaptureMs = PERF_NOW(); });
     ++FrameCount;
     SampleCount+=NumberOfSamples;
     CurrentTime = Timer.elapsed()/1000.0;
@@ -115,12 +117,13 @@ void TAudioWorker::ProcessAudioInput()
 
         // ── [PERF 계측 · §B-3 · QA-RT-02/RT-01] 실효 처리량 ──────────────────
         //  설정 샘플레이트 대비 실제 처리 SPS 가 유지되는지(=underrun/드롭 조기 발견).
-        Perf::log("B-3","QA-RT-02","bg_sps", mRawAudio->SPS, "samp/s",
+        PERF_LOG("B-3","QA-RT-02","bg_sps", mRawAudio->SPS, "samp/s",
                   QString("set_sps=%1").arg(mSampleRate));
-        Perf::log("B-3","QA-RT-02","bg_fps", mRawAudio->FPS, "frame/s","");
-        Perf::log("B-3","QA-RT-02","bg_spf", mRawAudio->SPF, "samp/frame","");
+        PERF_LOG("B-3","QA-RT-02","bg_fps", mRawAudio->FPS, "frame/s","");
+        PERF_LOG("B-3","QA-RT-02","bg_spf", mRawAudio->SPF, "samp/frame","");
 
-        // ── [PERF 계측 · §B-1/§B-2 · QA-RT-02] 캡처 드롭 추정 ────────────────
+#if PERF_ENABLE
+        // ── [PERF 계측 · §B-1/§B-2 · QA-RT-02] 캡처 드롭 추정 (계측 전용) ────────
         //  Qt(QAudioSource)는 드롭 프레임 직접 보고 API가 없으므로,
         //  '기대 누적 샘플(경과시간×샘플레이트) - 실제 누적' = capture_gap 으로 추정한다.
         //  gap 자체는 초기 버퍼링 지연을 포함하지만, gap 이 '지속 증가'하면 실제 드롭 신호.
@@ -131,10 +134,11 @@ void TAudioWorker::ProcessAudioInput()
             double growth   = gap - mLastDropLogGap;                 // 이번 구간 증가분(>0 → 드롭 의심)
             mLastDropLogGap = gap;
             mRawAudio->DroppedSampleEstimate = (uint64_t)gap;
-            Perf::log("B-1","QA-RT-02","capture_gap_samples", gap, "samp",
+            PERF_LOG("B-1","QA-RT-02","capture_gap_samples", gap, "samp",
                       QString("set_sps=%1").arg(mSampleRate));
-            Perf::log("B-1","QA-RT-02","capture_gap_growth", growth, "samp/2s","");
+            PERF_LOG("B-1","QA-RT-02","capture_gap_growth", growth, "samp/2s","");
         }
+#endif
     }
     //qDebug() << "worker thread: handleResults slot is running in thread" << QThread::currentThreadId()<<" "<<count;
     emit AudioDataReady(); // Emit data to the main thread

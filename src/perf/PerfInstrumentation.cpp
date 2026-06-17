@@ -37,8 +37,8 @@ constexpr double   kFlushIntervalMs = 1000.0;   // 1초마다 flush
 //  컴파일타임 상수(매크로)만 반환하므로 끈 그룹은 사실상 분기 비용도 없다.
 inline bool sectionEnabled(const char *s)
 {
-#if !PERF_MASTER_ENABLE
-    (void)s; return false;                       // 마스터 OFF → 전체 차단
+#if !PERF_ENABLE
+    (void)s; return false;                       // 마스터 OFF → 전체 차단(매크로가 호출 자체를 제거하지만 방어적)
 #else
     if (!s || !s[0] || !s[1] || !s[2]) return true;   // 형식 밖이면 안전하게 허용
     const char grp = s[0];      // 'A'..'G'

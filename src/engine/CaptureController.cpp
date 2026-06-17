@@ -147,7 +147,8 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
     // [PERF · §A-1/A-2] 최신 블록 캡처 시각/드롭 추정 원자 스냅샷.
     mLocalLastBlockCaptureMs = p->LastBlockCaptureMs;
     mLocalDroppedSamples     = p->DroppedSampleEstimate;
-    // [PERF · §E/§G-2] Sim 모드에서만 정답(GT) 이벤트 링 스냅샷.
+#if PERF_ENABLE
+    // [PERF · §E/§G-2] Sim 모드에서만 정답(GT) 이벤트 링 스냅샷(검출 정확도 대조용, 계측 전용).
     if (mSimMode) {
         memcpy(mLocalGt, p->GtBeats, sizeof(mLocalGt));
         mLocalGtHead  = p->GtHead;
@@ -156,6 +157,7 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
     } else {
         mLocalGtValid = false;
     }
+#endif
     p->Mutex.unlock();
 
     processSamples(p);
@@ -182,28 +184,31 @@ void CaptureController::cEvent(double t, bool haveValidBph, double bph)
 {
     mEngine->onCEvent(t, haveValidBph, bph);
 
-    // [PERF · §G-1] Sim 모드 측정 정확도(측정값 − 설정값). (구 DisplayResults 의 G-1 블록)
+#if PERF_ENABLE
+    // [PERF · §G-1] Sim 모드 측정 정확도(측정값 − 설정값). (구 DisplayResults 의 G-1 블록, 계측 전용)
     if (mSimActive) {
         MeasurementEngine::Results res = mEngine->results();
         if (res.rateValid)
-            Perf::log("G-1","QA-CO-01","rate_err_s_per_d", res.rateSecPerDay - mLastSimCfg.rate_error_s_per_day, "s/d",
+            PERF_LOG("G-1","QA-CO-01","rate_err_s_per_d", res.rateSecPerDay - mLastSimCfg.rate_error_s_per_day, "s/d",
                       QString("meas=%1;set=%2").arg(res.rateSecPerDay,0,'f',2).arg(mLastSimCfg.rate_error_s_per_day,0,'f',2));
         if (res.beatErrorValid) {
             double measBE = res.beatErrorMs, setBE = qAbs(mLastSimCfg.beat_error_ms);
-            Perf::log("G-1","QA-CO-01","beaterr_err_ms", measBE - setBE, "ms",
+            PERF_LOG("G-1","QA-CO-01","beaterr_err_ms", measBE - setBE, "ms",
                       QString("meas=%1;set=%2").arg(measBE,0,'f',3).arg(setBE,0,'f',3));
         }
         if (res.amplitudeValid) {
             double measAmp = res.amplitudeDeg;
-            Perf::log("G-1","QA-CO-01","amp_err_deg", measAmp - mLastSimCfg.watch_amplitude_degrees, "deg",
+            PERF_LOG("G-1","QA-CO-01","amp_err_deg", measAmp - mLastSimCfg.watch_amplitude_degrees, "deg",
                       QString("meas=%1;set=%2").arg(measAmp,0,'f',1).arg(mLastSimCfg.watch_amplitude_degrees,0,'f',1));
         }
-        Perf::log("G-2","QA-AC-01","gt_total", (double)mLocalGtTotal, "beats","");
+        PERF_LOG("G-2","QA-AC-01","gt_total", (double)mLocalGtTotal, "beats","");
     }
+#endif
 
     emit measurementReady();   // → MainWindow DisplayResults(readout + 탭 게시)
 }
 
+#if PERF_ENABLE
 // [PERF · §E-2/§G-2] 검출 이벤트(val, 절대 샘플 위치)를 Sim 정답 이벤트 링과 대조해
 //  타이밍/검출 오차를 기록한다. A/C 두 경로가 필드·로그 이름만 다르고 알고리즘이 동일해 공용화.
 //   isAEvent=true  → 정답 A(onset, a_sample) / onset_err_ms / a_match·a_unmatched
@@ -221,10 +226,11 @@ void CaptureController::matchGroundTruth(double val, bool isAEvent)
         if(!found || qAbs(e)<qAbs(bestErr)){bestErr=e;found=true;}
     }
     if (found && qAbs(bestErr)<tol){
-        Perf::log("E-2","QA-AC-02", isAEvent?"onset_err_ms":"peak_err_ms", bestErr*1000.0/mSampleRate,"ms","");
-        Perf::log("G-2","QA-AC-01", isAEvent?"a_match":"c_match", 1,"event","");
-    } else Perf::log("G-2","QA-AC-01", isAEvent?"a_unmatched":"c_unmatched", 1,"event","");
+        PERF_LOG("E-2","QA-AC-02", isAEvent?"onset_err_ms":"peak_err_ms", bestErr*1000.0/mSampleRate,"ms","");
+        PERF_LOG("G-2","QA-AC-01", isAEvent?"a_match":"c_match", 1,"event","");
+    } else PERF_LOG("G-2","QA-AC-01", isAEvent?"a_unmatched":"c_unmatched", 1,"event","");
 }
+#endif
 
 // ── 샘플 처리 파이프라인 (구 MainWindow::ProcessSamples) — 핫패스(전부 직접 호출) ──
 void CaptureController::processSamples(TMasterAudioDataRaw *p)
@@ -239,12 +245,12 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
         mForegroundLastTime = 0.0; mForegroundFrameCount = 0; mForegroundSampleCount = 0;
     }
     if (SamplesToAdd > 0) {
-        const double perfProcStartMs = Perf::nowMs();
+        const double perfProcStartMs = PERF_NOW();
         const bool   perfIsLive      = mLive;
-        Perf::log("A-2","QA-LT-01","backlog_samples",(double)SamplesToAdd,"samp",
+        PERF_LOG("A-2","QA-LT-01","backlog_samples",(double)SamplesToAdd,"samp",
                   perfIsLive ? "mode=Live" : "mode=PlaybackOrSim");
         if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
-            Perf::log("A-2","QA-LT-01","cap2proc_latency_ms", perfProcStartMs - mLocalLastBlockCaptureMs, "ms",
+            PERF_LOG("A-2","QA-LT-01","cap2proc_latency_ms", perfProcStartMs - mLocalLastBlockCaptureMs, "ms",
                       QString("backlog=%1;drop_est=%2").arg(SamplesToAdd).arg(mLocalDroppedSamples));
 
         while (SamplesToAdd > 0) {
@@ -260,9 +266,9 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
             tg_result_t r;
             if (tg_process(mCtx, mInputBlock, slice, &r) != 0) { qInfo()<<"tg_process failed"; return; }
 
-            if (r.sync_lost_event)      Perf::log("A-4","QA-US-01","fault_sync_lost", 1, "event","");
-            if (r.sync_acquired_event)  Perf::log("A-4","QA-US-01","sync_acquired",   1, "event","");
-            if (r.detector_reset_event) Perf::log("A-4","QA-US-01","detector_reset",  1, "event","");
+            if (r.sync_lost_event)      PERF_LOG("A-4","QA-US-01","fault_sync_lost", 1, "event","");
+            if (r.sync_acquired_event)  PERF_LOG("A-4","QA-US-01","sync_acquired",   1, "event","");
+            if (r.detector_reset_event) PERF_LOG("A-4","QA-US-01","detector_reset",  1, "event","");
 
             // [탭] 엔벨로프/마커 렌더링은 TabRateScope.onWave 가 담당.
             for (int i=0;i<r.num_events;i++) {
@@ -270,7 +276,9 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
                 if (r.events[i].type==TG_EVENT_A) {
                     val = r.events[i].sample_index + r.events[i].sub_sample_offset;
                     aEvent(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
+#if PERF_ENABLE
                     matchGroundTruth(val, /*isAEvent=*/true);   // [PERF · §E-2/§G-2] 검출 A vs 정답 A 대조
+#endif
                 } else if (r.events[i].type==TG_EVENT_C) {
                     if (mUseConset) {
                         if (r.events[i].onset_valid)
@@ -279,7 +287,9 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
                     } else val = r.events[i].sample_index + r.events[i].sub_sample_offset;
 
                     cEvent(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
+#if PERF_ENABLE
                     matchGroundTruth(val, /*isAEvent=*/false);  // [PERF · §E-2/§G-2] 검출 C vs 정답 C 대조
+#endif
                 } else qInfo()<<"Unkown Event Type";
             }
 
@@ -310,16 +320,19 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
         p->MainThrd_LastTotalSamplesWritten = mLocalTotalSamplesWritten;
 
         // [PERF · §A-1/A-2] 처리→표시 요청 시각 → 지연 산출 + afterReplot 대기 등록.
-        const double perfDispMs = Perf::nowMs();
-        Perf::log("A-2","QA-LT-01","proc2disp_latency_ms", perfDispMs - perfProcStartMs, "ms","");
+        const double perfDispMs = PERF_NOW();
+        PERF_LOG("A-2","QA-LT-01","proc2disp_latency_ms", perfDispMs - perfProcStartMs, "ms","");
         if (perfIsLive && mLocalLastBlockCaptureMs>0.0)
-            Perf::log("A-1","QA-LT-01","e2e_latency_ms", perfDispMs - mLocalLastBlockCaptureMs, "ms",
+            PERF_LOG("A-1","QA-LT-01","e2e_latency_ms", perfDispMs - mLocalLastBlockCaptureMs, "ms",
                       QString("set_sps=%1").arg(mSampleRate));
+#if PERF_ENABLE
+        // afterReplot(실제 paint 완료) 에서 disp_paint/e2e_full 을 산출하기 위한 대기 등록(계측 전용).
         mPerfReplotRequestMs    = perfDispMs;
         mPerfCaptureForReplotMs = mLocalLastBlockCaptureMs;
         mPerfReplotLive         = perfIsLive;
         mPerfReplotPending      = true;
         mReplotReqCount++;
+#endif
 
         mForegroundFrameCount++;
         double CurrentTime = mForegroundTimer.elapsed()/1000.0;
@@ -329,9 +342,9 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
             mForegroundSPS = mForegroundSampleCount/fdelta;
             mForegroundSPF = mForegroundSampleCount/(double)mForegroundFrameCount;
             mForegroundLastTime = CurrentTime; mForegroundFrameCount = 0; mForegroundSampleCount = 0;
-            Perf::log("B-3","QA-RT-01","fg_sps", mForegroundSPS, "samp/s","");
-            Perf::log("B-3","QA-RT-01","fg_fps", mForegroundFPS, "frame/s","");
-            Perf::log("B-3","QA-RT-01","fg_spf", mForegroundSPF, "samp/frame","");
+            PERF_LOG("B-3","QA-RT-01","fg_sps", mForegroundSPS, "samp/s","");
+            PERF_LOG("B-3","QA-RT-01","fg_fps", mForegroundFPS, "frame/s","");
+            PERF_LOG("B-3","QA-RT-01","fg_spf", mForegroundSPF, "samp/frame","");
         }
     }
 }
@@ -339,18 +352,20 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
 // ── 실제 paint 완료(탭 ScopePlot afterReplot) → 표시 지연/프레임율 (구 MainWindow::OnScopeReplotted) ──
 void CaptureController::onScopeReplotted()
 {
+#if PERF_ENABLE
     if (!mPerfReplotPending) return;
     mPerfReplotPending = false;
-    double now = Perf::nowMs();
-    Perf::log("A-2","QA-LT-01","disp_paint_ms", now - mPerfReplotRequestMs, "ms","");
+    double now = PERF_NOW();
+    PERF_LOG("A-2","QA-LT-01","disp_paint_ms", now - mPerfReplotRequestMs, "ms","");
     if (mPerfReplotLive && mPerfCaptureForReplotMs > 0.0)
-        Perf::log("A-1","QA-LT-01","e2e_full_ms", now - mPerfCaptureForReplotMs, "ms", "paint_included");
+        PERF_LOG("A-1","QA-LT-01","e2e_full_ms", now - mPerfCaptureForReplotMs, "ms", "paint_included");
     mPaintCount++;
     if (!mPaintHave) { mPaintLastEmitMs = now; mPaintHave = true; }
     if (now - mPaintLastEmitMs >= 1000.0) {
         double sec = (now - mPaintLastEmitMs) / 1000.0;
-        Perf::log("F-1","QA-SC-01","paint_fps", (double)mPaintCount / sec, "frame/s",
+        PERF_LOG("F-1","QA-SC-01","paint_fps", (double)mPaintCount / sec, "frame/s",
                   QString("replot_req=%1").arg(mReplotReqCount));
         mPaintCount = 0; mReplotReqCount = 0; mPaintLastEmitMs = now;
     }
+#endif
 }

@@ -24,10 +24,10 @@ void TabManager::broadcastMeasurement(const MeasurementSnapshot &snap)
     //  (탭 내부에서 무거운 replot 은 isVisible() 가드를 권장 → 숨은 탭은 데이터만 누적)
     for (TabView *t : mTabs) {
         if (!t) continue;
-        const double t0 = Perf::nowMs();
+        const double t0 = PERF_NOW();
         t->onMeasurement(snap);
         // [§F-1 · QA-SC-01] extra 에 탭 제목을 남겨 grep 으로 탭별 비용 분리 가능.
-        Perf::log("F-1", "QA-SC-01", "tab_update_ms", Perf::nowMs() - t0, "ms", t->tabTitle());
+        PERF_LOG("F-1", "QA-SC-01", "tab_update_ms", PERF_NOW() - t0, "ms", t->tabTitle());
     }
 }
 

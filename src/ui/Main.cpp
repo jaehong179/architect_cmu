@@ -25,9 +25,9 @@ int main(int argc, char *argv[])
 
  QApplication a(argc, argv);
 
- // [PERF 계측] perf_log.csv 열기 — 모든 측정값(§A~§D)이 여기로 기록된다.
+ // [PERF 계측] perf_log.csv 열기 — 모든 측정값이 여기로 기록된다(PERF_ENABLE=0 이면 no-op).
  //   (docs/PERF_VERIFICATION_GUIDE.md 의 section/qa 태그로 문서와 1:1 연결)
- Perf::init("timegrapher");
+ PERF_INIT("timegrapher");
 
  //QApplication::setStyle(QStyleFactory::create("Fusion"));
 
@@ -58,8 +58,8 @@ int main(int argc, char *argv[])
 
  result = a.exec();
 
- // [PERF 계측] perf_log.csv 정상 종료(플러시/닫기)
- Perf::shutdown();
+ // [PERF 계측] perf_log.csv 정상 종료(플러시/닫기) (PERF_ENABLE=0 이면 no-op)
+ PERF_SHUTDOWN();
 
 #ifdef Q_OS_WIN
  timeEndPeriod(1);

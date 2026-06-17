@@ -15,11 +15,11 @@ UiResponsivenessSampler::UiResponsivenessSampler(QObject *parent, int periodMs)
 //  막혀 UI 가 늦게 반응한다는 뜻.
 void UiResponsivenessSampler::sample()
 {
-    double now = Perf::nowMs();
+    double now = PERF_NOW();
     if (mHave) {
         double lag = (now - mLastMs) - (double)mPeriodMs;   // 명목 주기 대비 초과분
         if (lag < 0.0) lag = 0.0;
-        Perf::log("A-3","QA-RT-01","ui_loop_lag_ms", lag, "ms","");
+        PERF_LOG("A-3","QA-RT-01","ui_loop_lag_ms", lag, "ms","");
     }
     mLastMs = now;
     mHave   = true;

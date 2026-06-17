@@ -1,5 +1,6 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
+#include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSpinBox>
@@ -42,8 +43,11 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
 
     setupPlots();
 
+#if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
+    //  계측 OFF 면 매 replot 마다의 시그널 방출 자체를 제거.
     connect(mScopePlot, &QCustomPlot::afterReplot, this, &TabRateScope::scopeReplotted);
+#endif
 }
 
 // 구 MainWindow::CreateGraphs 의 RatePlot/ScopePlot 설정 그대로.
