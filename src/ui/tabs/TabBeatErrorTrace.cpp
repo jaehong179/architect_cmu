@@ -1,6 +1,7 @@
 #include "TabBeatErrorTrace.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "PlotHelpers.h"
 #include "qcustomplot.h"
 #include <cmath>
 
@@ -171,5 +172,5 @@ void TabBeatErrorTrace::onResetSession()
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
-    if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->graph(1)->data()->clear(); mPlot->replot(); }
+    if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }
 }

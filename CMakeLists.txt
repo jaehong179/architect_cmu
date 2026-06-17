@@ -98,6 +98,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h
+        src/ui/tabs/PlotHelpers.h
         src/ui/tabs/TabScaffold.h
         src/ui/tabs/WaveBuffer.h
         src/ui/tabs/ScopeRender.h

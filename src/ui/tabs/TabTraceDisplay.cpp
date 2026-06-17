@@ -1,6 +1,7 @@
 #include "TabTraceDisplay.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "PlotHelpers.h"
 #include "qcustomplot.h"
 
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
@@ -29,13 +30,13 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     //  (문서 §1.3의 xTic/yTic·xToc/yToc 점 표현은 Rate/Scope 탭 것이고, 본 탭은 스냅샷
     //   아키텍처상 스칼라 RlsRate만 게시받아 raw+smoothed 두 선으로 표시 — 의도된 설계.)
     //  색 대비: raw=옅은 회색(배경 추세), smoothed=진한 파랑(FR-TD-2 "진한선=스무딩").
-    mRate->addGraph(); mRate->graph(0)->setPen(QPen(QColor(180,180,180)));           // raw (옅은 회색)
-    mRate->addGraph(); mRate->graph(1)->setPen(QPen(QColor(20,60,160), 2));          // smoothed (진한 파랑)
+    PlotHelpers::addLineGraph(mRate, QColor(180,180,180));        // raw (옅은 회색)
+    PlotHelpers::addLineGraph(mRate, QColor(20,60,160), 2);       // smoothed (진한 파랑)
     mRate->yAxis->setLabel(QStringLiteral("rate s/d"));
     mRate->xAxis->setTickLabels(false);
 
     mAmp = new QCustomPlot(this);
-    mAmp->addGraph(); mAmp->graph(0)->setPen(QPen(QColor(150,150,60)));
+    PlotHelpers::addLineGraph(mAmp, QColor(150,150,60));
     mAmp->yAxis->setLabel(QStringLiteral("amplitude °"));
     mAmp->xAxis->setLabel(QStringLiteral("time (s)"));
     // 진폭 정상범위(270~300°) 시각 밴드 — Plan: "show whether the watch remains within a normal range".
@@ -128,6 +129,6 @@ void TabTraceDisplay::onResetSession()
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     if (mBar) mBar->update(MeasurementSnapshot{});
-    if (mRate) { mRate->graph(0)->data()->clear(); mRate->graph(1)->data()->clear(); mRate->replot(); }
-    if (mAmp)  { mAmp->graph(0)->data()->clear(); mAmp->replot(); }
+    if (mRate) { PlotHelpers::clearAllGraphs(mRate); mRate->replot(); }
+    if (mAmp)  { PlotHelpers::clearAllGraphs(mAmp);  mAmp->replot(); }
 }
