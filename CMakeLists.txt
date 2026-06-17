@@ -214,6 +214,15 @@ ELSE()
 
 ENDIF()
 
+# [PERF] 외부 자원 측정 스크립트를 실행파일 옆에 복사한다.
+#  PERF_ENABLE=1 빌드는 시작 시 이 파일이 있으면 자동 실행(없으면 무시 — 2단 안전장치).
+#  앱이 '/bin/bash <script>' 로 실행하므로 실행권한(+x)은 불필요.
+add_custom_command(TARGET TimeGrapher POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/perf_resources.sh"
+            "$<TARGET_FILE_DIR:TimeGrapher>/perf_resources.sh"
+    COMMENT "[PERF] copy perf_resources.sh next to executable")
+
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
