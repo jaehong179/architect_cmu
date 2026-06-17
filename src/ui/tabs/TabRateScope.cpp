@@ -125,10 +125,15 @@ void TabRateScope::onWave(const WaveBlock &wave)
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
 
     const double threshold = wave.onsetThreshold;
+    // 고샘플레이트(예: 384kHz)에서 스코프 점이 레이트×시간으로 폭증(384만 점) → QCustomPlot 렌더가 멈춘다.
+    //  48k 기준 1/decim 으로 점만 솎되, x(키)는 실제 샘플 인덱스를 그대로 유지해 마커 정렬은 보존한다.
+    const int decim = qMax(1, mSampleRateHz / 48000);   // 48k→1(원동작), 96k→2, 192k→4, 384k→8
     if (wave.env) {
         for (int i = 0; i < wave.n; ++i) {
-            mScopePlot->graph(0)->addData(mGraphTicks, wave.env[i]);
-            mScopePlot->graph(1)->addData(mGraphTicks, threshold);
+            if ((mGraphTicks % (uint64_t)decim) == 0) {
+                mScopePlot->graph(0)->addData((double)mGraphTicks, wave.env[i]);
+                mScopePlot->graph(1)->addData((double)mGraphTicks, threshold);
+            }
             mGraphTicks++;
         }
     }
@@ -254,20 +259,20 @@ void TabRateScope::removeMarkersAndText(double rangeMin, double rangeMax)
 
 void TabRateScope::purgeHistory()
 {
+    // 보관 한도를 '점 수'가 아니라 '키 폭(=샘플 인덱스 폭 = 표시 시간)'으로 판단한다.
+    //  데시메이션과 무관하게 항상 최근 GRAPH_HISTORY_IN_SECONDS 초만 유지 → 고레이트에서도 점 수가 바운드.
+    //  (48k/decim=1 에서는 키 폭≈점 수라 기존 동작과 동일.)
+    const double historyKeys = (double)GRAPH_HISTORY_IN_SECONDS * mSampleRateHz;
     for (int i = 0; i < mScopePlot->graphCount(); ++i) {
-        if (mScopePlot->graph(i)->data()->size() > (GRAPH_HISTORY_IN_SECONDS * mSampleRateHz)) {
-            bool foundRange;
-            QCPRange keyRange = mScopePlot->graph(i)->getKeyRange(foundRange, QCP::sdBoth);
-            if (foundRange) {
-                double minKey = keyRange.lower;
-                double maxKey = keyRange.upper;
-                double NumKeys = maxKey - minKey;
-                double NumToRemove = NumKeys - ((GRAPH_HISTORY_IN_SECONDS * mSampleRateHz) / 2);
-                double RemoveStart = minKey;
-                double RemoveEnd = minKey + NumToRemove;
-                removeMarkersAndText(RemoveStart, RemoveEnd);
-                mScopePlot->graph(i)->data()->remove(RemoveStart, RemoveEnd);
-            }
+        bool foundRange;
+        QCPRange keyRange = mScopePlot->graph(i)->getKeyRange(foundRange, QCP::sdBoth);
+        if (!foundRange) continue;
+        double NumKeys = keyRange.upper - keyRange.lower;
+        if (NumKeys > historyKeys) {
+            double RemoveStart = keyRange.lower;
+            double RemoveEnd   = keyRange.lower + (NumKeys - historyKeys / 2.0);
+            removeMarkersAndText(RemoveStart, RemoveEnd);
+            mScopePlot->graph(i)->data()->remove(RemoveStart, RemoveEnd);
         }
     }
 }
