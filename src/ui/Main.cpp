@@ -40,14 +40,17 @@ int main(int argc, char *argv[])
  PERF_INIT("timegrapher");
 
 #if PERF_ENABLE && defined(Q_OS_LINUX)
- // [PERF] 외부 자원 측정 스크립트(perf_resources.sh)가 실행파일 옆에 있으면 자동 실행한다.
- //  자기 PID 를 넘겨 앱이 종료되면 스크립트도 함께 종료(고아 방지). 스크립트가 없으면(프로덕션
- //  배포 등) 아무 것도 하지 않는다 → '파일 존재 + PERF_ENABLE=1' 2단 안전장치. (Pi 전용)
+ // [PERF] 외부 자원 측정 스크립트(resource_sample.sh)가 실행파일 옆에 있으면 자동 실행한다.
+ //  -p 로 자기 PID 를 넘겨 앱 종료 시 스크립트도 함께 종료(고아 방지), -o 로 perf_log.csv 옆에 출력.
+ //  스크립트가 없으면(프로덕션 배포 등) 아무 것도 안 함 → '파일 존재 + PERF_ENABLE=1' 2단 안전장치.
+ //  resource_sample.sh 는 vcgencmd 필요(Pi 전용) → 비-Pi 에선 즉시 종료된다. 출력 컬럼은 analyze_perf.py 호환.
  {
-     const QString script = QDir(QCoreApplication::applicationDirPath()).filePath("perf_resources.sh");
+     const QDir   dir(QCoreApplication::applicationDirPath());
+     const QString script = dir.filePath("resource_sample.sh");
      if (QFileInfo::exists(script))
          QProcess::startDetached("/bin/bash",
-                                 { script, QString::number(QCoreApplication::applicationPid()) });
+             { script, "-p", QString::number(QCoreApplication::applicationPid()),
+                       "-o", dir.filePath("resource_ext.csv") });
  }
 #endif
 
