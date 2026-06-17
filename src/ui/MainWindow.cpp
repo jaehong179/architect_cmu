@@ -9,7 +9,6 @@
 #include "UiResponsivenessSampler.h"   // [PERF · §A-3] UI 응답성 샘플러(계측 책임 분리)
 
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
-#include <QVarLengthArray>
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
 #include "tabs/TabSoundPrint.h"
@@ -32,15 +31,10 @@
 #endif
 
 #include <QFileDialog>
-#include <QFile>
-#include <QDataStream>
-#include <QtEndian>
+#include <QFileInfo>
 #include <QDebug>
-#include <QTextStream>
 #include <QtMath>
-#include <QRandomGenerator>
 #include <QMessageBox>
-#include <stdexcept>
 
 #define  LIVE     0
 #define  PLAYBACK 1
