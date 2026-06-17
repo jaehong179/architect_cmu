@@ -88,6 +88,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/perf/PerfInstrumentation.cpp
         src/perf/UiResponsivenessSampler.h
         src/perf/UiResponsivenessSampler.cpp
+        src/perf/ResourceSampler.h
+        src/perf/ResourceSampler.cpp
         # [engine] 측정 계산 + 입력 소스 오케스트레이션
         src/engine/MeasurementEngine.h
         src/engine/MeasurementEngine.cpp

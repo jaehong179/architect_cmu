@@ -36,9 +36,9 @@
 //   B-4      QA-RT-01   dsp_hpf/env/detect/    ★신호처리(tg_process) 단계별     §B-4
 //                       sync/total_ms          처리시간 (1초 평균, extra=max)
 //   F-1      QA-SC-01   paint_fps              초당 실제 화면 갱신(frame drop)  §F-1
-//   C-1      QA-EE-01   cpu_percent            프로세스 CPU%(전 코어 정규화)    §C-1
-//   C-2      QA-EE-01   throttled_flag         Pi 서멀 스로틀 플래그(Win=N/A)   §C-2
-//   D-1      QA-RT-03   rss_bytes              프로세스 RSS(메모리 사용량)      §D-1/D-2
+//   C-1      QA-EE-01   cpu_percent            프로세스 CPU%(전 코어 정규화)    §C-1 [ResourceSampler 1Hz]
+//   C-2      QA-EE-01   soc_temp_c             SoC 온도(°C, Pi 전용/Win=N/A)    §C-2 [ResourceSampler 1Hz]
+//   D-1      QA-RT-03   rss_bytes              프로세스 RSS(메모리 사용량)      §D-1/D-2 [ResourceSampler 1Hz]
 //   A-3      QA-RT-01   ui_loop_lag_ms         UI 이벤트루프 지연(응답성)       §A-3
 //   A-4      QA-US-01   fault_sync_lost/...    결함/관측 이벤트 발생 시각       §A-4
 //   E-2      QA-AC-02   onset_err_ms/peak_err  검출 vs 정답 식별 오차(Sim)      §E-2
@@ -67,8 +67,8 @@
 //    PERF_GRP_CAPTURE     §B-1      capture_gap_samples/growth·audio_xrun·audio_state
 //    PERF_GRP_THROUGHPUT  §B-3      bg_sps/fps/spf·fg_sps/fps/spf
 //    PERF_GRP_DSP         §B-4      dsp_hpf/env/detect/sync/total
-//    PERF_GRP_RESOURCES   §C-1/C-2  cpu_percent·throttled_flag
-//    PERF_GRP_MEMORY      §D-1      rss_bytes
+//    PERF_GRP_RESOURCES   §C-1/C-2  cpu_percent·soc_temp_c (ResourceSampler 1Hz)
+//    PERF_GRP_MEMORY      §D-1      rss_bytes              (ResourceSampler 1Hz)
 //    PERF_GRP_PRECISION   §E-2      onset_err·peak_err
 //    PERF_GRP_FRAME       §F-1      paint_fps
 //    PERF_GRP_ACCURACY    §G-1/G-2  rate/amp/beat_err·a_match/c_match·gt_total
@@ -105,8 +105,10 @@ void   log(const char *section, const char *qa, const char *metric,
 // 콘솔 echo(qDebug) on/off — 기본 OFF. 측정 중엔 OFF(관측자 효과 제거), 디버깅 시에만 ON.
 void   setConsoleEcho(bool on);
 
-// CPU%·RSS(메모리)·스로틀 같은 '자원' 지표는 앱 내부에서 측정하지 않는다.
-//  관측자 효과를 피하려고 외부 도구(psrecord/pidstat/vcgencmd)로 측정한다.
+// CPU%·RSS(메모리)·SoC 온도는 ResourceSampler 가 1Hz 로 앱 내부에서 측정한다(§C-1/C-2/§D-1).
+//  저빈도 파일 읽기(/proc·/sys)·WinAPI 라 관측자 효과는 µs 수준 → Pi 단독 실행에서도 직접 기록.
+//  단, 서멀 스로틀 플래그(vcgencmd get_throttled)는 서브프로세스가 필요해 외부 도구로 둔다:
+//        watch -n1 vcgencmd get_throttled
 //  런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
 // 논리 코어 수 (세션 헤더 기록용).

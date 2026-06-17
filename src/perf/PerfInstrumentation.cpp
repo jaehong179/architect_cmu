@@ -14,7 +14,7 @@
 #include <QCoreApplication>   // applicationDirPath() — 실행파일 옆에 CSV 고정
 #include <QDir>
 #include <chrono>
-//  자원(CPU/메모리/스로틀)은 외부 도구로 측정하므로 OS별 /proc·WinAPI·vcgencmd include 불필요.
+//  자원(CPU/메모리/온도) 측정은 ResourceSampler.cpp 가 담당 → 이 파일엔 OS별 /proc·WinAPI include 불필요.
 
 namespace {
 // --- 로그 파일/동기화 (워커 스레드 + 메인 스레드 + 1Hz 타이머가 함께 기록) ---
@@ -152,14 +152,15 @@ int cpuCoreCount()
 }
 
 // ---------------------------------------------------------------------------
-//  CPU% · RSS(메모리) · 서멀 스로틀 — 앱 내부에서 측정하지 않는다.
-//  이유: 프로세스 안에서 /proc 을 파싱하고 매 샘플 디스크에 flush 하면, 그 측정 행위
-//        자체가 CPU·메모리를 소비해 측정 대상(자원 사용량)을 오염시킨다(관측자 효과).
-//  대신 앱을 건드리지 않는 외부 도구로 측정한다 (런북: PERF_VERIFICATION_GUIDE.md):
-//        psrecord $(pidof TimeGrapher) --interval 1 --plot perf_ext.png
-//        pidstat  -r -u -p $(pidof TimeGrapher) 1     # CPU% + RSS
+//  CPU% · RSS(메모리) · SoC 온도 — ResourceSampler(src/perf/ResourceSampler.cpp)가 1Hz 로
+//  앱 내부에서 측정해 §C-1/C-2/§D-1 로 기록한다. 저빈도 파일 읽기(/proc·/sys)·WinAPI 라
+//  관측자 효과가 µs 수준이라 가능(과거 우려는 핫패스 고빈도 샘플링 기준이었음).
+//  → Pi 단독 실행에서도 외부 도구 없이 메모리/온도/CPU 가 perf_log.csv 에 남는다.
+//
+//  단, 서멀 스로틀 플래그(vcgencmd get_throttled)는 서브프로세스 spawn 이 필요(블로킹·PATH 의존)
+//  해서 여전히 외부 도구로 둔다 (런북: PERF_VERIFICATION_GUIDE.md):
 //        watch -n1 vcgencmd get_throttled             # Pi 스로틀
-//  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
+//  (psrecord/pidstat 같은 외부 자원 측정도 교차검증용으로 여전히 사용 가능.)
 // ---------------------------------------------------------------------------
 
 } // namespace Perf
