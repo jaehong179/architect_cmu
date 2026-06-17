@@ -8,13 +8,13 @@
 #include <QtMath>
 #include <cmath>
 
-// 측정 상수(구 MainWindow 매크로와 동일 값).
+// 측정 상수.
 static constexpr int    GRAPH_HISTORY_IN_SECONDS = 10;
 static constexpr double ERROR_RATE_Y_SCALE       = 10.0;
 static constexpr int    kEventA = 1;   // unlock
 static constexpr int    kEventC = 2;   // drop/lock
 
-// 진폭 공식(무상태) — 구 MainWindow::Amplitude / MeasurementEngine::amplitude 와 동일.
+// 진폭 공식(무상태) — MeasurementEngine::amplitude 와 동일.
 static double amplitudeOf(double liftAngle, double t1Sec, double bph)
 {
     return liftAngle / std::sin((2.0 * M_PI * t1Sec) / (7200.0 / bph));
@@ -25,7 +25,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
 
-    // Scope Scale 컨트롤(구 .ui ScopeScaleSpinBox/Label: min1 max8 val2).
+    // Scope Scale 컨트롤.
     auto *ctlRow = new QHBoxLayout();
     auto *scaleLabel = new QLabel(QStringLiteral("Scope Scale"), this);
     QFont lf = scaleLabel->font(); lf.setBold(true); scaleLabel->setFont(lf);
@@ -50,7 +50,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
 #endif
 }
 
-// 구 MainWindow::CreateGraphs 의 RatePlot/ScopePlot 설정 그대로.
+// RatePlot/ScopePlot 그래프 설정.
 void TabRateScope::setupPlots()
 {
     QFont legendFont = font();
@@ -123,7 +123,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
-// ScopePlot: 엔벨로프 + 임계선 + A/C 마커. (구 MainWindow::ProcessSamples 의 ScopePlot 부분)
+// ScopePlot: 엔벨로프 + 임계선 + A/C 마커.
 void TabRateScope::onWave(const WaveBlock &wave)
 {
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
@@ -166,7 +166,7 @@ void TabRateScope::onWave(const WaveBlock &wave)
         }
     }
 
-    const double inwardLen = 500.0 * (mSampleRateHz / 48000.0);   // 구 INWARD_MARKER_LENGTH
+    const double inwardLen = 500.0 * (mSampleRateHz / 48000.0);
     for (int i = 0; i < wave.numEvents; ++i) {
         const WaveEvent &e = wave.events[i];
         const double val = (double)e.markSample;   // 표시 해상 위치(A=검출, C=onset/peak)
@@ -217,7 +217,7 @@ void TabRateScope::onResetSession()
     mRatePlot->replot();
 }
 
-// ── 마커 헬퍼 (구 MainWindow 동명 메서드 — 대상 Plot 을 mScopePlot 으로 고정) ──
+// ── 마커 헬퍼 ──
 void TabRateScope::addVerticalMarker(double x, double height, const QColor &color)
 {
     QCPItemLine *marker = new QCPItemLine(mScopePlot);

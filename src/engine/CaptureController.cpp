@@ -14,7 +14,7 @@
 #include <cstdlib>
 #include <stdexcept>
 
-// 검출기 1회 처리 슬라이스 크기(구 MainWindow DETECTOR_NUMBER_OF_SAMPLES). SAMPLE_SIZE 는 SharedAudio.h.
+// 검출기 1회 처리 슬라이스 크기. SAMPLE_SIZE 는 SharedAudio.h.
 static constexpr unsigned DETECTOR_NUMBER_OF_SAMPLES = 4096u;
 
 CaptureController::CaptureController(MeasurementEngine *engine, TabManager *tabs, QObject *parent)
@@ -41,7 +41,7 @@ void CaptureController::allocBuffer(int sampleRate)
     mRawAudio->Samples = new float[mRawAudio->NumberOfAudioSamples];
 }
 
-// ── 검출기(Timegrapher) 생성/파괴 (구 MainWindow::CreateDectectors/DeleteDectectors) ──
+// ── 검출기(Timegrapher) 생성/파괴 ──
 void CaptureController::createDetectors()
 {
     deleteDetectors();
@@ -69,7 +69,7 @@ void CaptureController::deleteDetectors()
     if (mCtx) { tg_destroy(mCtx); mCtx = nullptr; }
 }
 
-// ── 세션 시작 시 파이프라인 상태 비움(구 Reset 의 파이프라인 부분) ──
+// ── 세션 시작 시 파이프라인 상태 비움 ──
 void CaptureController::resetPipeline()
 {
     mInputAbsSample = 0;
@@ -138,7 +138,7 @@ void CaptureController::stopLive()     { emit localStopAudio(); }
 void CaptureController::stopPlayback() { if (mPlaybackThread) mPlaybackThread->requestInterruption(); }
 void CaptureController::stopSim()      { if (mSimThread) mSimThread->requestInterruption(); }
 
-// ── 워커 블록 수신 (구 MainWindow::HandleInputData) — 메인 스레드 ──
+// ── 워커 블록 수신 — 메인 스레드 ──
 void CaptureController::handleInputData(TMasterAudioDataRaw *p)
 {
     p->Mutex.lock();
@@ -174,7 +174,7 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
     }
 }
 
-// ── A/C 이벤트 → 측정 엔진 (구 MainWindow::A_Event/C_Event) ──
+// ── A/C 이벤트 → 측정 엔진 ──
 void CaptureController::aEvent(double t, bool haveValidBph, double bph)
 {
     mEngine->onAEvent(t, haveValidBph, bph);
@@ -185,7 +185,7 @@ void CaptureController::cEvent(double t, bool haveValidBph, double bph)
     mEngine->onCEvent(t, haveValidBph, bph);
 
 #if PERF_ENABLE
-    // [PERF · §G-1] Sim 모드 측정 정확도(측정값 − 설정값). (구 DisplayResults 의 G-1 블록, 계측 전용)
+    // [PERF · §G-1] Sim 모드 측정 정확도(측정값 − 설정값).
     if (mSimActive) {
         MeasurementEngine::Results res = mEngine->results();
         if (res.rateValid)
@@ -232,7 +232,7 @@ void CaptureController::matchGroundTruth(double val, bool isAEvent)
 }
 #endif
 
-// ── 샘플 처리 파이프라인 (구 MainWindow::ProcessSamples) — 핫패스(전부 직접 호출) ──
+// ── 샘플 처리 파이프라인 — 핫패스(전부 직접 호출) ──
 void CaptureController::processSamples(TMasterAudioDataRaw *p)
 {
     mEngine->setConfig(mSampleRate, mAveragingPeriod, mLiftAngle);
@@ -349,7 +349,7 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
     }
 }
 
-// ── 실제 paint 완료(탭 ScopePlot afterReplot) → 표시 지연/프레임율 (구 MainWindow::OnScopeReplotted) ──
+// ── 실제 paint 완료(탭 ScopePlot afterReplot) → 표시 지연/프레임율 ──
 void CaptureController::onScopeReplotted()
 {
 #if PERF_ENABLE

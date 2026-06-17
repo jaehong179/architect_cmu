@@ -1,4 +1,4 @@
-// UiResponsivenessSampler.cpp — 구 MainWindow::SamplePerfUiResponsiveness 분리(SRP).
+// UiResponsivenessSampler.cpp — UI 이벤트 루프 응답성 측정(SRP).
 #include "UiResponsivenessSampler.h"
 #include "PerfInstrumentation.h"
 #include <QTimer>

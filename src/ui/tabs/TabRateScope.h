@@ -35,7 +35,7 @@ private:
     QCustomPlot *mRatePlot   = nullptr;
     QCustomPlot *mScopePlot  = nullptr;
     QSpinBox    *mScopeScale = nullptr;
-    uint64_t     mGraphTicks = 0;        // 엔벨로프 샘플 카운터(구 mLocalGraphTicks)
+    uint64_t     mGraphTicks = 0;        // 엔벨로프 샘플 카운터
     double       mLastA = 0.0; bool mHaveLastA = false;
     int          mSampleRateHz = 48000;
     int          mLiftAngle = 52;        // C 마커 진폭 라벨용(onMeasurement 에서 갱신)

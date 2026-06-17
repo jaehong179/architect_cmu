@@ -37,7 +37,7 @@ public:
     void stopPlayback();
     void stopSim();
 
-    // 설정 주입(구 UI 위젯 읽기 대체) — start 전/런타임 변경 시 MainWindow 가 갱신.
+    // 설정 주입 — start 전/런타임 변경 시 MainWindow 가 갱신.
     void setEngineParams(int sampleRate, int averagingPeriod, int liftAngle)
         { mSampleRate = sampleRate; mAveragingPeriod = averagingPeriod; mLiftAngle = liftAngle; }
     void setDetectorConfig(bool bphAuto, int manualBph, double hpfCutoffHz)
@@ -95,7 +95,7 @@ private:
     tg_context_t *mCtx = nullptr;
     float        *mInputBlock = nullptr;
 
-    // ── 설정(구 UI/MainWindow 값) ──
+    // ── 설정 ──
     int    mSampleRate = 48000, mAveragingPeriod = 20, mLiftAngle = 52;
     bool   mBphAuto = true;  int mManualBph = 0;  double mHpfCutoffHz = 200.0;
     bool   mUseConset = false;

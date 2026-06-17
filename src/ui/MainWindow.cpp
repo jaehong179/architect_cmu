@@ -1,7 +1,7 @@
 #include <QtGlobal>
 #include "MainWindow.h"
 #include "./ui_MainWindow.h"
-#include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices) — 구 AudioWorker.h 전이 include 대체
+#include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices)
 #include <QAudioDevice>
 #include "WaveHeader.h"
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
@@ -164,7 +164,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(mCapture, &CaptureController::measurementReady, this, &MainWindow::DisplayResults);
     connect(mCapture, &CaptureController::playbackDoneReadingFile, this, &MainWindow::HandlePlaybackDoneReadingFile);
     connect(mCapture, &CaptureController::simDone,                 this, &MainWindow::HandleSimDone);
-    // UseConset 체크박스는 런타임 토글 → 컨트롤러에 반영(구 ProcessSamples 가 매 이벤트 isChecked() 읽던 것)
+    // UseConset 체크박스는 런타임 토글 → 컨트롤러에 반영
     connect(ui->UseConsetCheckBox, &QCheckBox::toggled, this, [this](bool c){ mCapture->setUseConset(c); });
     mCapture->setUseConset(ui->UseConsetCheckBox->isChecked());
     // 탭 ScopePlot 의 실제 paint 완료 → 컨트롤러 perf(disp_paint/e2e_full/paint_fps)
@@ -182,9 +182,9 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
     mRateScope = new TabRateScope(this);
-    mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프(구 정적 RateTab)
+    mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
-    mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지(구 정적 SoundTab)
+    mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
     mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
@@ -219,7 +219,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.totalSamples   = mCapture ? mCapture->totalSamples() : 0;
     snap.liftAngle      = (int)mLiftAngle;
     snap.mode           = ui->ModeComboBox->currentIndex();
-    // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사). 구 mRateErrorEvents.x/yTic/Toc.
+    // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사).
     snap.rateTicX = mEngine.ticX().constData(); snap.rateTicY = mEngine.ticY().constData(); snap.rateTicN = mEngine.ticX().size();
     snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
     snap.rateMaxPoints = mEngine.maxDataPoints();
@@ -379,7 +379,7 @@ void MainWindow::DisplayResults(void)
 
 // C_Event·CreateDectectors·DeleteDectectors 는 CaptureController 로 이동했다.
 
-// RatePlot/ScopePlot 그래프 설정(구 CreateGraphs)은 TabRateScope::setupPlots 로 이동했다.
+// RatePlot/ScopePlot 그래프 설정은 TabRateScope::setupPlots 로 이동했다.
 
 MainWindow::~MainWindow()
 {
@@ -417,7 +417,7 @@ void MainWindow::HandleSimDone()
     AudioCloseCheck();
     statusBar()->showMessage("Stopped");
 }
-// 스코프 히스토리 정리(구 PurgeHistory)는 TabRateScope::purgeHistory 로 이동했다.
+// 스코프 히스토리 정리는 TabRateScope::purgeHistory 로 이동했다.
 void MainWindow::Reset(void)
 {
     qInfo()<<"RESET";
@@ -625,7 +625,7 @@ void   MainWindow::LiveStart(void)
 {
     if (!RecordSessionCheck()) return;
     Reset();              // 탭·측정엔진 리셋
-    pushCaptureConfig();  // 검출기/엔진/녹음 설정 주입(구 UI 읽기 대체)
+    pushCaptureConfig();  // 검출기/엔진/녹음 설정 주입
     QAudioDevice dev = ui->InputDeviceComboBox->currentData().value<QAudioDevice>();
     mCapture->startLive(dev, mCurrentSamplesPerSecond, ui->MicrophoneHorizontalSlider->sliderPosition()/1000.0);
     SetGuiRunMode();

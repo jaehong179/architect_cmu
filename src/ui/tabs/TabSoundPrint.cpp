@@ -2,12 +2,12 @@
 #include "SoundImageWidget.h"
 #include <QVBoxLayout>
 
-// 사운드 이미지 이벤트 마커 한 변의 픽셀 수(정사각) — 구 MainWindow SND_PIXEL_SIZE.
+// 사운드 이미지 이벤트 마커 한 변의 픽셀 수(정사각).
 static constexpr int kMarkerPixelSize = 3;
 // 이벤트 타입(WaveEvent.type) — tg_event_type_t 와 동일 값.
 static constexpr int kEventA = 1;   // unlock (impulse)
 static constexpr int kEventC = 2;   // drop/lock
-// 고정 캔버스 크기(위젯 크기와 독립) — 구 .ui SoundImage 기하(1019×654)와 동일.
+// 고정 캔버스 크기(위젯 크기와 독립) — SoundImage 기하 1019×654.
 //  너비=표시할 비트 컬럼 수, 높이=비트 주기 내 시간 해상도. paintEvent 가 위젯에 맞춰 스케일링.
 static constexpr int kCanvasWidth  = 1019;
 static constexpr int kCanvasHeight = 654;
@@ -22,7 +22,7 @@ TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
     mImage->CreateImage(kCanvasWidth, kCanvasHeight);
 }
 
-// 구 MainWindow::buildSoundImageConfig 와 동일한 표시 설정.
+// 표시 설정.
 SoundImageRenderer::Config TabSoundPrint::makeConfig(int sampleRateHz) const
 {
     SoundImageRenderer::Config cfg;

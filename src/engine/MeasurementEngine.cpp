@@ -2,7 +2,7 @@
 #include <QtMath>
 #include <cmath>
 
-// 측정 상수 (구 MainWindow.cpp 매크로와 동일 값).
+// 측정 상수.
 static constexpr double ERROR_RATE_Y_SCALE      = 10.0;
 static constexpr int    ERROR_RATE_X_DATA_POINTS = 250;
 static constexpr int    RLS_WINDOW_INIT          = 100;
@@ -11,7 +11,7 @@ static constexpr int    TOC = 1;
 
 MeasurementEngine::MeasurementEngine()
 {
-    // 구 MainWindow::CreateEvents — 롤링 통계 객체 할당 + 초기 상태.
+    // 롤링 통계 객체 할당 + 초기 상태.
     mAmp.Have_A_Event = false;
     mAmp.Amplitude_Tic_Valid = false;
     mAmp.RollAmplitude = new RollingAverage(10);
@@ -52,7 +52,7 @@ void MeasurementEngine::setConfig(int sampleRateHz, int averagingPeriodSec, int 
 
 void MeasurementEngine::reset()
 {
-    // 구 MainWindow::EventsReset 의 상태 비움 부분(UI/RatePlot 갱신은 호출측 담당).
+    // 상태 비움(UI/RatePlot 갱신은 호출측 담당).
     mAmp.Have_A_Event = false;
     mAmp.Amplitude_Tic_Valid = false;
     mAmp.RollAmplitude->Reset();

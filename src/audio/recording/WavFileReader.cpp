@@ -1,4 +1,4 @@
-// WavFileReader.cpp — WAV 헤더 파싱(순수 파일 I/O). 구 MainWindow::OpenFile 의 파싱부 분리.
+// WavFileReader.cpp — WAV 헤더 파싱(순수 파일 I/O).
 #include "WavFileReader.h"
 #include <QFile>
 #include <QDataStream>

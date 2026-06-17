@@ -19,7 +19,7 @@ class TabRateScope; // Rate/Scope 탭 — ScopePlot afterReplot 신호를 Captur
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
 
-// rate/beat/amplitude 측정 상태·계산은 MeasurementEngine 로 분리됨(구 T*Events 구조체 대체).
+// rate/beat/amplitude 측정 상태·계산은 MeasurementEngine 로 분리됨.
 
 
 class MainWindow : public QMainWindow
@@ -77,7 +77,7 @@ private:
 
 
     WavStreamWriter           *mWavWriter= nullptr;
-    MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산(구 T*Events 대체)
+    MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산
     CaptureController         *mCapture= nullptr;  // 오디오 소스(스레드·워커·버퍼) 오케스트레이션
     int                        mAvalableRates[5];
     int                        mNumberofRates;

@@ -1,4 +1,4 @@
-// SimConfigBuilder.cpp — 구 MainWindow::SimStart 의 합성 설정 조립부 분리(SoC).
+// SimConfigBuilder.cpp — Sim 합성 설정 조립(SoC).
 #include "SimConfigBuilder.h"
 
 WatchSynthStreamConfig SimConfigBuilder::build(const SimConfigParams &p)
