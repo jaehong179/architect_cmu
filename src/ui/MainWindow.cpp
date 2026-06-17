@@ -7,7 +7,6 @@
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
 #include "UiResponsivenessSampler.h"   // [PERF · §A-3] UI 응답성 샘플러(계측 책임 분리)
-#include "ResourceSampler.h"           // [PERF · §C/§D] CPU%·메모리·온도 인앱 샘플러
 
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
 #include <QVarLengthArray>
@@ -150,9 +149,6 @@ MainWindow::MainWindow(QWidget *parent)
     // [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 상시 샘플러 — 자체 타이머 소유.
     //  this 에 부모로 묶여 자동 소멸. (계측 책임을 UI 밖으로 분리)
     new UiResponsivenessSampler(this);
-    // [PERF 계측 · §C/§D] 프로세스 자원(CPU%·메모리 RSS·SoC 온도) 1Hz 인앱 샘플러.
-    //  Pi 단독 실행에서도 앱이 직접 메모리/온도를 perf_log 에 남긴다(저빈도 → 관측자 효과 무시 가능).
-    new ResourceSampler(this);
 
     // ── [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 '그리기 완료' 시점 포착 ──
     //  ScopePlot 은 TabRateScope 로 이동했다 → 그 탭의 scopeReplotted() 시그널을 RegisterDisplayTabs 에서

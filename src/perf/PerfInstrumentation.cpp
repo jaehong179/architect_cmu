@@ -54,8 +54,7 @@ inline bool sectionEnabled(const char *s)
             if (num == '3')               return PERF_GRP_THROUGHPUT;// B-3
             if (num == '4')               return PERF_GRP_DSP;       // B-4
             return true;
-        case 'C': return PERF_GRP_RESOURCES;                          // C-1/C-2
-        case 'D': return PERF_GRP_MEMORY;                             // D-1
+        // 'C'(자원)·'D'(메모리)는 인앱 미측정(외부 스크립트) → 그룹 게이트 없음(기본 허용)
         case 'E': return PERF_GRP_PRECISION;                          // E-2
         case 'F': return PERF_GRP_FRAME;                             // F-1
         case 'G': return PERF_GRP_ACCURACY;                          // G-1/G-2
@@ -152,15 +151,13 @@ int cpuCoreCount()
 }
 
 // ---------------------------------------------------------------------------
-//  CPU% · RSS(메모리) · SoC 온도 — ResourceSampler(src/perf/ResourceSampler.cpp)가 1Hz 로
-//  앱 내부에서 측정해 §C-1/C-2/§D-1 로 기록한다. 저빈도 파일 읽기(/proc·/sys)·WinAPI 라
-//  관측자 효과가 µs 수준이라 가능(과거 우려는 핫패스 고빈도 샘플링 기준이었음).
-//  → Pi 단독 실행에서도 외부 도구 없이 메모리/온도/CPU 가 perf_log.csv 에 남는다.
-//
-//  단, 서멀 스로틀 플래그(vcgencmd get_throttled)는 서브프로세스 spawn 이 필요(블로킹·PATH 의존)
-//  해서 여전히 외부 도구로 둔다 (런북: PERF_VERIFICATION_GUIDE.md):
-//        watch -n1 vcgencmd get_throttled             # Pi 스로틀
-//  (psrecord/pidstat 같은 외부 자원 측정도 교차검증용으로 여전히 사용 가능.)
+//  CPU% · PSS(메모리) · SoC 온도 · 서멀 스로틀 — 앱 내부에서 측정하지 않는다.
+//  이유: 외부에서 측정 가능한 자원 지표를 인앱으로 넣으면 (1) Pi 에서 불필요한 상시 부하가 생기고
+//        (2) 스로틀은 어차피 vcgencmd(외부)가 필요하므로, '외부 스크립트 + 인앱 샘플러'를 둘 다
+//        돌리는 모순이 된다. 따라서 자원은 외부 스크립트 하나로 통합한다.
+//  → tools/perf_resources.sh 가 pidstat(CPU)·smaps_rollup(PSS)·vcgencmd(온도/스로틀)를 한 CSV 로 남기고,
+//    이 perf_log.csv 헤더의 epoch_ms_t0 로 시간 정렬한다(분석 시 두 로그 병합).
+//  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
 // ---------------------------------------------------------------------------
 
 } // namespace Perf

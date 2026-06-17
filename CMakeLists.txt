@@ -88,8 +88,6 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/perf/PerfInstrumentation.cpp
         src/perf/UiResponsivenessSampler.h
         src/perf/UiResponsivenessSampler.cpp
-        src/perf/ResourceSampler.h
-        src/perf/ResourceSampler.cpp
         # [engine] 측정 계산 + 입력 소스 오케스트레이션
         src/engine/MeasurementEngine.h
         src/engine/MeasurementEngine.cpp
@@ -206,7 +204,7 @@ target_link_libraries(TimeGrapher PRIVATE winmm)
 target_link_libraries(TimeGrapher PRIVATE Ole32)
 target_link_libraries(TimeGrapher PRIVATE Uuid)
 target_link_libraries(TimeGrapher PRIVATE Propsys)
-target_link_libraries(TimeGrapher PRIVATE psapi)   # [PERF 계측 §D-1] GetProcessMemoryInfo (Windows RSS)
+# (psapi 링크 제거 — 자원 측정은 외부 스크립트로 이동, 인앱 GetProcessMemoryInfo 미사용)
 ELSEIF(LINUX)
 target_link_libraries(TimeGrapher PRIVATE asound)
 #DP REMOVED NOT NEED IN THIS VERSION

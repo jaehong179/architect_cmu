@@ -36,9 +36,9 @@
 //   B-4      QA-RT-01   dsp_hpf/env/detect/    ★신호처리(tg_process) 단계별     §B-4
 //                       sync/total_ms          처리시간 (1초 평균, extra=max)
 //   F-1      QA-SC-01   paint_fps              초당 실제 화면 갱신(frame drop)  §F-1
-//   C-1      QA-EE-01   cpu_percent            프로세스 CPU%(전 코어 정규화)    §C-1 [ResourceSampler 1Hz]
-//   C-2      QA-EE-01   soc_temp_c             SoC 온도(°C, Pi 전용/Win=N/A)    §C-2 [ResourceSampler 1Hz]
-//   D-1      QA-RT-03   rss_bytes              프로세스 RSS(메모리 사용량)      §D-1/D-2 [ResourceSampler 1Hz]
+//   C-1      QA-EE-01   cpu_percent            프로세스 CPU%(전 코어 정규화)    §C-1 [외부: pidstat]
+//   C-2      QA-EE-01   soc_temp_c/throttled   SoC 온도·서멀 스로틀(Pi)         §C-2 [외부: vcgencmd]
+//   D-1      QA-RT-03   pss_bytes              프로세스 PSS(공유 비례 실점유)   §D-1/D-2 [외부: smaps_rollup]
 //   A-3      QA-RT-01   ui_loop_lag_ms         UI 이벤트루프 지연(응답성)       §A-3
 //   A-4      QA-US-01   fault_sync_lost/...    결함/관측 이벤트 발생 시각       §A-4
 //   E-2      QA-AC-02   onset_err_ms/peak_err  검출 vs 정답 식별 오차(Sim)      §E-2
@@ -67,8 +67,7 @@
 //    PERF_GRP_CAPTURE     §B-1      capture_gap_samples/growth·audio_xrun·audio_state
 //    PERF_GRP_THROUGHPUT  §B-3      bg_sps/fps/spf·fg_sps/fps/spf
 //    PERF_GRP_DSP         §B-4      dsp_hpf/env/detect/sync/total
-//    PERF_GRP_RESOURCES   §C-1/C-2  cpu_percent·soc_temp_c (ResourceSampler 1Hz)
-//    PERF_GRP_MEMORY      §D-1      rss_bytes              (ResourceSampler 1Hz)
+//    (§C-1/C-2·§D-1 자원/메모리/온도는 인앱 미측정 → 외부 스크립트. 그룹 스위치 없음)
 //    PERF_GRP_PRECISION   §E-2      onset_err·peak_err
 //    PERF_GRP_FRAME       §F-1      paint_fps
 //    PERF_GRP_ACCURACY    §G-1/G-2  rate/amp/beat_err·a_match/c_match·gt_total
@@ -81,8 +80,6 @@
 #define PERF_GRP_CAPTURE     1   // §B-1      캡처 드롭/오류/상태
 #define PERF_GRP_THROUGHPUT  1   // §B-3      실효 처리량(bg/fg)
 #define PERF_GRP_DSP         1   // §B-4      신호처리 단계별 시간
-#define PERF_GRP_RESOURCES   1   // §C-1/C-2  CPU%·스로틀
-#define PERF_GRP_MEMORY      1   // §D-1      메모리(RSS)
 #define PERF_GRP_PRECISION   1   // §E-2      onset/peak 정밀도
 #define PERF_GRP_FRAME       1   // §F-1      화면 갱신율(frame drop)
 #define PERF_GRP_ACCURACY    1   // §G-1/G-2  측정 정확도·검출률
