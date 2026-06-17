@@ -6,6 +6,7 @@
 #include "WaveHeader.h"
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
+#include "UiResponsivenessSampler.h"   // [PERF · §A-3] UI 응답성 샘플러(계측 책임 분리)
 
 // [탭 모듈 · QA-MOD-01] 디스플레이 탭 매니저 + 신규 탭 모듈들 (tabs/) — 코어 DSP 불변
 #include <QVarLengthArray>
@@ -145,13 +146,9 @@ MainWindow::MainWindow(QWidget *parent)
     //  앱 내부 계측은 '밖에서 못 보는' 의미론적 지표(지연·정확도·FPS·백로그·이벤트루프 지연)만 담당.
     //  자세한 외부 측정 런북: docs/*/PERF_VERIFICATION_GUIDE.md
 
-    // ── [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 0.1초 하트비트 ──
-    //  100ms 주기 타이머가 '얼마나 늦게' 실제로 불리는지를 측정한다. ProcessSamples/
-    //  replot 등이 메인 스레드를 막으면 타이머가 늦게 발화 → 그 지연 = UI 비응답 시간.
-    //  (사용자 클릭 없이도 GUI 반응성(≤200ms)을 상시 정량화)
-    mPerfUiTimer = new QTimer(this);
-    connect(mPerfUiTimer, &QTimer::timeout, this, &MainWindow::SamplePerfUiResponsiveness);
-    mPerfUiTimer->start(100);
+    // [PERF 계측 · §A-3 · QA-RT-01] UI 응답성(이벤트 루프 지연) 상시 샘플러 — 자체 타이머 소유.
+    //  this 에 부모로 묶여 자동 소멸. (계측 책임을 UI 밖으로 분리)
+    new UiResponsivenessSampler(this);
 
     // ── [PERF 계측 · §A-1/A-2 · QA-LT-01] 실제 '그리기 완료' 시점 포착 ──
     //  ScopePlot 은 TabRateScope 로 이동했다 → 그 탭의 scopeReplotted() 시그널을 RegisterDisplayTabs 에서
@@ -232,19 +229,7 @@ void MainWindow::PublishMeasurementToTabs(void)
 // OnScopeReplotted(실제 paint 완료 perf) 은 CaptureController::onScopeReplotted 로 이동
 //  — 탭 ScopePlot afterReplot → mCapture->onScopeReplotted 로 연결(생성자 배선).
 
-// [PERF 계측 · §A-3 · QA-RT-01] 100ms 하트비트의 실제 간격에서 100ms를 뺀 '초과 지연'을 기록.
-//  값이 클수록 메인 스레드가 막혀 UI가 늦게 반응한다는 뜻.
-void MainWindow::SamplePerfUiResponsiveness()
-{
-    double now = Perf::nowMs();
-    if (mPerfUiHave) {
-        double lag = (now - mPerfUiLastMs) - 100.0;   // 명목 주기(100ms) 대비 초과분
-        if (lag < 0.0) lag = 0.0;
-        Perf::log("A-3","QA-RT-01","ui_loop_lag_ms", lag, "ms","");
-    }
-    mPerfUiLastMs = now;
-    mPerfUiHave = true;
-}
+// [PERF 계측 · §A-3 · QA-RT-01] UI 이벤트 루프 응답성 측정은 UiResponsivenessSampler 로 이동.
 
 void   MainWindow::ConfigureSoundCard(void)
 {

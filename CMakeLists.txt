@@ -86,6 +86,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         # [perf] 성능 계측 (횡단 관심사)
         src/perf/PerfInstrumentation.h
         src/perf/PerfInstrumentation.cpp
+        src/perf/UiResponsivenessSampler.h
+        src/perf/UiResponsivenessSampler.cpp
         # [engine] 측정 계산 + 입력 소스 오케스트레이션
         src/engine/MeasurementEngine.h
         src/engine/MeasurementEngine.cpp

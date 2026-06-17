@@ -45,8 +45,6 @@ private slots:
     void on_AveragingPeriodComboBox_currentIndexChanged(int index);
     void on_ModeComboBox_currentTextChanged(const QString &arg1);
 
-    // [PERF 계측 · §A-3 · QA-RT-01] UI 이벤트 루프 응답성(지연) 표본화 슬롯(0.1초 주기)
-    void SamplePerfUiResponsiveness();
 public slots:
     void HandlePlaybackDoneReadingFile();
     void HandleSimDone();
@@ -93,11 +91,7 @@ private:
     int                        mCurrentSamplesPerSecond;
     int                        mRateBeforePlaybackOrSim;
     QString                    mDeviceNameBeforePlaybackOrSim;
-
-    // ── [PERF 계측 · §A-3] UI 이벤트 루프 응답성(메인 스레드 — MainWindow 잔류) ──
+    // [PERF 계측 · §A-3] UI 이벤트 루프 응답성은 UiResponsivenessSampler 가 자체 타이머로 담당.
     //  (파이프라인 perf: cap2proc·proc2disp·e2e·disp_paint·fps·GT 정확도는 CaptureController 로 이동)
-    QTimer                    *mPerfUiTimer=nullptr;         // [A-3] UI 응답성 0.1s 하트비트 타이머
-    double                     mPerfUiLastMs=0.0;            // [A-3] 직전 하트비트 시각
-    bool                       mPerfUiHave=false;            // [A-3] 첫 회(워밍업) 제외 플래그
 };
 #endif
