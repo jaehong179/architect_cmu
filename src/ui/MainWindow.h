@@ -11,6 +11,7 @@
 #include "MeasurementEngine.h"
 #include "CaptureController.h"
 #include "WatchSynthStream.h"
+#include "SimConfigBuilder.h"   // Sim 합성 설정 조립(도메인 지식 분리)
 
 
 QT_BEGIN_NAMESPACE

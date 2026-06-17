@@ -648,17 +648,16 @@ void   MainWindow::PlaybackStart(void)
 }
 void   MainWindow::SimStart(void)
 {
-    WatchSynthStreamConfig cfg;
-    if (ui->RealisticCheckBox->isChecked())
-        watch_synth_stream_realistic_config(&cfg);
-    else watch_synth_stream_clean_config(&cfg);
-    cfg.bph = SimBPH[ui->SimBPHComboBox->currentIndex()];
-    cfg.sample_rate_hz = mAvalableRates[ui->SampleRatesComboBox->currentIndex()];
-    cfg.beat_error_ms = -ui->SimBeatErrorSpinBox->value();
-    cfg.pcm_peak_amplitude = 0.40;       /* normalized float PCM digital output level */
-    cfg.watch_amplitude_degrees = ui->SimAmplitudeSpinBox->value();
-    cfg.lift_angle_degrees = ui->LiftAngleSpinBox->value();
-    cfg.rate_error_s_per_day=ui->SimErrorRateSpinBox->value();
+    // UI 위젯값만 모은다 — 합성기 구조/기본값/규약은 SimConfigBuilder 가 안다(SoC).
+    SimConfigParams p;
+    p.realistic          = ui->RealisticCheckBox->isChecked();
+    p.bph                = SimBPH[ui->SimBPHComboBox->currentIndex()];
+    p.sampleRateHz       = mAvalableRates[ui->SampleRatesComboBox->currentIndex()];
+    p.beatErrorMs        = ui->SimBeatErrorSpinBox->value();
+    p.watchAmplitudeDeg  = ui->SimAmplitudeSpinBox->value();
+    p.liftAngleDeg       = ui->LiftAngleSpinBox->value();
+    p.rateErrorSecPerDay = ui->SimErrorRateSpinBox->value();
+    WatchSynthStreamConfig cfg = SimConfigBuilder::build(p);
 
     if (!RecordSessionCheck()) return;
     GetAudioRate(mRateBeforePlaybackOrSim);
