@@ -1,0 +1,49 @@
+// Performance measurement pipeline — structure (threads) + flow + measurement points
+// Render: dot -Tpng perf_pipeline.dot -o perf_pipeline.png
+digraph perf {
+  rankdir=LR;
+  graph [fontname="Arial", fontsize=13, labelloc=t,
+         label="Watch sound -> screen: flow and measurement points (blue = processing stage / pink = measured here)"];
+  node  [fontname="Arial", fontsize=11];
+  edge  [fontname="Arial", fontsize=10];
+
+  // -- Processing stages (blue) --
+  node [shape=box, style="rounded,filled", fillcolor="#bbdefb", color="#1565c0"];
+
+  subgraph cluster_cap {
+    label="Capture thread (background)"; style="filled"; fillcolor="#fff3e0"; color="#e08a3c";
+    MIC [label="Watch sound\n(mic / synth)", fillcolor="#ffe0b2"];
+    CAP [label="1) Capture"];
+  }
+
+  RB [label="2) Ring buffer\n(shared by two threads)", shape=cylinder, fillcolor="#e0e0e0", color="#777777"];
+
+  subgraph cluster_main {
+    label="Main / UI thread"; style="filled"; fillcolor="#e3f2fd"; color="#1565c0";
+    HID  [label="3) Snapshot"];
+    DSP  [label="4) Signal processing\nHPF->Envelope->Detect->Sync"];
+    CALC [label="5) Compute metrics\n(rate / amplitude / beat)"];
+    SHOW [label="6-8) Display (plot)"];
+  }
+
+  // Flow (sequence)
+  MIC -> CAP;
+  CAP -> RB [label="write"];
+  RB  -> HID [label="signal: AudioDataReady"];
+  HID -> DSP -> CALC -> SHOW;
+
+  // -- Measurement points (pink, dashed) --
+  node [shape=note, fillcolor="#fce4ec", color="#c2185b"];
+  MA [label="Did input drop?\n-> capture_gap, audio_xrun\n(0 = OK)"];
+  MB [label="Backlog in buffer?\n-> backlog\n(smaller = better)"];
+  MC [label="Processing slow?\n-> dsp_hpf/detect/sync(ms)\n+ detection accuracy"];
+  MD [label="Values accurate?\n-> rate/amp/beat_err\n(vs configured)"];
+  ME [label="Fast & smooth?\n-> e2e_full(latency), paint_fps(frames)"];
+
+  edge [style=dashed, color="#c2185b", arrowhead=none];
+  CAP  -> MA;
+  RB   -> MB;
+  DSP  -> MC;
+  CALC -> MD;
+  SHOW -> ME;
+}
