@@ -4,9 +4,7 @@ The scope is the static code structure of the TimeGrapher desktop application.
 The diagram shows six top-level packages and their `«uses»` dependencies.
 Key patterns applied at the module level:
 - Layered (unidirectional dependency: ui → engine → core)
-- Pipe-and-Filter (DSP pipeline in core/)
-- Publish–Subscribe (TabManager in ui/)
-- Facade (CaptureController in engine/)
+
 
 ![Package Diagram](module_view_package.drawio)
 
