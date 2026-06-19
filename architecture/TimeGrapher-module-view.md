@@ -5,7 +5,7 @@ The diagram shows six top-level packages and their `«uses»` dependencies.
 Key patterns applied at the module level:
 - Layered (unidirectional dependency: ui → engine → core)
 
-![Package Diagram](module_view_package.png)
+![Package Diagram](./images/TimeGrapher Module View.jpg)
 
 https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 
