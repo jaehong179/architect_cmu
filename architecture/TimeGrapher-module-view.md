@@ -1,0 +1,91 @@
+# TimeGrapher Module View (Package Diagram)
+
+The scope is the static code structure of the TimeGrapher desktop application.
+The diagram shows six top-level packages and their `«uses»` dependencies.
+Key patterns applied at the module level:
+- Layered (unidirectional dependency: ui → engine → core)
+- Pipe-and-Filter (DSP pipeline in core/)
+- Publish–Subscribe (TabManager in ui/)
+- Facade (CaptureController in engine/)
+
+![Package Diagram](module_view_package.drawio)
+
+## Element Catalog
+
+#### core
+- Pure domain logic with no Qt/UI dependency. Contains the signal processing pipeline arranged as a Pipe-and-Filter (HPF → Envelope → Detector → BPH Tracker). Independently unit-testable.
+
+#### core/timing (Timegrapher)
+- C library that drives the signal detection pipeline. Streaming API: `tg_init`, `tg_process`, `tg_flush`, `tg_reset`.
+
+#### core/detection
+- FSM-based onset/peak detector that classifies A (unlock) and C (drop) events from the envelope signal.
+
+#### core/dsp
+- Independent signal processing filters (HPF, Envelope). Each filter is individually replaceable without affecting the rest of the pipeline.
+
+#### core/stats
+- Rolling statistical utilities (RollingAverage, RollingLeastSquares) used by MeasurementEngine for stable trend calculation.
+
+#### audio
+- Audio input sources, thread-shared ring buffer, and WAV file I/O. Each Worker runs on a dedicated thread, implementing the Producer–Consumer pattern with the ring buffer.
+
+#### audio/capture, playback, sim
+- Three audio source workers: live microphone (with platform-specific backends), WAV file replay, and synthetic signal generation for testing.
+
+#### audio/recording
+- WAV file reader and writer. Extracted from MainWindow to a standalone module for cohesion.
+
+#### SharedAudio / AudioRingBuffer
+- Thread-shared ring buffer (30-second fixed size, Mutex-protected). `writeSamplesToRing()` is shared by all three Workers to eliminate code duplication.
+
+#### engine
+- Domain orchestration layer that coordinates audio sources, signal pipeline, and measurement calculation.
+
+#### CaptureController
+- Pipeline orchestrator that acts as a Facade over Workers, Timegrapher, MeasurementEngine, and TabManager. Entry points: `startLive`, `startPlayback`, `startSim`.
+
+#### MeasurementEngine
+- Calculates rate (s/d), beat error (ms), and amplitude (°) from A/C event timestamps. Produces `MeasurementSnapshot`. Extracted from MainWindow.
+
+#### SimConfigBuilder
+- Assembles simulation synthesis configuration (BPH, beat error, noise, etc.). Extracted from MainWindow.
+
+#### render
+- Folding sound image rendering, separated from the Qt display layer.
+  - **SoundImageRenderer**: pixel-level rendering from beat event sequences.
+  - **SoundImageWidget**: Qt widget wrapper for screen display.
+
+#### ui / MainWindow
+- Thin UI coordinator. Handles widget layout, low-frequency display updates, and tab registration via `RegisterDisplayTabs()`.
+
+#### ui / TabManager
+- Tab registry and broadcast hub (Publish–Subscribe). Decouples data producers (engine) from display consumers (tabs) so that tabs have no knowledge of CaptureController or MeasurementEngine.
+
+#### ui / tabs (TabView + 13 subclasses)
+- `TabView` defines the abstract interface (`onWave()`, `onMeasurement()`). 13 concrete subclasses each implement their own visualization. Adding a new tab requires only 1 subclass + 1 registration line — no changes to existing code (OCP).
+
+#### perf
+- Cross-cutting performance instrumentation. Controlled by `PERF_ENABLE` compile switch — when disabled, all macros compile to nothing (zero overhead in production).
+  - **PerfInstrumentation**: timestamp recording and CSV output.
+  - **UiResponsivenessSampler**: UI event loop latency monitor.
+
+#### WaveBlock (data contract)
+- Produced per audio slice by CaptureController. Contains envelope waveform, A/C marker positions, and raw signal.
+
+#### MeasurementSnapshot (data contract)
+- Produced per beat (C event) by MeasurementEngine. Contains rate, beat error, amplitude, and rate series. Low frequency — naturally limits UI update rate.
+
+## Behavior
+- [Real-time Measurement Sequence (Performance)](runtime_view_seq_performance.svg)
+- [Tab Addition Scenario (Modifiability)](runtime_view_seq_modifiability.svg)
+
+## Related ADRs
+- ADR-001: Layered architecture with unidirectional dependencies
+- ADR-002: Pipe-and-Filter for DSP pipeline
+- ADR-003: Publish–Subscribe for tab display decoupling
+- ADR-004: PERF_ENABLE compile switch for zero-cost instrumentation
+
+## Related Views
+- [C&C Structural View (Runtime)](runtime_view_cc_structural.svg)
+- Context View — see ARCHITECTURE.md §3
