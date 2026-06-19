@@ -7,7 +7,7 @@ Key patterns applied at the module level:
 
 ![Package Diagram](module_view_package.png)
 
-Notation: UML
+https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 
 ## Element Catalog
 
