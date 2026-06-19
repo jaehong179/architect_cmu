@@ -7,6 +7,7 @@
 #include "MeasurementEngine.h"    // mEngine (측정 계산)
 #include "CaptureController.h"    // mCapture (오디오 소스/파이프라인) — tg_*·TMasterAudioDataRaw 도 여기서 전이 제공
 #include "SimConfigBuilder.h"     // SimStart 의 합성 설정 조립(WatchSynthStreamConfig 포함)
+#include "WaveLodHistory.h"       // 8분 엔벨로프 이력 버퍼(중앙 1개, pause/스크롤백용)
 
 
 QT_BEGIN_NAMESPACE
@@ -49,6 +50,7 @@ private:
     Ui::MainWindow *ui;
     TabManager     *mTabManager = nullptr;   // [탭 모듈] 디스플레이 탭을 등록·갱신(QA-MOD-01)
     TabRateScope   *mRateScope  = nullptr;    // Rate/Scope 탭(perf afterReplot → 컨트롤러 배선용)
+    WaveLodHistory  mWaveHistory;             // 8분 엔벨로프 이력(중앙 1개) — TabManager 방송에 청취자로 등록
     void   RegisterDisplayTabs(void);        // [탭 모듈] 신규 탭 모듈들을 생성·등록
     void   PublishMeasurementToTabs(void);   // [탭 모듈] 현재 측정값을 스냅샷으로 탭에 게시
     void   ConfigureSoundCard(void);

@@ -3,6 +3,7 @@
 // =============================================================================
 #include "TabManager.h"
 #include "TabView.h"
+#include "WaveSink.h"              // 비시각 청취자(8분 이력 버퍼 등)
 #include <QTabWidget>
 #include "PerfInstrumentation.h"   // [PERF 계측 · §F-1] 탭별 갱신시간 tab_update_ms
 
@@ -37,6 +38,14 @@ void TabManager::broadcastWave(const WaveBlock &wave)
     //  isVisible() 가드로 렌더 비용을 줄인다.
     for (TabView *t : mTabs)
         if (t) t->onWave(wave);
+    // 비시각 청취자(8분 이력 버퍼 등)에도 동일 방송. (탭과 무관하게 항상 누적)
+    for (WaveSink *s : mWaveSinks)
+        if (s) s->onWave(wave);
+}
+
+void TabManager::addWaveSink(WaveSink *sink)
+{
+    if (sink) mWaveSinks.push_back(sink);
 }
 
 void TabManager::broadcastReset()

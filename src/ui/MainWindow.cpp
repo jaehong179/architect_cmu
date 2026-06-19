@@ -174,6 +174,9 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
+    // [8분 이력] 중앙 엔벨로프 버퍼를 wave 방송 청취자로 등록(구독자 방식 · OCP/ISP).
+    //  탭이 아닌 비시각 수집기라 broadcastWave 만 받는다. 첫 wave 에서 샘플레이트로 지연 구성.
+    mTabManager->addWaveSink(&mWaveHistory);
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
     mRateScope = new TabRateScope(this);
     mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
