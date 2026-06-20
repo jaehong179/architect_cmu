@@ -73,10 +73,16 @@ void TabRateScope::setupPlots()
     mScopePlot->graph(0)->setPen(pen);
     mScopePlot->graph(0)->setBrush(QBrush(QColor(0, 0, 255, 20)));
     mScopePlot->graph(0)->setName("Rectified");
+    // [드로잉 최적화] 화면 픽셀폭 초과 표본은 QCustomPlot 이 그릴 때 자동 min/max 솎음.
+    //  onWave 의 decim(=sr/48000)은 '저장 점 수'를 고레이트에서만 줄이는 반면, 이건
+    //  '그리는 점 수'를 모든 레이트(48k 포함)에서 화면폭으로 바운드 → 48k 과다 드로잉 해소.
+    //  (피크 보존이라 시각 변화 없음. Filter Views·Sync Sweep 과 동일 방식.)
+    mScopePlot->graph(0)->setAdaptiveSampling(true);
     mScopePlot->addGraph();
     pen.setWidth(1); pen.setColor(Qt::red);
     mScopePlot->graph(1)->setPen(pen);
     mScopePlot->graph(1)->setName("Trigger");
+    mScopePlot->graph(1)->setAdaptiveSampling(true);
     mScopePlot->legend->setVisible(true);
 
     // ── RatePlot ──
