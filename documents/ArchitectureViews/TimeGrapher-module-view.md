@@ -2,9 +2,10 @@
 
 The scope is the static code structure of the TimeGrapher desktop application.
 The diagram shows six top-level packages and their `«uses»` dependencies.
-Key patterns applied at the module level:
-- Layered (unidirectional dependency: ui → engine → core)
 
+Key pattern applied:
+- **Layered** — dependencies flow top-down (ui → engine → core, ui → audio → core). No upward or circular dependencies are permitted. `perf` is a cross-cutting exception, referenced by all layers via compile-time macros.
+- 
 ![Package Diagram](../images/TimeGrapherModuleView.jpg)
 
 https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
