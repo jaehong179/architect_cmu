@@ -1,4 +1,4 @@
-# ADR-03: Retain the bounded fixed ring buffer and add overwrite detection
+# ADR-003: Retain the bounded fixed ring buffer and add overwrite detection
 
 We decided to keep the bounded fixed-size ring buffer and add lap/overwrite detection, and to treat zero-loss as a consumer-throughput guarantee rather than a buffer guarantee, in order to satisfy both the memory bound and observable data integrity for live 192k capture.
 
