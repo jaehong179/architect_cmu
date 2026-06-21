@@ -20,7 +20,7 @@ Notation: UML
 #### macOS Apple Silicon
 - Additional desktop deployment target. Runs macOS with Qt 6 Framework. Audio input via CoreAudio, camera input via AVFoundation.
 
-#### USB Mic / USB Audio Device
+#### USB Mic Device
 - External USB microphone that captures the mechanical watch's tick sound as a PCM audio stream. Platform-specific audio driver (WASAPI / ALSA / CoreAudio) provides the communication path to the application.
 
 #### USB Camera
