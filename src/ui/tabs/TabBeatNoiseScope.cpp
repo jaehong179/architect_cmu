@@ -189,7 +189,9 @@ void TabBeatNoiseScope::processNewBeats()
         }
         // 스트립 링
         mRecent.push_back(beat);
-        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (mSelectedStrip >= 0) --mSelectedStrip; }
+        mRecentSample.push_back(e.sample);     // [③] 이 비트의 A 절대 샘플(선택→seek)
+        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (!mRecentSample.isEmpty()) mRecentSample.removeFirst();
+                                           if (mSelectedStrip >= 0) --mSelectedStrip; }
         if (mSelectedStrip < -1) mSelectedStrip = -1;
         mLastBeatASample = e.sample; mHaveLastBeat = true; ++mBeatCount;
     }
@@ -297,6 +299,8 @@ void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
     const int idx = (int)(xc / (winMs + 2.0));
     if (idx < 0 || idx >= mRecent.size()) return;
     mSelectedStrip = (mSelectedStrip == idx) ? -1 : idx;   // 재클릭 → 라이브 복귀
+    if (mSelectedStrip >= 0 && mSelectedStrip < mRecentSample.size())
+        emit seekRequested((double)mRecentSample[mSelectedStrip]);   // [③] 선택 비트 시점 전파
     // 선택 비트 확대는 Scope1 에서 — Scope2 보기였다면 Scope1 으로 전환.
     mShowScope2 = false;
     applyScopeView();          // render(Scope1) + renderStrips() 수행
@@ -369,7 +373,7 @@ void TabBeatNoiseScope::onResetSession()
     mTr1Last.clear(); mTr2Last.clear();
     mTr1AmpSum = mTr2AmpSum = 0; mTr1AmpN = mTr2AmpN = 0;
     mHaveCycleResult = false; mLastCycleAmp1 = mLastCycleAmp2 = 0;
-    mRecent.clear(); mSelectedStrip = -1;
+    mRecent.clear(); mRecentSample.clear(); mSelectedStrip = -1;
     mPeakScope1 = mPeakStrips = mPeakTr1 = mPeakTr2 = 0;
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));

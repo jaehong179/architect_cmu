@@ -190,26 +190,22 @@ void MainWindow::RegisterDisplayTabs(void)
     auto *traceTab = new TabTraceDisplay(this);                 // FR-TD
     // [③] 정지 중 Trace 트렌드 클릭 → 그 시점을 모든 스코프 탭에 전파(Rate/Scope 점프) + 코너 라벨 갱신.
     connect(traceTab, &TabTraceDisplay::seekRequested, mTabManager, &TabManager::broadcastSeek);
-    connect(traceTab, &TabTraceDisplay::seekRequested, this, [this](double absSample) {
-        if (!mSeekLabel) return;
-        const int sr = mWaveHistory.sampleRate();
-        const double t = sr > 0 ? absSample / (double)sr : 0.0;
-        mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
-    });
+    connect(traceTab, &TabTraceDisplay::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(traceTab);
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
-    mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS
-    mTabManager->registerTab(new TabBeatErrorTrace(this));      // FR-BED
+    auto *bnsTab = new TabBeatNoiseScope(this);                // FR-BNS
+    connect(bnsTab, &TabBeatNoiseScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(bnsTab, &TabBeatNoiseScope::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(bnsTab);
+    auto *bedTab = new TabBeatErrorTrace(this);                // FR-BED
+    connect(bedTab, &TabBeatErrorTrace::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(bedTab, &TabBeatErrorTrace::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(bedTab);
     auto *ltpTab = new TabLongTermPerformance(this);           // FR-LTP
     // [③] Long-Term 트렌드(8분 시간축) 클릭 → 그 시점을 스코프 탭에 전파 + 코너 라벨 갱신.
     connect(ltpTab, &TabLongTermPerformance::seekRequested, mTabManager, &TabManager::broadcastSeek);
-    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, [this](double absSample) {
-        if (!mSeekLabel) return;
-        const int sr = mWaveHistory.sampleRate();
-        const double t = sr > 0 ? absSample / (double)sr : 0.0;
-        mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
-    });
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(ltpTab);
     auto *escTab = new TabEscapementAnalyzer(this);             // FR-EAM
     escTab->setHistory(&mWaveHistory);                          // [③] seek replay 원본 주입
@@ -245,6 +241,15 @@ void MainWindow::RegisterDisplayTabs(void)
         if (mTabManager) mTabManager->setPaused(p);
         if (mRateScope)  mRateScope->setPaused(p);
     });
+}
+
+// [③] 코너 seek 위치 라벨 갱신 — 모든 트렌드 클릭 소스가 공통으로 호출.
+void MainWindow::updateSeekLabel(double absSample)
+{
+    if (!mSeekLabel) return;
+    const int sr = mWaveHistory.sampleRate();
+    const double t = sr > 0 ? absSample / (double)sr : 0.0;
+    mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
 }
 
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라

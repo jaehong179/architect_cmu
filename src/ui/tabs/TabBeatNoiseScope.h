@@ -26,6 +26,8 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+signals:
+    void seekRequested(double absSample);   // [③] 스트립 비트 선택 → 그 비트의 절대 샘플
 protected:
     void onShown() override;
 private:
@@ -70,6 +72,7 @@ private:
     long                     mTr1AmpN = 0,  mTr2AmpN = 0;
     double                   mLastCycleAmp1 = 0, mLastCycleAmp2 = 0; bool mHaveCycleResult = false;
     QVector<QVector<double>> mRecent;          // 최근 비트(스트립용)
+    QVector<uint64_t>        mRecentSample;    // [③] 각 스트립 비트의 A 절대 샘플(선택→seek)
     int                      mSelectedStrip = -1;   // 선택된 스트립(-1=라이브)
     static constexpr int     kStrips = 8;     // 최근 비트 스트립 8개
     static constexpr long    kCycleN = 50;     // Plan: 50 tic + 50 tac 간격에서 사이클 완료

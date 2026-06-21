@@ -57,6 +57,7 @@ private:
     WaveLodHistory  mWaveHistory;             // 8분 엔벨로프 이력(중앙 1개) — TabManager 방송에 청취자로 등록
     void   RegisterDisplayTabs(void);        // [탭 모듈] 신규 탭 모듈들을 생성·등록
     void   PublishMeasurementToTabs(void);   // [탭 모듈] 현재 측정값을 스냅샷으로 탭에 게시
+    void   updateSeekLabel(double absSample);// [③] 코너 seek 위치 라벨 갱신(트렌드 클릭 공통)
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   LoadAudioDevices(void);
