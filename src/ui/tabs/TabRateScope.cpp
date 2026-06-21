@@ -580,6 +580,30 @@ void TabRateScope::removeMarkersAndText(double rangeMin, double rangeMax)
     }
 }
 
+void TabRateScope::updateLabelVisibility()
+{
+    const double spanSec = mScopePlot->xAxis->range().size();
+    // 가로 시간 축 범위가 1.5초를 초과하면(줌 아웃 시) 개별 비트 정보(ms/각도) 라벨과 브라켓을 숨김
+    const bool showLabels = (spanSec <= 1.5);
+
+    for (int i = 0; i < mScopePlot->itemCount(); ++i) {
+        QCPAbstractItem *item = mScopePlot->item(i);
+        QCPItemText *textLabel = qobject_cast<QCPItemText*>(item);
+        if (textLabel) {
+            textLabel->setVisible(showLabels);
+        } else {
+            QCPItemLine *lineItem = qobject_cast<QCPItemLine*>(item);
+            if (lineItem) {
+                // 수평 브라켓 감지 (시작 X와 끝 X가 다르면 수평/사선 라인, 같으면 수직 마커)
+                const bool isHorizontal = qAbs(lineItem->start->coords().x() - lineItem->end->coords().x()) > 1e-9;
+                if (isHorizontal) {
+                    lineItem->setVisible(showLabels);
+                }
+            }
+        }
+    }
+}
+
 void TabRateScope::purgeHistory()
 {
     // 보관 한도를 '점 수'가 아니라 '키 폭(=표시 시간, 초)'으로 판단한다.
@@ -666,4 +690,5 @@ void TabRateScope::updateScopeXAxisTicks(const QCPRange &range)
     ticker->setTickOrigin(0.0);
     mScopePlot->xAxis->setTicker(ticker);
     mScopePlot->xAxis->setNumberPrecision(precision);
+    updateLabelVisibility();
 }
