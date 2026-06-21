@@ -10,6 +10,29 @@
 #include <QtMath>
 #include <cmath>
 
+// ── 색상 팔레트 (TabBeatNoiseScope 계열과 통일) ──────────────────────────────
+namespace Theme {
+    const QColor kEnvelope  {120, 110,   0};
+    const QColor kEnvFill   {235, 215,   0, 120};
+    const QColor kThreshold {220, 120,   0};   // 주황 임계선
+    const QColor kMarkerA   {  0, 160,   0};   // A: beat 시작 (초록)
+    const QColor kMarkerC   {220,  40,  40};   // C: lock/drop  (빨강)
+    const QColor kBracket   {100, 100, 120};   // 수평 브라켓 (회보라)
+    const QColor kLabelBg   {255, 255, 255, 200}; // 텍스트 배경 (반투명 흰색)
+    const QColor kTicColor  {200,  40,  40};   // RatePlot tic scatter
+    const QColor kTocColor  { 40,  80, 200};   // RatePlot toc scatter
+    const QColor kZeroLine  { 80,  80,  80};   // 0선
+    const QColor kGrid      {210, 210, 215};   // 점선 그리드
+}
+
+// Scope Y축 안정화: 상승 즉시·하강 천천히 (TabBeatNoiseScope 와 동일 패턴)
+static double smoothPeak(double &norm, double inst)
+{
+    if (inst > norm) norm = inst; else norm = 0.92 * norm + 0.08 * inst;
+    if (norm < 1e-9) norm = 1e-9;
+    return norm;
+}
+
 // 측정 상수.
 static constexpr int    GRAPH_HISTORY_IN_SECONDS = 10;
 static constexpr double ERROR_RATE_Y_SCALE       = 10.0;
@@ -23,7 +46,7 @@ static double amplitudeOf(double liftAngle, double t1Sec, double bph)
     return liftAngle / std::sin((2.0 * M_PI * t1Sec) / (7200.0 / bph));
 }
 
-// ScopePlot/RatePlot 공통 X축: 100 ms 간격 고정 눈금 + 초(s) 라벨.
+// ScopePlot X축: 100 ms 간격 고정 눈금 + 초(s) 라벨.
 class ScopeSecTicker : public QCPAxisTickerFixed {
 public:
     ScopeSecTicker()
@@ -35,10 +58,25 @@ public:
 protected:
     QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
     {
-        Q_UNUSED(locale);
-        Q_UNUSED(formatChar);
-        Q_UNUSED(precision);
+        Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
         return QStringLiteral("%1s").arg(tick, 0, 'f', 1);
+    }
+};
+
+// RatePlot X축: 1.0 s 간격 — 10초 창에서 10개 눈금(읽기 편한 밀도).
+class RateSecTicker : public QCPAxisTickerFixed {
+public:
+    RateSecTicker()
+    {
+        setTickStep(1.0);
+        setScaleStrategy(QCPAxisTickerFixed::ssNone);
+        setTickOrigin(0.0);
+    }
+protected:
+    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
+    {
+        Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
+        return QStringLiteral("%1s").arg(tick, 0, 'f', 0);
     }
 };
 
@@ -47,22 +85,29 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
 
-    // Scope Scale 컨트롤.
+    // ReadoutBar — 다른 탭과 동일하게 최상단에 배치.
+    mBar = new ReadoutBar(this);
+    lay->addWidget(mBar);
+
+    // Scope Zoom 컨트롤 (구 "Scope Scale" → 의미 명확화).
     auto *ctlRow = new QHBoxLayout();
-    auto *scaleLabel = new QLabel(QStringLiteral("Scope Scale"), this);
+    auto *scaleLabel = new QLabel(QStringLiteral("Scope Zoom"), this);
     QFont lf = scaleLabel->font(); lf.setBold(true); scaleLabel->setFont(lf);
     mScopeScale = new QSpinBox(this);
     mScopeScale->setMinimum(1); mScopeScale->setMaximum(8); mScopeScale->setValue(1);
+    mWindowLabel = new QLabel(QStringLiteral("Window: 1.00 s"), this);
+    mWindowLabel->setStyleSheet(QStringLiteral("color:#555; font-style:italic;"));
     ctlRow->addWidget(scaleLabel);
     ctlRow->addWidget(mScopeScale);
+    ctlRow->addWidget(mWindowLabel);
     ctlRow->addStretch(1);
     // (정지/재생은 모든 탭에 보이는 전역 버튼 = QTabWidget 코너위젯이 담당. MainWindow 가 setPaused 호출.)
     lay->addLayout(ctlRow);
 
     mRatePlot  = new QCustomPlot(this);
     mScopePlot = new QCustomPlot(this);
-    lay->addWidget(mRatePlot, 1);
-    lay->addWidget(mScopePlot, 1);
+    lay->addWidget(mRatePlot,  1);   // rate error 그래프 (stretch 1)
+    lay->addWidget(mScopePlot, 2);   // 실시간 파형 스코프 (stretch 2 — 더 넓게)
 
     setupPlots();
 
@@ -98,7 +143,9 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         emit seekRequested(seekSample);
     });
 
-    connect(mScopeScale, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) {
+    connect(mScopeScale, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
+        const double windowSec = kScopeWindowBaseSec / v;
+        mWindowLabel->setText(QString("Window: %1 s").arg(windowSec, 0, 'f', 2));
         syncScopeXAxis(sampleToTime(mGraphTicks));
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     });
@@ -137,9 +184,9 @@ void TabRateScope::setupPlots()
     mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec);
     mScopePlot->clearGraphs();
     mScopePlot->addGraph();
-    pen.setWidth(1); pen.setColor(Qt::blue);
+    pen.setWidth(1); pen.setColor(Theme::kEnvelope);
     mScopePlot->graph(0)->setPen(pen);
-    mScopePlot->graph(0)->setBrush(QBrush(QColor(0, 0, 255, 20)));
+    mScopePlot->graph(0)->setBrush(QBrush(Theme::kEnvFill));
     mScopePlot->graph(0)->setName("Rectified");
     // [드로잉 최적화] 화면 픽셀폭 초과 표본은 QCustomPlot 이 그릴 때 자동 min/max 솎음.
     //  onWave 의 decim(=sr/48000)은 '저장 점 수'를 고레이트에서만 줄이는 반면, 이건
@@ -147,7 +194,7 @@ void TabRateScope::setupPlots()
     //  (피크 보존이라 시각 변화 없음. Filter Views·Sync Sweep 과 동일 방식.)
     mScopePlot->graph(0)->setAdaptiveSampling(true);
     mScopePlot->addGraph();
-    pen.setWidth(1); pen.setColor(Qt::red);
+    pen.setWidth(1); pen.setColor(Theme::kThreshold);
     mScopePlot->graph(1)->setPen(pen);
     mScopePlot->graph(1)->setName("Trigger");
     mScopePlot->graph(1)->setAdaptiveSampling(true);
@@ -158,20 +205,33 @@ void TabRateScope::setupPlots()
     mRatePlot->legend->setFont(legendFont);
     mRatePlot->legend->setSelectedFont(legendFont);
     mRatePlot->legend->setSelectableParts(QCPLegend::spItems);
-    mRatePlot->yAxis->setLabel("Rate Error (milliseconds)");
+    mRatePlot->yAxis->setLabel("Rate error (ms)");
+    mRatePlot->xAxis->setLabel(QStringLiteral("time (s)"));
+    mRatePlot->xAxis->setTicker(QSharedPointer<RateSecTicker>::create());
+    QFont rateTickFont = mRatePlot->xAxis->tickLabelFont();
+    rateTickFont.setPointSize(10);
+    mRatePlot->xAxis->setTickLabelFont(rateTickFont);
+    QFont rateLabelFont = mRatePlot->xAxis->labelFont();
+    rateLabelFont.setPointSize(10);
+    mRatePlot->xAxis->setLabelFont(rateLabelFont);
+    mRatePlot->xAxis->setTickLabels(true);
+    mRatePlot->xAxis->setRange(0.0, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
     mRatePlot->yAxis->setTickLabels(true);
-    applyFixedRateXAxis();
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
+    // 0선 강조 + 점선 그리드
+    mRatePlot->yAxis->grid()->setZeroLinePen(QPen(Theme::kZeroLine, 1, Qt::SolidLine));
+    mRatePlot->xAxis->grid()->setPen(QPen(Theme::kGrid, 1, Qt::DotLine));
+    mRatePlot->yAxis->grid()->setPen(QPen(Theme::kGrid, 1, Qt::DotLine));
     mRatePlot->clearGraphs();
     mRatePlot->addGraph();
     mRatePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
     mRatePlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    mRatePlot->graph(0)->setPen(QPen(Qt::red));
+    mRatePlot->graph(0)->setPen(QPen(Theme::kTicColor));
     mRatePlot->graph(0)->setName("Tic Rate");
     mRatePlot->addGraph();
     mRatePlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
     mRatePlot->graph(1)->setLineStyle(QCPGraph::lsNone);
-    mRatePlot->graph(1)->setPen(QPen(Qt::blue));
+    mRatePlot->graph(1)->setPen(QPen(Theme::kTocColor));
     mRatePlot->graph(1)->setName("Toc Rate");
     mRatePlot->legend->setVisible(true);
 }
@@ -179,6 +239,7 @@ void TabRateScope::setupPlots()
 // RatePlot: snapshot 의 tic/toc 시리즈를 받아 그린다(setData 가 자체 복사).
 void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
 {
+    mBar->update(snap);
     // [8분 스크롤백/A안] 정지 중엔 위쪽 Rate 트렌드도 동결(스코프와 함께). 측정은 백그라운드 계속.
     if (mPaused) return;
     if (snap.liftAngle > 0) mLiftAngle = snap.liftAngle;
@@ -196,6 +257,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     mRatePlot->graph(0)->setData(tx, ty);
     mRatePlot->graph(1)->setData(ox, oy);
     if (snap.sampleRateHz > 0) mSampleRateHz = snap.sampleRateHz;
+    syncRateXAxis(tx, ox);   // P0: 슬라이딩 윈도우로 X축 갱신
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -255,12 +317,12 @@ void TabRateScope::onWave(const WaveBlock &wave)
         const WaveEvent &e = wave.events[i];
         const double val = sampleToTime(e.markSample);   // 표시 해상 위치(A=검출, C=onset/peak)
         if (e.type == kEventA) {
-            addVerticalMarker(val, e.peak, Qt::green);
+            addVerticalMarker(val, e.peak, Theme::kMarkerA, true);
             if (mHaveLastA) {
                 double delta = val - mLastA;
-                addHorizontalMarkerOutward(mLastA, val, e.peak / 2.0, Qt::black);
-                QString text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 2);
-                addText(mLastA + (delta / 2.0), e.peak / 2.0, text, Qt::black, Qt::AlignHCenter | Qt::AlignTop);
+                addHorizontalMarkerOutward(mLastA, val, e.peak / 2.0, Theme::kBracket);
+                QString text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
+                addText(mLastA + (delta / 2.0), e.peak / 2.0, text, Theme::kBracket, Qt::AlignHCenter | Qt::AlignTop);
             }
             mLastA = val; mHaveLastA = true;
         } else if (e.type == kEventC) {
@@ -269,21 +331,29 @@ void TabRateScope::onWave(const WaveBlock &wave)
             if (wave.synced) {
                 int Amp = qRound(amplitudeOf(mLiftAngle, delta, wave.bph));
                 if (Amp < 360)
-                    text = QString(" %1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp);
+                    text = QString("%1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp);
                 else
-                    text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 1);
+                    text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
             } else {
-                text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 1);
+                text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
             }
-            addVerticalMarker(val, e.peak, Qt::red);
-            addHorizontalMarkerInward(mLastA, val, inwardLenSec, e.peak, Qt::black);
-            addText(val + inwardLenSec, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+            addVerticalMarker(val, e.peak, Theme::kMarkerC, false);
+            addHorizontalMarkerInward(mLastA, val, inwardLenSec, e.peak, Theme::kBracket);
+            addText(val + inwardLenSec, e.peak, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
         }
     }
 
     purgeHistory();
     syncScopeXAxis(sampleToTime(mGraphTicks));
-    mScopePlot->yAxis->rescale();
+
+    // Scope Y축: purgeHistory 후 남은 그래프 데이터 전체의 실제 max를 기반으로 smoothPeak 적용.
+    //  block 단위 max(beat 사이 무음 시 0으로 급강) 대신 누적 데이터 max를 쓰면 Y축이 안정적이다.
+    bool foundRange;
+    QCPRange valRange = mScopePlot->graph(0)->getValueRange(foundRange, QCP::sdBoth);
+    const double instMax = foundRange ? valRange.upper : 0.0;
+    const double ymax = smoothPeak(mScopePeakNorm, instMax);
+    mScopePlot->yAxis->setRange(0, ymax * 1.12);
+
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -359,7 +429,7 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
     for (const WaveEvent &e : evs) {
         const double x = (double)e.markSample - mHistOffset;       // 라이브 좌표
         if (e.type == kEventA) {
-            addVerticalMarker(x, e.peak, Qt::green);
+            addVerticalMarker(x, e.peak, Theme::kMarkerA, true);
             if (haveA) {                                           // A→A 비트-투-비트 간격(예: 125 ms)
                 const double delta = x - lastA;
                 addHorizontalMarkerOutward(lastA, x, e.peak / 2.0, Qt::black);
@@ -369,7 +439,7 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
             }
             lastA = x; haveA = true;
         } else if (e.type == kEventC) {                            // A→C 진폭(6.9 ms / 303°)
-            addVerticalMarker(x, e.peak, Qt::red);
+            addVerticalMarker(x, e.peak, Theme::kMarkerC, false);
             if (haveA) {                                           // 선행 A 있을 때만 간격/진폭 라벨
                 const double delta = x - lastA;
                 QString text;
@@ -433,26 +503,31 @@ void TabRateScope::onResetSession()
     mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
 
     mGraphTicks = 0; mLastA = 0.0; mHaveLastA = false; mDecimCount = 0;
+    mScopePeakNorm = 0.0;
 
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();
     mScopePlot->clearItems();
     mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec / mScopeScale->value());
+    mScopePlot->yAxis->setRange(0, 0.1);
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
     if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    applyFixedRateXAxis();
+    mRatePlot->xAxis->setRange(0.0, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
     mRatePlot->replot();
 }
 
 // ── 마커 헬퍼 ──
-void TabRateScope::addVerticalMarker(double x, double height, const QColor &color)
+void TabRateScope::addVerticalMarker(double x, double height, const QColor &color, bool isEventA)
 {
     QCPItemLine *marker = new QCPItemLine(mScopePlot);
     marker->start->setCoords(x, 0.0);
     marker->end->setCoords(x, height);
-    QPen pen; pen.setColor(color); pen.setWidth(2); pen.setStyle(Qt::DashLine);
+    QPen pen;
+    pen.setColor(color);
+    pen.setWidth(isEventA ? 2 : 1);
+    pen.setStyle(isEventA ? Qt::SolidLine : Qt::DashLine);   // A=실선, C=점선
     marker->setPen(pen);
 }
 
@@ -460,12 +535,14 @@ void TabRateScope::addText(double x, double height, const QString &text, const Q
 {
     QCPItemText *textLabel = new QCPItemText(mScopePlot);
     textLabel->setColor(color);
-    textLabel->setFont(QFont(font().family(), 10));
+    textLabel->setFont(QFont("monospace", 9));
     textLabel->setPositionAlignment(alignment);
     textLabel->position->setType(QCPItemPosition::ptPlotCoords);
     textLabel->position->setCoords(x, height);
     textLabel->setText(text);
-    textLabel->setPen(QPen(color));
+    textLabel->setPen(Qt::NoPen);                       // 테두리 제거
+    textLabel->setBrush(QBrush(Theme::kLabelBg));       // 반투명 흰색 배경
+    textLabel->setPadding(QMargins(4, 1, 4, 1));        // 여백은 padding으로
 }
 
 void TabRateScope::addHorizontalMarkerInward(double xLeft, double xRight, double Length, double Height, const QColor &Color)
@@ -538,18 +615,17 @@ double TabRateScope::sampleToTime(uint64_t sample) const
     return sample / (double)mSampleRateHz;
 }
 
-void TabRateScope::applyFixedRateXAxis()
+// P0: RatePlot X축 슬라이딩 윈도우 — tic/toc 전체에서 최신 X값을 찾아 10초 창으로 표시.
+//  순환 버퍼라 벡터 순서가 시간순이 아닐 수 있으므로 max-scan 으로 최신 X를 구한다.
+void TabRateScope::syncRateXAxis(const QVector<double> &tx, const QVector<double> &ox)
 {
-    mRatePlot->xAxis->setLabel(QStringLiteral("time (s)"));
-    mRatePlot->xAxis->setTicker(QSharedPointer<ScopeSecTicker>::create());
-    QFont tickFont = mRatePlot->xAxis->tickLabelFont();
-    tickFont.setPointSize(10);
-    mRatePlot->xAxis->setTickLabelFont(tickFont);
-    QFont labelFont = mRatePlot->xAxis->labelFont();
-    labelFont.setPointSize(10);
-    mRatePlot->xAxis->setLabelFont(labelFont);
-    mRatePlot->xAxis->setTickLabels(true);
-    mRatePlot->xAxis->setRange(0.0, kScopeWindowBaseSec);
+    // 전체 데이터를 항상 표시 — 슬라이딩 윈도우 없이 0 ~ latestX+여백.
+    double latestX = 0.0;
+    for (double v : tx) if (v > latestX) latestX = v;
+    for (double v : ox) if (v > latestX) latestX = v;
+    // 최소 초기 범위(데이터 없을 때) = GRAPH_HISTORY_IN_SECONDS
+    const double xMax = qMax(latestX * 1.05, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
+    mRatePlot->xAxis->setRange(0.0, xMax);
 }
 
 void TabRateScope::syncScopeXAxis(double timeEndSec)

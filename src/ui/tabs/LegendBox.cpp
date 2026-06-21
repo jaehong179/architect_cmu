@@ -4,20 +4,25 @@
 #include <QPushButton>
 #include <QLabel>
 
-QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent)
+QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent, bool startExpanded)
 {
     auto *box = new QWidget(parent);
     auto *v = new QVBoxLayout(box);
     v->setContentsMargins(0, 0, 0, 0); v->setSpacing(2);
 
-    auto *btn = new QPushButton(QStringLiteral("▾ Legend (collapse)"), box);
-    btn->setCheckable(true); btn->setChecked(true);              // 기본 펼침
+    auto *btn = new QPushButton(box);
+    btn->setCheckable(true);
     btn->setStyleSheet(QStringLiteral("QPushButton{ text-align:left; border:none; font-weight:bold; padding:2px; }"));
 
     auto *key = new QLabel(tableHtml, box);
     key->setTextFormat(Qt::RichText);
     key->setWordWrap(true);
     key->setStyleSheet(QStringLiteral("QLabel{ background:#f6f6f6; border:1px solid #c4c4c4; border-radius:4px; padding:5px; }"));
+
+    // 초기 상태 적용
+    btn->setChecked(startExpanded);
+    key->setVisible(startExpanded);
+    btn->setText(startExpanded ? QStringLiteral("▾ Legend (collapse)") : QStringLiteral("▸ Legend (expand)"));
 
     QObject::connect(btn, &QPushButton::toggled, key, [btn, key](bool on){
         key->setVisible(on);
