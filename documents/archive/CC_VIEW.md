@@ -53,7 +53,7 @@ flowchart LR
     TG[["Timegrapher tg_process()<br/>6-stage pipe, O(n)/slice"]]
     MW("MainWindow<br/>DisplayResults<br/>fills Snapshot")
     TM("TabManager<br/>fan-out + per-tab timing")
-    TABS("13 x TabView<br/>isVisible() render guard")
+    TABS("13 x TabView<br/>파형계열: WaveBuffer 링 0.5~2s<br/>isVisible() render guard")
   end
 
   AW -- "L0 PCM write<br/>shared-data<br/>device cadence, non-block" --> RING

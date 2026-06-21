@@ -162,7 +162,7 @@ flowchart LR
     subgraph WT["🧵 오디오 워커 스레드 (생산자)"]
         W[Capture/Playback/Sim Worker]
     end
-    RB[("🔁 SharedAudio<br/>링버퍼 (경계 큐)")]
+    RB[("🔁 SharedAudio 링버퍼<br/>경계 큐 · 30s · 5.76 MB")]
 
     subgraph MT["🧵 메인 스레드 (소비자)"]
         CC[CaptureController<br/>handleInputData → processSamples]
@@ -173,11 +173,12 @@ flowchart LR
         TM{{TabManager<br/>발행-구독 허브}}
     end
 
-    subgraph TABS["📊 TabView 구독자 (13)"]
-        T1[Rate/Scope]
-        T2[Sound Print]
+    subgraph TABS["📊 TabView 구독자 (13) — 파형 계열은 각자 WaveBuffer 링 0.5~2s"]
+        T1["Rate/Scope<br/>🔁 WaveBuffer"]
+        T2["Sound Print<br/>🔁 WaveBuffer"]
         T3[... 11개]
     end
+    HIST[("🔁 WaveLodHistory (WaveSink)<br/>8분 이력 · 엔벨로프링+raw링+LOD<br/>~210 MB")]
 
     W -- "memcpy(Mutex)" --> RB
     RB -- "snapshot(Mutex)" --> CC
@@ -185,7 +186,8 @@ flowchart LR
     PF -- "A/C 이벤트" --> ME
     PF -- "WaveBlock(파형)" --> TM
     ME -- "MeasurementSnapshot(스칼라)" --> TM
-    TM -- onWave/onMeasurement --> T1 & T2 & T3
+    TM -- "onWave/onMeasurement (시각)" --> T1 & T2 & T3
+    TM -- "onWave (비시각, WaveSink)" --> HIST
 ```
 
 - **경계 큐(ring buffer)**: 워커는 `Mutex` 보호 하에 쓰고, 메인 스레드는 같은 락으로
@@ -193,6 +195,18 @@ flowchart LR
 - **파이프-필터**: `tg_process()` 내부가 HPF→엔벨로프→지연→검출→박자추적의 직렬 필터.
 - **발행-구독**: `TabManager` 가 `WaveBlock`/`MeasurementSnapshot` 을 모든 `TabView` 에
   브로드캐스트. 탭 추가는 코어 수정 없이 클래스 1개 + 등록 1줄.
+
+#### 버퍼 구성 (3종 — 모두 링, 모두 절대 샘플 인덱스 주소지정)
+
+| 버퍼 | 위치 | 종류 | 크기(48 kHz) | 역할 |
+|---|---|---|---|---|
+| **SharedAudio 링** | 워커 ↔ 메인 경계 | 고정 ring (Mutex 보호) | 30 s = **5.76 MB** | 생산자-소비자 경계 큐 — 드롭/backlog 흡수 |
+| **WaveBuffer** (탭별) | 각 **파형 계열** TabView | 고정 ring (헤더온리) | **0.5~2 s** (탭마다) | 탭이 최근 구간을 보관 → 재렌더·A/C 마커 정렬 |
+| **WaveLodHistory** | 중앙 1개 (WaveSink) | **풀해상도 ring ×2** + min/max LOD | 8 분 = **~210 MB** (엔벨로프 92 + raw 92 + LOD 26) | 8분 스크롤백·seek replay 원천(§5.1) |
+
+> 셋 다 **절대 입력샘플 인덱스**(`% 용량`)로 주소지정되는 링이라 좌표가 통일된다. 단, **SharedAudio
+> 만 스레드 경계(Mutex)** 이고 `WaveBuffer`·`WaveLodHistory` 는 메인 스레드 전용이다. 또 수치/추세
+> 전용(scalar-only) 탭은 파형을 안 받으므로 `WaveBuffer` 를 갖지 않는다.
 
 > 데이터 흐름의 단계별 상세와 시퀀스 다이어그램은 **[SIGNAL_FLOW.md](SIGNAL_FLOW.md)** 참고.
 
