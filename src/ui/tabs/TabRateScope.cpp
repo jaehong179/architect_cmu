@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QSpinBox>
 #include <QLabel>
+#include <QMouseEvent>   // [③] 상단 RatePlot 클릭
 #include <QtMath>
 #include <cmath>
 
@@ -49,6 +50,23 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     //  (라이브 중에는 mPaused=false 라 무시 — line 207 의 AlignRight setRange 도 그냥 통과.)
     connect(mScopePlot->xAxis, QOverload<const QCPRange &>::of(&QCPAxis::rangeChanged),
             this, [this](const QCPRange &) { if (mPaused && !mInHistoryRender) renderHistoryWindow(); });
+
+    // [③] 상단 RatePlot 도 클릭 소스 — 정지 중 클릭 위치 비율(좌=오래/우=최근)을 최근 윈도우 내
+    //  시점으로 매핑해 seek. (RatePlot x 는 스크롤 윈도우 0..N 라 점별 샘플 매핑이 없어 비율 근사.)
+    mRateCursor = new QCPItemStraightLine(mRatePlot);
+    mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
+    mRateCursor->setVisible(false);
+    connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
+        if (!mPaused || !mHistory || !mHistory->hasData() || mRateMaxPoints <= 0 || mLastBph <= 0) return;
+        const double x = mRatePlot->xAxis->pixelToCoord(e->position().x());
+        double f = x / (double)mRateMaxPoints; f = qBound(0.0, f, 1.0);
+        const double winSamples = (double)mRateMaxPoints * (3600.0 / (double)mLastBph) * (double)mSampleRateHz;
+        double seekSample = (double)mPauseLatest - (1.0 - f) * winSamples;
+        if (seekSample < 0.0) seekSample = 0.0;
+        mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
+        mRateCursor->setVisible(true); mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+        emit seekRequested(seekSample);
+    });
 
 #if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
@@ -122,6 +140,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     // [8분 스크롤백/A안] 정지 중엔 위쪽 Rate 트렌드도 동결(스코프와 함께). 측정은 백그라운드 계속.
     if (mPaused) return;
     if (snap.liftAngle > 0) mLiftAngle = snap.liftAngle;
+    if (snap.rateMaxPoints > 0) mRateMaxPoints = snap.rateMaxPoints;   // 상단 클릭 비율 매핑용
 
     QVector<double> tx, ty, ox, oy;
     if (snap.rateTicN > 0 && snap.rateTicX && snap.rateTicY) {
@@ -238,6 +257,7 @@ void TabRateScope::setPaused(bool paused)
         // 라이브 mGraphTicks 좌표 ↔ 이력 절대 인덱스의 고정 오프셋을 잡아둔다.
         //  이걸로 이력을 라이브와 같은 좌표로 환산 → 동결 화면에서 이음매 없이 스크롤.
         mHistOffset = (double)mHistory->latestAbs() - (double)mGraphTicks;
+        mPauseLatest = mHistory->latestAbs();                 // 상단 RatePlot 클릭 비율 기준(정지 시점 최신)
         mHistActive = false;                                  // 아직 동결(드래그 전): 재렌더 안 함
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 가로(시간) 전용 드래그/줌
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal);

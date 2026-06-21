@@ -11,6 +11,7 @@
 #include <QColor>
 class QCustomPlot;
 class QSpinBox;
+class QCPItemStraightLine;
 class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
 
 class TabRateScope : public TabView
@@ -31,6 +32,7 @@ public:
     void setPaused(bool paused);
 signals:
     void scopeReplotted();   // ScopePlot afterReplot → MainWindow::OnScopeReplotted 로 연결(perf)
+    void seekRequested(double absSample);   // [③] 정지 중 상단 RatePlot 클릭 → 그 시점
 private:
     void setupPlots();
     void renderHistoryWindow();         // 현재 보이는 시간창을 이력에서 잘라 그림(줌/팬 시 재호출)
@@ -45,6 +47,9 @@ private:
     QCustomPlot    *mRatePlot   = nullptr;
     QCustomPlot    *mScopePlot  = nullptr;
     QSpinBox       *mScopeScale = nullptr;
+    QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
+    int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
+    uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 시점 기준)
     WaveLodHistory *mHistory    = nullptr;      // 주입된 중앙 이력 버퍼(소유 안 함)
     bool            mPaused     = false;        // true=이력 스크롤백 모드
     bool            mInHistoryRender = false;   // rangeChanged 재귀 가드

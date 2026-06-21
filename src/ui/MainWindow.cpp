@@ -184,6 +184,9 @@ void MainWindow::RegisterDisplayTabs(void)
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
     mRateScope = new TabRateScope(this);
     mRateScope->setHistory(&mWaveHistory);                      // [8분 스크롤백] 정지 중 렌더 원본 주입
+    // [③] 상단 RatePlot 클릭 → 그 시점을 전파 + 코너 라벨.
+    connect(mRateScope, &TabRateScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(mRateScope, &TabRateScope::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
