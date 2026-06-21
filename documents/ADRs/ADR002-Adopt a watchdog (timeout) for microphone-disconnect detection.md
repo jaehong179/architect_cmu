@@ -1,22 +1,17 @@
 # ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection
 
-We decided to adopt a timeout-based watchdog on audio-block arrival, combined with the device error/state callback as a fast-path, to guarantee a user-facing "microphone disconnected" notification within 1 s, and to reject the circuit breaker for this requirement.
+We use a timeout-based watchdog on audio-block arrival, plus the device error/state callback as a fast-path, to show a "microphone disconnected" notification within 1 s. The circuit breaker was rejected.
 
 #### Decision
 
-We detect microphone disconnect / signal loss at the **stream level** and surface it to the user.
-
-- A **watchdog** tracks the time since the last received audio block; if no block arrives within a bounded deadline (set to the stricter [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) ≤ 1 s; meeting ≤ 1 s also satisfies [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback) ≤ 2 s), it declares a "microphone disconnected / signal lost" fault and the GUI shows a dedicated notification.
-
-- The **device error/state callback** (QAudioSource::error() / stateChanged) is wired as an immediate **fast-path** for cases where the OS reports the failure explicitly (currently these are only Perf::log-ged, not surfaced).
-
-- This **reuses the watchdog pattern already proven in the code** (Bph silence timeout, Timegrapher sync-loss) but applies it at the **stream level** (audio-block arrival) instead of the beat level — a small extension, not a new mechanism.
-
-- We **do not** add a separate heartbeat: the incoming audio block itself serves as the liveness signal, and the watchdog only detects its absence.
+- A watchdog tracks the time since the last audio block. If no block arrives within the deadline (≤ 1 s for QAS-11; this also satisfies QAS-07 ≤ 2 s), it declares a fault and the GUI shows a notification.
+- The device error/state callback (QAudioSource::error() / stateChanged) is wired as a fast-path for when the OS reports the failure directly.
+- This reuses the existing watchdog pattern (Bph silence timeout, Timegrapher sync-loss) at the stream level instead of the beat level — a small extension, not a new mechanism.
+- No separate heartbeat is added: the incoming audio block is itself the liveness signal, and the watchdog detects its absence.
 
 #### Rationale
 
-We analyzed the fault signals available on disconnect and compared candidate tactics (EXP-16). Only a timeout/watchdog **bounds detection latency** and detects the **absence of incoming data**, which is exactly what "notify within 1 s" requires; the existing beat-level watchdog proves the pattern works in this codebase, so the change is low-risk. The device error/state callback is fast when the OS reports an error, but is **not guaranteed alone** (some unplugs simply go silent), so it is used only as a fast-path. The **circuit breaker was rejected**: its purpose is to stop repeatedly calling a failing dependency, not to bound detection latency or detect absence of data, and the codebase has no repeated-failing-call pattern here. Polling/heartbeat would work but is coarser and redundant given the watchdog.
+Only a watchdog bounds detection latency and detects missing data — exactly what "notify within 1 s" needs (EXP-16). The existing beat-level watchdog proves the pattern works here, so the change is low-risk. The device callback is fast but not reliable alone (some unplugs just go silent), so it is only a fast-path. The circuit breaker was rejected: it stops calling a failing dependency, which is not our problem.
 
 #### Status
 
@@ -28,14 +23,14 @@ Accepted
 
 **Positive**
 
-- Bounds disconnect detection within 1 s, satisfying [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) (and [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback)'s 2 s automatically).
+- Detects disconnect within 1 s, satisfying QAS-11 (and QAS-07).
 
-- Reuses a proven in-code pattern → low implementation risk, no new architecture.
+- Reuses a proven pattern → low risk, no new architecture.
 
-- Cleanly separates "microphone unplugged" (no blocks arriving) from "watch present but no beats" (existing beat-level watchdog).
+- Cleanly separates "microphone unplugged" from "watch present but no beats".
 
 **Negative / costs**
 
-- Requires a small extension: track last audio-block time, a deadline timer, and wiring the device error/state signal to a GUI notification.
+- Small extension needed: track last block time, a deadline timer, and wire the device signal to the GUI.
 
-- The deadline value must be tuned to avoid false positives during legitimate brief stalls.
+- The deadline must be tuned to avoid false alarms during brief stalls.
