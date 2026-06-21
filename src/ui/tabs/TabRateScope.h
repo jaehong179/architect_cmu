@@ -46,6 +46,7 @@ private:
     void addHorizontalMarkerInward(double xLeft, double xRight, double length, double height, const QColor &color);
     void addHorizontalMarkerOutward(double xLeft, double xRight, double height, const QColor &color);
     void removeMarkersAndText(double rangeMin, double rangeMax);
+    void updateLabelVisibility();
     void purgeHistory();
     void syncScopeXAxis(double timeEndSec);
     void updateScopeXAxisTicks(const QCPRange &range);
