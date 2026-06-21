@@ -173,12 +173,14 @@ flowchart LR
         TM{{TabManager<br/>발행-구독 허브}}
     end
 
-    subgraph TABS["📊 TabView 구독자 (13) — 파형 계열은 각자 WaveBuffer 링 0.5~2s"]
-        T1["Rate/Scope<br/>🔁 WaveBuffer"]
-        T2["Sound Print<br/>🔁 WaveBuffer"]
-        T3[... 11개]
+    subgraph TABS["📊 TabView 구독자 (13)"]
+        T1[Rate/Scope]
+        T2[Sound Print]
+        T3[수치전용 4개<br/>버퍼 없음]
+        T4[... 그 외]
+        WB[("🔁 WaveBuffer 링<br/>파형 탭마다 1개 · 0.5~2s")]
     end
-    HIST[("🔁 WaveLodHistory (WaveSink)<br/>8분 이력 · 엔벨로프링+raw링+LOD<br/>~210 MB")]
+    HIST[("🔁 WaveLodHistory (WaveSink)<br/>8분 이력 · 엔벨로프링 + raw링 + LOD<br/>~210 MB")]
 
     W -- "memcpy(Mutex)" --> RB
     RB -- "snapshot(Mutex)" --> CC
@@ -186,9 +188,15 @@ flowchart LR
     PF -- "A/C 이벤트" --> ME
     PF -- "WaveBlock(파형)" --> TM
     ME -- "MeasurementSnapshot(스칼라)" --> TM
-    TM -- "onWave/onMeasurement (시각)" --> T1 & T2 & T3
+    TM -- "onWave/onMeasurement (시각)" --> T1 & T2 & T3 & T4
+    T1 -. 보유 .-> WB
+    T2 -. 보유 .-> WB
+    T4 -. 보유 .-> WB
     TM -- "onWave (비시각, WaveSink)" --> HIST
 ```
+
+세 버퍼가 모두 **링(원통 노드)** 이다 — 워커 경계의 `SharedAudio`, 파형 탭마다의
+`WaveBuffer`, 중앙의 `WaveLodHistory`. 수치/추세 전용 탭(`T3`)은 파형을 안 받아 버퍼가 없다.
 
 - **경계 큐(ring buffer)**: 워커는 `Mutex` 보호 하에 쓰고, 메인 스레드는 같은 락으로
   스냅샷만 떠서 즉시 빠진다 → 락 보유 시간 최소화.
