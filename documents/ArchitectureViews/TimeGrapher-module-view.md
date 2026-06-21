@@ -8,7 +8,6 @@ Key pattern applied:
   
 ![Package Diagram](../images/TimeGrapherModuleView.jpg)
 
-https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 
 ## Element Catalog
 
