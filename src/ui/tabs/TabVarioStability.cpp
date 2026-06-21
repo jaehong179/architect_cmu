@@ -1,5 +1,4 @@
 #include "TabVarioStability.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "qcustomplot.h"
 #include <cmath>
@@ -30,7 +29,6 @@ static QCustomPlot *makeBar(QWidget *parent, const QString &xLabel)
 TabVarioStability::TabVarioStability(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Band&nbsp;:</b></td><td>"
@@ -111,7 +109,6 @@ void TabVarioStability::refresh()
 
 void TabVarioStability::onMeasurement(const MeasurementSnapshot &s)
 {
-    if (mBar) mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     mElapsed = (s.timeMs - mT0) / 1000.0;
     if (s.rateValid)      mRate.add(s.rate);

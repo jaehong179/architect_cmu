@@ -1,5 +1,4 @@
 #include "TabWaveformCompare.h"
-#include "ReadoutBar.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QPushButton>
@@ -10,7 +9,6 @@
 TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     // 접이식 범례(공간 확보): 버튼으로 펼침/접힘.
     auto *legendBtn = new QPushButton(QStringLiteral("▾ Legend (collapse)"), this);
     legendBtn->setCheckable(true); legendBtn->setChecked(true);   // 기본 펼침
@@ -117,7 +115,6 @@ QCustomPlot *TabWaveformCompare::makeScope()
 
 void TabWaveformCompare::onMeasurement(const MeasurementSnapshot &s)
 {
-    if (mBar) mBar->update(s);
     if (s.liftAngle > 0) mLiftAngle = s.liftAngle;
     mAmplitudeValid = s.amplitudeValid; mAmplitudeDeg = s.amplitudeDeg;
 }
@@ -359,7 +356,6 @@ void TabWaveformCompare::onResetSession()
     mTicAvg.clear(); mTocAvg.clear(); mWindowLen = 0; mTicInit = mTocInit = false;
     mLastC = 0; mHaveLastC = false; mCCount = 0;
     mAOnsetHist.clear(); mAnchor = 0; mHaveAnchor = false;
-    if (mBar) mBar->update(MeasurementSnapshot{});
     for (QCustomPlot *plot : {mPaper, mTic, mToc, mPeriod}) {
         if (!plot) continue;
         for (int g = 0; g < plot->graphCount(); ++g) plot->graph(g)->data()->clear();

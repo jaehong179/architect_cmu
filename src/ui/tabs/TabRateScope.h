@@ -8,7 +8,6 @@
 //  [perf] ScopePlot 의 실제 paint 완료(afterReplot)를 scopeReplotted() 시그널로 알려,
 //   MainWindow 가 disp_paint_ms·e2e_full_ms·paint_fps 를 기록한다(perf 상태는 MainWindow 잔류).
 #include "TabView.h"
-#include "ReadoutBar.h"
 #include <QColor>
 #include <QVector>
 class QCustomPlot;
@@ -53,7 +52,6 @@ private:
     void syncRateXAxis(const QVector<double> &tx, const QVector<double> &ox);
     double sampleToTime(uint64_t sample) const;
 
-    ReadoutBar  *mBar        = nullptr;
     QLabel      *mWindowLabel = nullptr;
     QCustomPlot *mRatePlot   = nullptr;
     QCustomPlot *mScopePlot  = nullptr;

@@ -1,5 +1,4 @@
 #include "TabLongTermPerformance.h"
-#include "ReadoutBar.h"
 #include "qcustomplot.h"
 
 #include <QPushButton>
@@ -40,7 +39,6 @@ static QCustomPlot *makeLane(QWidget *parent, const QString &yLabel, const QColo
 TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
 
     // 컨트롤: X축은 8분 고정이라 기간 선택 없음 — 리셋만 제공.
     auto *ctl = new QHBoxLayout();
@@ -159,7 +157,6 @@ void TabLongTermPerformance::applyView()
 
 void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
 {
-    mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     const double x = (s.timeMs - mT0) / 1000.0;
     mCurX = x;
@@ -199,7 +196,6 @@ void TabLongTermPerformance::onResetSession()
         if (L->band) { L->band->topLeft->setCoords(0,0); L->band->bottomRight->setCoords(0,0); }
         if (L->stats) L->stats->setText(QString());
     }
-    if (mBar) mBar->update(MeasurementSnapshot{});
     for (int i = 0; i < 3; ++i) if (mCursors[i]) mCursors[i]->setVisible(false);   // [③] seek 커서 리셋
     for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot();
 }

@@ -12,7 +12,6 @@ class QCustomPlot;
 class QSpinBox;
 class QLabel;
 class QCheckBox;
-class ReadoutBar;
 class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay
 
 class TabSyncSweepScope : public TabView
@@ -32,7 +31,6 @@ protected:
 private:
     WaveLodHistory *mHistory = nullptr;
     void render();
-    ReadoutBar  *mBar    = nullptr;
     QCustomPlot *mPlot   = nullptr;     // folded 그래스 sweep 보기
     QSpinBox    *mBeats  = nullptr;     // sweep 창 = NBEATS
     QLabel      *mInfo   = nullptr;

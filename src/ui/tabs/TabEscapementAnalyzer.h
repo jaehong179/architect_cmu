@@ -13,7 +13,6 @@ class QCustomPlot;
 class QLabel;
 class QSpinBox;
 class QCheckBox;
-class ReadoutBar;
 class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay 시 과거 구간 복원
 
 class TabEscapementAnalyzer : public TabView
@@ -34,7 +33,6 @@ private:
     WaveLodHistory *mHistory = nullptr;   // 주입된 중앙 이력(소유 안 함)
     void render();
     void accumBeats(const WaveBlock &w);     // 새 A 이벤트마다 비트 타이밍오차 점 누적
-    ReadoutBar  *mBar       = nullptr;
     QCustomPlot *mPlot      = nullptr;   // 단일 통합 플롯(파형 + 가운데 마커 점)
     QLabel      *mInfo      = nullptr;
     QSpinBox    *mThresh    = nullptr;   // 임계 %(창 최대 대비) — 검출기 onset 레벨 없을 때

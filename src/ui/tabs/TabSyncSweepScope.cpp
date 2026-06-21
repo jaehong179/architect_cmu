@@ -1,5 +1,4 @@
 #include "TabSyncSweepScope.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
@@ -18,7 +17,6 @@ static const QColor kScopeMagenta(199, 125, 191);     // scope_mode.c 마젠타(
 TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>folded "
@@ -50,7 +48,10 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     connect(mBeats, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });
 }
 
-void TabSyncSweepScope::onMeasurement(const MeasurementSnapshot &s) { if (mBar) mBar->update(s); }
+void TabSyncSweepScope::onMeasurement(const MeasurementSnapshot &s)
+{
+    Q_UNUSED(s);
+}
 
 void TabSyncSweepScope::onShown() { render(); }
 
@@ -140,7 +141,6 @@ void TabSyncSweepScope::onResetSession()
 {
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mHaveAnchor = false; mSweepAnchor = 0; mNorm = 0.0;
-    if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPlot) { mPlot->graph(0)->data()->clear(); mPlot->replot(); }
 }

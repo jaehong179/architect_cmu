@@ -1,6 +1,5 @@
 #include "TabFilterViews.h"
 #include "ScopeFilters.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
@@ -31,7 +30,6 @@ static QColor filterColor(int mode)
 TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Filter&nbsp;:</b></td><td>"
@@ -88,7 +86,10 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
     lay->addLayout(row, 1);
 }
 
-void TabFilterViews::onMeasurement(const MeasurementSnapshot &s) { if (mBar) mBar->update(s); }
+void TabFilterViews::onMeasurement(const MeasurementSnapshot &s)
+{
+    Q_UNUSED(s);
+}
 
 void TabFilterViews::onShown() { mThrottle.invalidate(); render(); }
 
@@ -241,7 +242,6 @@ void TabFilterViews::onResetSession()
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mThrottle.invalidate();
     for (int k = 0; k < 4; ++k) mNorm[k] = 0.0;
-    if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     for (int k = 0; k < 4; ++k) {
         QCustomPlot *p = mQuad[k];

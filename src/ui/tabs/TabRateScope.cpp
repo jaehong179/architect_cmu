@@ -68,10 +68,6 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     auto *lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
 
-    // ReadoutBar — 다른 탭과 동일하게 최상단에 배치.
-    mBar = new ReadoutBar(this);
-    lay->addWidget(mBar);
-
     // Scope Zoom 컨트롤 (구 "Scope Scale" → 의미 명확화).
     auto *ctlRow = new QHBoxLayout();
     auto *scaleLabel = new QLabel(QStringLiteral("Scope Zoom"), this);
@@ -228,7 +224,6 @@ void TabRateScope::setupPlots()
 // RatePlot: snapshot 의 tic/toc 시리즈를 받아 그린다(setData 가 자체 복사).
 void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
 {
-    mBar->update(snap);
     // [8분 스크롤백/A안] 정지 중엔 위쪽 Rate 트렌드도 동결(스코프와 함께). 측정은 백그라운드 계속.
     if (mPaused) return;
     if (snap.liftAngle > 0) mLiftAngle = snap.liftAngle;

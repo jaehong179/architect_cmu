@@ -1,5 +1,4 @@
 #include "TabTraceDisplay.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
@@ -8,8 +7,6 @@
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this);
-    lay->addWidget(mBar);
     // 그래프 읽는 법 설명(Project Plan §Trace: "short explanatory text or labels").
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
@@ -120,7 +117,6 @@ double TabTraceDisplay::sampleAtX(double xSeconds) const
 
 void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
 {
-    mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     const double x = (s.timeMs - mT0) / 1000.0;
     mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
@@ -205,7 +201,6 @@ void TabTraceDisplay::onResetSession()
     mXtoSample.clear();
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
-    if (mBar) mBar->update(MeasurementSnapshot{});
     // [③] 이전 세션의 seek 커서/라벨 제거(새 세션 = 시점 표시 리셋).
     if (mCurRate)  mCurRate->setVisible(false);
     if (mCurAmp)   mCurAmp->setVisible(false);

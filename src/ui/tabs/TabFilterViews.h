@@ -15,7 +15,6 @@ class QCPItemLine;
 class QCPItemText;
 class QLabel;
 class QCheckBox;
-class ReadoutBar;
 class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay
 
 class TabFilterViews : public TabView
@@ -38,7 +37,6 @@ private:
     // 한 패널에 F_k 출력을 미러(F0·F1·F2)/upper(F3)로 그리고 T1/T2/T3 마커를 표시.
     //  x 는 박자(T1, anchor) 기준 ms(0=T1). preS = 창 시작~anchor 샘플수. pulses = rawFull 공간 인덱스.
     void drawPanel(int k, const QVector<double> &out, int warm, int sweep, int sr, int preS, const int pulses[3]);
-    ReadoutBar  *mBar      = nullptr;
     QCustomPlot *mQuad[4]  = {nullptr, nullptr, nullptr, nullptr};   // F0|F1|F2|F3 가로 1×4(칸별)
     QVector<QCPItemLine *> mMarks[4];                               // T1/T2/T3 마커선 풀(재사용)
     QVector<QCPItemText *> mTLabels[4];                                // T1/T2/T3 라벨 풀(재사용)

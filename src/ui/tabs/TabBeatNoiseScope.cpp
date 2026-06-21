@@ -1,5 +1,4 @@
 #include "TabBeatNoiseScope.h"
-#include "ReadoutBar.h"
 #include "ScopeRender.h"
 #include "WaveLodHistory.h"   // [③] seek 대상 replay
 #include <QComboBox>
@@ -34,7 +33,6 @@ static double smoothPeak(double &norm, double inst)
 TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
 
     auto *ctl = new QHBoxLayout();
     mScopeToggle = new QPushButton(QStringLiteral("● Scope 1 showing  ▶ click for Scope 2"), this);   // 현재 모드 + 전환
@@ -107,7 +105,6 @@ void TabBeatNoiseScope::applyScopeView()
 
 void TabBeatNoiseScope::onMeasurement(const MeasurementSnapshot &s)
 {
-    if (mBar) mBar->update(s);
     if (s.liftAngle > 0) mLiftAngle = s.liftAngle;
 }
 
@@ -385,7 +382,6 @@ void TabBeatNoiseScope::onResetSession()
     mHaveCycleResult = false; mLastCycleAmp1 = mLastCycleAmp2 = 0;
     mRecent.clear(); mRecentSample.clear(); mSelectedStrip = -1;
     mPeakScope1 = mPeakStrips = mPeakTr1 = mPeakTr2 = 0;
-    if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mCycle) mCycle->setText(QString("Σ 0/%1 · 0/%1").arg(kCycleN));
     for (QCustomPlot *p : {mScope1, mStrips, mTr1, mTr2})

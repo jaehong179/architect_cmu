@@ -14,7 +14,6 @@ class QCheckBox;
 class QPushButton;
 class QLabel;
 class QWidget;
-class ReadoutBar;
 class QMouseEvent;
 class WaveLodHistory;   // [③] 8분 이력(중앙) — seek 대상
 
@@ -45,7 +44,6 @@ private:
     void onStripClicked(QMouseEvent *ev);   // 스트립 클릭 → Scope1 확대
     double beatAmplitudeDeg(uint64_t aEventSample) const;   // E8: A→C 간격으로 비트 진폭(°)
 
-    ReadoutBar  *mBar    = nullptr;
     QWidget     *mScope1Box = nullptr; // Scope1 컨테이너(라벨+플롯)
     QWidget     *mScope2Box = nullptr; // Scope2 컨테이너(라벨+사이클+트레이스2)
     QCustomPlot *mScope1 = nullptr;   // 단일 비트

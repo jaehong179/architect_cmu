@@ -11,7 +11,6 @@ class QCustomPlot;
 class QCPItemLine;
 class QCPItemText;
 class QLabel;
-class ReadoutBar;
 
 class TabBeatErrorTrace : public TabView
 {
@@ -29,7 +28,6 @@ protected:
     void onShown() override;
 private:
     TrendSeek mSeek;   // x(beat#) → 절대 샘플 매핑 + 클릭 커서
-    ReadoutBar  *mBar  = nullptr;
     QCustomPlot *mPlot = nullptr;
     QLabel      *mAlert= nullptr;
     // 최신 비트에서 Tic·Toc 두 선 사이 간격(=beat error)을 표시하는 양방향 화살표 + 라벨.
