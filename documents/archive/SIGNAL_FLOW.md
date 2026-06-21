@@ -158,11 +158,16 @@ flowchart LR
 
 13개 탭은 받는 데이터에 따라 세 부류다.
 
-| 부류 | 입력 | 예시 |
-|---|---|---|
-| 수치/추세 | `onMeasurement` 만 | Trace Display, Vario Stability, Sequence, Long-Term Performance |
-| 파형/스코프 | `onWave` 만 | Sound Print, Spectrogram |
-| 혼합 | 둘 다 | Rate/Scope, Beat-Error Trace, Escapement Analyzer, Waveform Compare, Beat-Noise Scope, Sync-Sweep, Filter Views |
+| 부류 | 입력 | 개수 | 예시 |
+|---|---|---|---|
+| 수치/추세 | `onMeasurement` 만 | 4 | Trace Display, Vario Stability, Sequence, Long-Term Performance |
+| 파형/스코프 | `onWave` 만 | 1 | Spectrogram |
+| 혼합 | 둘 다 | 8 | Rate/Scope, Sound Print, Beat-Error Trace, Escapement Analyzer, Waveform Compare, Beat-Noise Scope, Sync-Sweep, Filter Views |
+
+> `onWave` 받는 탭 = 9(파형전용 1 + 혼합 8), `onMeasurement` 받는 탭 = 12(측정전용 4 + 혼합 8).
+> 그 중 **자기 `WaveBuffer` 링(0.5~2s)을 가진 탭은 스코프 6개**(Escapement·Filter·Waveform·
+> SyncSweep·BeatNoise·Spectrogram). Rate/Scope·SoundPrint·BeatError 는 파형을 받지만 각각
+> plot·사운드이미지·이벤트로 따로 보관한다.
 
 새 탭 추가 = `TabView` 상속 클래스 1개 + `MainWindow::RegisterDisplayTabs` 에 등록 1줄.
 코어/기존 탭은 건드리지 않는다(개방-폐쇄 원칙).
