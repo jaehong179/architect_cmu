@@ -40,6 +40,19 @@ public:
         for (PlotCur &pc : mPlots) if (pc.cur) pc.cur->setVisible(false);
     }
 
+    // [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 보관 지점의 x 로 커서를 옮긴다.
+    //  → 모든 트렌드 탭의 커서가 같은 시점을 가리키도록 동기화. 매핑이 없으면 무시.
+    void showCursorAtSample(double absSample)
+    {
+        if (mMap.isEmpty()) return;
+        double bestX = mMap.first().first, bestErr = qAbs(mMap.first().second - absSample);
+        for (const auto &p : mMap) {
+            const double err = qAbs(p.second - absSample);
+            if (err < bestErr) { bestErr = err; bestX = p.first; }
+        }
+        showCursor(bestX);
+    }
+
     // 플롯에 클릭 핸들러 + 세로 커서선 부착. 클릭 시 onSeek(absSample) 호출.
     //  여러 번 호출해 같은 매핑을 여러 플롯에 공유 가능(각 플롯에 커서 1개).
     void attach(QCustomPlot *plot, std::function<void(double)> onSeek)

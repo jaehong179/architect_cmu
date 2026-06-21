@@ -20,6 +20,7 @@ public:
     QString tabTitle() const override { return QStringLiteral("Trace Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;   // [③] 다른 탭 seek → 커서 동기화
 signals:
     // [③] 정지 중 트렌드 그래프 클릭 → 해당 절대 샘플 시점(스코프 탭들이 점프).
     void seekRequested(double absSample);

@@ -95,6 +95,18 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
     onResetSession();
 }
 
+// [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 점의 x(초)로 세 레인 커서를 옮긴다(트렌드 동기화).
+void TabLongTermPerformance::onSeek(double absSample)
+{
+    if (mXtoSample.isEmpty()) return;
+    double bestX = mXtoSample.first().first, bestErr = qAbs(mXtoSample.first().second - absSample);
+    for (const auto &p : mXtoSample) {
+        const double err = qAbs(p.second - absSample);
+        if (err < bestErr) { bestErr = err; bestX = p.first; }
+    }
+    showCursor(bestX);
+}
+
 double TabLongTermPerformance::sampleAtX(double xSeconds) const
 {
     if (mXtoSample.isEmpty()) return 0.0;

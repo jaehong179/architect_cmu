@@ -92,6 +92,18 @@ void TabTraceDisplay::showCursor(double xSeconds)
                     mCurAmp->setVisible(true);  mAmp->replot(QCustomPlot::rpQueuedReplot); }
 }
 
+// [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 측정점의 x(초)로 커서를 옮긴다(트렌드 동기화).
+void TabTraceDisplay::onSeek(double absSample)
+{
+    if (mXtoSample.isEmpty()) return;
+    double bestX = mXtoSample.first().first, bestErr = qAbs(mXtoSample.first().second - absSample);
+    for (const auto &p : mXtoSample) {
+        const double err = qAbs(p.second - absSample);
+        if (err < bestErr) { bestErr = err; bestX = p.first; }
+    }
+    showCursor(bestX);
+}
+
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
 double TabTraceDisplay::sampleAtX(double xSeconds) const
 {

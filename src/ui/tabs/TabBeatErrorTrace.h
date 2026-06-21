@@ -22,6 +22,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override { mSeek.showCursorAtSample(absSample); }   // [③] 다른 탭 seek → 커서 동기화
 signals:
     void seekRequested(double absSample);   // [③] 정지 중 점 클릭 → 그 비트의 절대 샘플
 protected:
