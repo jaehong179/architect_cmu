@@ -49,30 +49,23 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     // [8분 스크롤백] 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 다시 잘라 그린다.
     //  (라이브 중에는 mPaused=false 라 무시 — line 207 의 AlignRight setRange 도 그냥 통과.)
     connect(mScopePlot->xAxis, QOverload<const QCPRange &>::of(&QCPAxis::rangeChanged),
-            this, [this](const QCPRange &) { if (mPaused && !mInHistoryRender) renderHistoryWindow(); });
+            this, [this](const QCPRange &) {
+                if (mPaused && !mInHistoryRender) { renderHistoryWindow(); renderRateHistoryWindow(); }
+            });
 
-    // [③] 상단 RatePlot 도 클릭 소스 — 정지 중 클릭 위치 비율(좌=오래/우=최근)을 최근 윈도우 내
-    //  시점으로 매핑해 seek. (RatePlot x 는 스크롤 윈도우 0..N 라 점별 샘플 매핑이 없어 비율 근사.)
+    // [③] 상단 RatePlot 도 클릭 소스 — 정지 중엔 상단도 하단과 같은 라이브 좌표(sample−mHistOffset)로
+    //  그려지므로(renderRateHistoryWindow), 클릭 x 를 그대로 절대 샘플로 환산: seek = x + mHistOffset.
     mRateCursor = new QCPItemStraightLine(mRatePlot);
     mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
     mRateCursor->setVisible(false);
     connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
-        if (!mHistory || !mHistory->hasData()) return;   // (seek 자체는 broadcastSeek 가 정지 중에만 전파)
-        bool found = false;
-        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);     // 실제 그려진 점들의 x범위
-        if (!found) return;
-        const double x  = mRatePlot->xAxis->pixelToCoord(e->position().x());
-        const double lo = kr.lower, hi = kr.upper;
-        const double f  = (hi > lo) ? qBound(0.0, (x - lo) / (hi - lo), 1.0) : 1.0;   // 0=오래된 좌 ~ 1=최근 우
-        const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-        const double beats = hi - lo;                                   // 표시된 비트 수(x≈beat index)
-        const double winSamples = beats * (3600.0 / (double)bph) * (double)mSampleRateHz;
-        const double latest = (mPaused && mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
-        double seekSample = latest - (1.0 - f) * winSamples;
+        if (!mPaused || !mHistory || !mHistory->hasData()) return;   // 정지 중에만 의미
+        const double x = mRatePlot->xAxis->pixelToCoord(e->position().x());   // 라이브 좌표
+        double seekSample = x + mHistOffset;                                  // → 이력 절대 인덱스
         if (seekSample < 0.0) seekSample = 0.0;
         mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
         mRateCursor->setVisible(true);
-        mRatePlot->replot();                                            // 즉시 갱신
+        mRatePlot->replot();
         emit seekRequested(seekSample);
     });
 
@@ -270,7 +263,27 @@ void TabRateScope::setPaused(bool paused)
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 가로(시간) 전용 드래그/줌
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal);
         mScopePlot->xAxis->setLabel(QStringLiteral("PAUSED — drag/zoom to scroll back up to 8 min"));
-        renderHistoryWindow();   // 현재 창을 이력에서 렌더(엔벨로프+마커) → 동결 화면에 측정 결과 유지
+        // 상단 rate 재구성 앵커(라이브와 동일): 이력의 첫 A=StartTime(미플롯), 다음 A를 0으로 맞춤.
+        mRateAnchorValid = false;
+        {
+            const int    sr2     = mHistory->sampleRate();
+            const int    bph2    = (mLastBph > 0) ? mLastBph : 28800;
+            const double period2 = 3600.0 / (double)bph2;
+            const uint64_t o     = mHistory->oldestAbs();
+            const QVector<WaveEvent> head =
+                mHistory->eventsInRange(o, o + (uint64_t)(period2 * 8.0 * (double)sr2));
+            bool haveFirst = false;
+            for (const WaveEvent &e : head) {
+                if (e.type != kEventA) continue;
+                const double t = (double)e.markSample / (double)sr2;
+                if (!haveFirst) { mRateAnchorT = t; haveFirst = true; continue; }   // 첫 A = StartTime
+                const long n = (long)qRound((t - mRateAnchorT) / period2);          // 다음 A = 첫 플롯비트
+                mRateZeroOff = -((mRateAnchorT + (double)n * period2) - t) * 1000.0; // 0 으로 정렬
+                mRateAnchorValid = true; break;
+            }
+        }
+        renderHistoryWindow();       // 하단: 엔벨로프+마커
+        renderRateHistoryWindow();   // 상단: 같은 창 rate 트렌드(이력 재구성)
     } else {
         // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
         mHistActive = false;
@@ -310,6 +323,43 @@ void TabRateScope::renderHistoryWindow()
     mScopePlot->yAxis->rescale();                           // y만 자동 맞춤(x는 사용자 유지)
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     mInHistoryRender = false;
+}
+
+// [③] 정지 중 상단 rate 트렌드를 8분 이력의 A이벤트로 재구성한다(하단 스코프와 같은 시간창·좌표).
+//  라이브 계산과 동일: 비트 n 의 InstTimingError = (StartTime + n·(3600/BPH)) − A_time, ±10ms wrap.
+//  StartTime = 이력의 가장 오래된 인덱스(세션<8분이면 세션 시작과 일치 → 라이브와 동일 기울기).
+//  X 는 라이브 좌표(sample − mHistOffset)로 둬 하단 스코프·커서와 정확히 정렬된다.
+void TabRateScope::renderRateHistoryWindow()
+{
+    if (!mPaused || !mHistory || !mHistory->hasData() || !mRateAnchorValid) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    const int    bph    = (mLastBph > 0) ? mLastBph : 28800;
+    const double period = 3600.0 / (double)bph;                       // 한 비트 주기(초)
+    const double startT = mRateAnchorT;                               // 앵커(이력 첫 A = 라이브 StartTime)
+    const QCPRange r = mScopePlot->xAxis->range();                    // 하단과 동일 창(라이브 좌표)
+    double fromAbs = r.lower + mHistOffset, toAbs = r.upper + mHistOffset;
+    if (fromAbs < 0.0) fromAbs = 0.0;
+    if (toAbs <= fromAbs) return;
+
+    const QVector<WaveEvent> evs = mHistory->eventsInRange((uint64_t)fromAbs, (uint64_t)toAbs);
+    const double S = ERROR_RATE_Y_SCALE;
+    QVector<double> tx, ty, ox, oy;
+    for (const WaveEvent &e : evs) {
+        if (e.type != kEventA) continue;
+        const double aTime = (double)e.markSample / (double)sr;
+        const long   n     = (long)qRound((aTime - startT) / period);  // 앵커로부터 비트 번호
+        if (n <= 0) continue;
+        double errMs = ((startT + (double)n * period) - aTime) * 1000.0 + mRateZeroOff;  // 라이브와 동일 보정
+        double yw = std::fmod(errMs + S, 2.0 * S); if (yw < 0) yw += 2.0 * S; yw -= S;  // ±S wrap
+        const double x = (double)e.markSample - mHistOffset;           // 라이브 좌표(하단 정렬)
+        if (n & 1) { tx.push_back(x); ty.push_back(yw); }              // 홀수 n = tic(라이브와 동일 패리티)
+        else       { ox.push_back(x); oy.push_back(yw); }
+    }
+    mRatePlot->graph(0)->setData(tx, ty);
+    mRatePlot->graph(1)->setData(ox, oy);
+    mRatePlot->xAxis->setRange(r.lower, r.upper);   // 하단 스코프와 동일 X창
+    mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // 이력 이벤트로 마커 복원 — 라이브 onWave 와 동일: A→A 비트간격(ms) + A→C 진폭(ms/°).
@@ -362,26 +412,14 @@ void TabRateScope::onSeek(double absSample)
     mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
     mInHistoryRender = false;
     renderHistoryWindow();
+    renderRateHistoryWindow();   // 상단 rate 도 같은 창을 이력에서 재구성(8분 어디든 표현)
 
-    // [③] 상단 rate 플롯의 클릭 커서도 같은 시점으로 동기화(클릭 핸들러 좌표식의 역변환).
-    //  x = hi - (latest - absSample)/samplesPerBeat  (hi=최근, 좌로 갈수록 과거; 1 beat = 3600/bph 초).
+    // [③] 상단 커서: 상·하단이 같은 라이브 좌표라 절대 샘플을 그대로 환산해 항상 정확히 정렬.
     if (mRateCursor) {
-        bool found = false;
-        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);
-        if (found && kr.upper > kr.lower) {
-            const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-            const double samplesPerBeat = (3600.0 / (double)bph) * (double)mSampleRateHz;
-            const double latest = (mPaused && mPauseLatest > 0) ? (double)mPauseLatest
-                                                                : (double)mHistory->latestAbs();
-            const double x = kr.upper - (latest - absSample) / samplesPerBeat;
-            if (x >= kr.lower && x <= kr.upper) {   // 상단 rate 는 '최근 윈도우' 뷰 → 그 안일 때만 커서 표시
-                mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
-                mRateCursor->setVisible(true);
-            } else {
-                mRateCursor->setVisible(false);     // 윈도우 밖(더 과거) 시점은 상단에 표현 불가(하단 스코프가 담당)
-            }
-            mRatePlot->replot();
-        }
+        const double cx = absSample - mHistOffset;
+        mRateCursor->point1->setCoords(cx, 0); mRateCursor->point2->setCoords(cx, 1);
+        mRateCursor->setVisible(true);
+        mRatePlot->replot(QCustomPlot::rpQueuedReplot);
     }
 }
 
