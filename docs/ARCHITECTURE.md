@@ -209,8 +209,13 @@ flowchart LR
 | **Pipe & Filter** | `tg_process` DSP 단계 | 신호처리를 독립 필터로 분해 → 단계별 교체·계측 용이 |
 | **Producer–Consumer** | 워커 스레드 ↔ 링버퍼 ↔ 메인 | 캡처(실시간성)와 처리/표시를 분리해 서로를 막지 않음 |
 | **Publish–Subscribe** | `TabManager` → `TabView` | 데이터 생산자와 13개 화면을 디커플 → OCP(탭 추가에 코어 불변) |
-| **Facade** | `CaptureController` | 워커·검출기·엔진·녹음의 복잡한 조립을 단일 진입점으로 감춤 |
-| **Strategy / 다형성** | `TabView` 인터페이스 | 탭마다 다른 렌더를 동일 계약(onWave/onMeasurement)으로 |
+| **Facade** | `CaptureController` · `Timegrapher`(`tg_process`) | 워커·검출기·엔진·녹음(또는 HPF·엔벨로프·검출·BPH)의 복잡한 조립을 단일 진입점으로 감춤 |
+| **Strategy / 다형성** | `TabView` 인터페이스 · `ScopeFilters`(F0~F3) · Spectrogram 윈도 선택 | 동일 계약(onWave/onMeasurement)으로 렌더 전략을 런타임 교체 |
+| **Builder** | `SimConfigBuilder` | 시뮬 합성 설정(`WatchSynthStreamConfig`) 조립 규칙을 호출측에서 분리 |
+| **Template Method** | `TabView::showEvent → onShown()` | 베이스가 생명주기 골격, 파생 탭이 훅만 채움 |
+| **Handle/Body (Opaque pointer)** | `tg_context_t` (C-API) | 내부 struct 를 헤더에서 숨겨 ABI 안정 + 컴파일 의존 차단 |
+| **State Machine** | Detector(Silence↔Burst) · Bph(Sync NOT_SYNCED↔SYNCED) | 검출·동기 로직을 명시적 상태/전이로 분해 → 추적·검증 용이 |
+| **Feedback Control (PLL)** | `Bph` period/ac 게인 보정 | 클록 드리프트를 재검출 없이 추종(비트 주기·오프셋 적응) |
 
 ### 6.2 수정용이성(Modifiability) 전술
 
@@ -220,19 +225,65 @@ flowchart LR
 | **결합도 낮추기 — 캡슐화** | `MainWindow` 를 순수 UI 로 | UI 변경이 파이프라인에 안 번지게 |
 | **결합도 낮추기 — 중개자(intermediary)** | `TabManager` | 탭과 데이터원이 서로를 직접 모름 |
 | **결합도 낮추기 — 의존성 제한(restrict dependencies)** | 레이어 단방향 의존 | 순환·역의존 방지 |
+| **인터페이스 분리 (ISP)** | `WaveSink`(onWave 1개) vs `TabView`(6개 계약) | 비시각 청취자(이력 버퍼)가 무거운 QWidget 계약을 안 떠안음 |
+| **계산/IO 분리** | `Dsp`·`Detector`·`WatchSynthStream` 는 float 배열만 | 하드웨어 없이 호출·테스트 가능 |
+| **렌더 해상도/표시 분리** | `SoundImageWidget` 고정 캔버스 ↔ 위젯 resize 독립 | 렌더러 포인터 안정(use-after-free 방지) + 누적 이미지 보존 |
+| **상태 보존형 설정 변경** | `SoundImageRenderer::clearRenderStateKeepingSampleCounter()` | BPH/레이트 변경 시 렌더만 리셋, 절대 샘플 시계는 보존 |
+| **DRY (공통 추출)** | `AudioRingBuffer::writeSamplesToRing<>` · `PlotHelpers`·`TabScaffold`·`ReadoutBar` | 3 워커/다수 탭의 중복 제거 |
 | **바인딩 지연 (Defer binding)** | `PERF_ENABLE` 컴파일 스위치 | 프로덕션 빌드에서 계측을 0비용으로 제거 |
 
 ### 6.3 성능(Performance) 전술
 
 | 전술 | 적용 | 왜 |
 |---|---|---|
-| **동시성 도입 (Introduce concurrency)** | 오디오 워커 스레드 | 캡처가 UI/처리에 안 막힘 |
+| **동시성 도입 (Introduce concurrency)** | 오디오 워커 스레드(TimeCritical) | 캡처가 UI/처리에 안 막힘 |
 | **경계 큐 (Bound queue / ring buffer)** | `SharedAudio` 30초 링 | 메모리 상한·드롭 추정 가능 |
 | **다중 복사 유지 (Maintain multiple copies)** | 메인 스레드 로컬 스냅샷 | 락 보유 최소화로 경합↓ |
-| **이벤트율 관리 (Manage event rate)** | 고샘플레이트 min/max 데시메이션 | 384kHz 에서 그리기 점수 폭증(=멈춤) 방지, 검출은 풀레이트 유지 |
-| **오버헤드 감소 (Reduce overhead)** | `PERF_ENABLE=0` 시 계측 컴파일 제거 | 핫패스에서 타임스탬프·로깅 자체를 없앰 |
+| **이벤트율 관리 (Manage event rate)** | 고샘플레이트 min/max 데시메이션 · 노이즈 샘플 1/ms | 384kHz 에서 그리기 점수 폭증(=멈춤) 방지, 검출은 풀레이트 유지 |
+| **LOD (Level-of-detail)** | `WaveLodHistory` 피라미드(raw/즉석버킷/사전빌드 자동선택) | 8분 스크롤백을 출력 점수 상한 내에서 렌더 |
+| **계산 오버헤드 감소 — 가시성 가드** | 각 탭 `if (isVisible()) replot()` + `onShown()` 지연 재그림 | 숨은 탭은 데이터만 누적, 보일 때만 무거운 렌더 |
+| **캐싱/누산 (Maintain cached copy)** | 탭별 ring/EMA 누산(`mTicAvg`·`mTr1Sum` 등) · 마커/라벨 객체 풀 | 매 프레임 재계산·재할당 회피 |
+| **증분 통계 (O(1))** | `RollingAverage`(running sum)·`RollingLeastSquares`(Σ 증분) | 윈도 전체 재계산 회피 |
+| **사전 계산 (Precompute)** | `SoundImageRenderer::recomputeDerived()` DC 계수 등 | 핫패스 밖에서 1회 계산 |
+| **오버헤드 감소 (Reduce overhead)** | `PERF_ENABLE=0` 시 계측 컴파일 제거 · 핫패스 직접 호출(시그널 X) · CSV 1초 주기 flush | 핫패스에서 타임스탬프·로깅·디스패치 자체를 없앰 |
 
 성능 개선의 구체적 수치·측정 방법은 **[PERFORMANCE.md](PERFORMANCE.md)** 에 정리했다.
+
+### 6.4 가용성·견고성(Availability) 전술
+
+| 전술 | 적용 | 왜 |
+|---|---|---|
+| **재동기 방어 (Fault detection)** | `processSamples` 의 total 되감김 감지 → 블록 스킵 | uint64 언더플로로 인한 쓰레기 슬라이스 방지(소스 재시작 등) |
+| **워밍업/앵커 버퍼링** | Detector 200ms 워밍업 스킵 · renderer warmup+anchor | 적응 임계 안정 전 오검출/표시 점프 방지 |
+| **레짐 변화 복구 + 쿨다운(debounce)** | 진폭 10배 점프 감지 → 적응상태 flush, 1초 쿨다운 | 마이크에 시계 도착 등 음향 급변에서 회복하되 thrashing 방지 |
+| **워치독 (Watchdog)** | Sync FSM: miss 누적/시간초과 시 lock 해제 | 신호 끊김을 자동 감지해 재검출로 전환 |
+| **메모리 상한 유지** | `pruneOldMarkers` · `TrendSeek::setPurgeWindow` · 히스토리 링 | 장시간 스트림에서 무한 증가 차단 |
+| **방어적 가드/클램핑** | null 체크 · 파라미터 `[min,max]` 클램프 · 인덱스 경계 검사 | 비정상 입력에서 조기 탈출 |
+| **자원 수명 = 객체 수명 (RAII)** | `Rolling*`·`SoundImageWidget`·`CaptureController` 소멸자 정리(스레드 join 포함) | 누수·use-after-free 방지 |
+
+### 6.5 테스트용이성·관찰가능성(Testability / Observability) 전술
+
+| 전술 | 적용 | 왜 |
+|---|---|---|
+| **순수 코어 분리** | `core/*` (Qt·하드웨어 무관) | 단위 테스트·이식 용이 |
+| **Ground-Truth 검증 하니스** | Sim 정답 이벤트 링(`GtBeats`) vs 검출 결과 대조(`matchGroundTruth`, G-1) | 검출/측정 정확도를 정량 측정(계측 빌드 전용) |
+| **결정론적 합성기** | SplitMix64 시드 RNG(`WatchSynthStream`) | 재현 가능한 테스트 신호 |
+| **계측 분류 체계 + 게이팅** | 섹션코드(A-1…G-2)+QA태그 · `PERF_GRP_*` 비트마스크 | `grep` 으로 지표 추출, 그룹별 on/off |
+| **단조 시계 + epoch 동기화** | `steady_clock` 기준 · CSV `epoch_ms_t0` | NTP 보정 영향 차단 + 외부 자원 로그와 정렬 |
+| **UI 응답성 샘플링** | `UiResponsivenessSampler`(이벤트루프 지연) | 메인 스레드 블로킹을 정량화(§A-3) |
+| **디바이스 오류 관찰** | `QAudioSource::error()` xrun · 실효 throughput(SPS/FPS) 2초 샘플 | 캡처 드롭/언더런 조기 발견 |
+
+### 6.6 이식성·빌드(Portability / Build) 전술
+
+| 전술 | 적용 | 왜 |
+|---|---|---|
+| **플랫폼 추상화** | `Windows/LinuxAudio` · `#ifdef Q_OS_*` · `__uint128_t` 폴백 | OS별 차이를 경계에 격리, 코어는 공통 |
+| **컴파일 타임 토글 (Aspect)** | `PERF_ENABLE` / `PERF_GRP_*` | 횡단 계측을 빌드에서 완전 제거/선택 |
+| **빌드 자원 관리** | CMake `JOB_POOLS compile_pool=4` · 레이어별 include 경로 · C++17 | 거대 TU OOM 방지 · 물리 배치 은닉 |
+
+> **문서 동기화 메모**: §6.3~6.6 의 다수 항목(LOD·가시성 가드·캐싱·서브샘플 보간·PLL·FSM·플랫폼 추상화 등)은
+> 초기 설계 문서에 빠져 있었으나 **현재 코드에 실제 구현**되어 있어 본 개정에서 반영했다.
+> (`TabManager.h` 의 "가시성 가드는 추후" 주석은 이미 구현된 현실과 어긋나므로 정정 대상.)
 
 ---
 
