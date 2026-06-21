@@ -21,6 +21,9 @@ https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 #### engine
 - Domain orchestration. CaptureController acts as a Facade over audio sources, DSP pipeline, and measurement calculation. MeasurementEngine computes rate, beat error, and amplitude from detected events.
 
+#### vision
+- Watch position detection via USB camera. Classifies the watch's current position among 6 standard positions (DU, DD, CU, CD, CR, CL). The detected position is passed to engine for correlation with timing measurements (Modifiability: Increase cohesion — vision logic is isolated from audio and engine).
+
 #### render
 - Folding sound image pixel rendering, separated from the Qt widget display layer.
 
@@ -54,14 +57,14 @@ https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 #### core/timing
 - Timegrapher C library that drives the signal detection pipeline, and BPH tracker for beat-rate estimation.
 
-#### perf
-- Cross-cutting performance instrumentation. Controlled by `PERF_ENABLE` compile switch — when disabled, all macros compile to nothing (zero overhead in production).
+#### watchdog
+- Cross-cutting performance instrumentation. Controlled by `PERF_ENABLE` compile switch — when disabled, all macros compile to nothing (zero overhead in production).**Cross-cutting system health monitoring. Detects thread hangs, audio stream stalls, and camera feed loss. Triggers recovery actions (e.g., restart worker, notify UI) when anomalies are detected (Availability: Fault detection).
 
 ## Behavior
-- TBD
+- N/A
 
 ## Related ADRs
-- TBD
+- N/A
 
 ## Related Views
 - TBD
