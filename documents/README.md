@@ -27,4 +27,5 @@ Status: **In Progress**
    - 8.1 Design Approach (ADD)
    - 8.2 Module View
 9. [ADRS](09-adrs.md)
-10. [References](10-references.md)
+    [ADR-001-Limit AI (TinyML) to camera-based watch-position detection](/ADRs/ADR001-watch-position-detection-solution.md)
+11. [References](10-references.md)
