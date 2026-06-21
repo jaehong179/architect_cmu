@@ -46,9 +46,10 @@ public:
     //  정지 중에만 의미. 8분 이력 버퍼를 읽는 스코프 탭이 override 해 그 시점을 그린다. 기본 무시.
     virtual void onSeek(double /*absSample*/) {}
 
-    // [③] 정지 해제(라이브 복귀) 시 호출 — seek 로 채운 임시 버퍼·커서를 정리해 라이브로 깨끗이 복귀.
-    //  (세션 리셋과 달리 누적 통계/트렌드는 보존.)
-    virtual void onResumeLive() {}
+    // [③] 정지 해제(라이브 복귀) 시 호출 — 정지 중 seek 가 있었으면(seeked=true) seek 로 채운
+    //  임시 버퍼를 비워 라이브로 깨끗이 복귀. seek 없이 정지만 했으면 버퍼가 연속이므로 그대로 둔다.
+    //  (소스까지 멈추는 '전체 정지'라 resume 시 인덱스가 끊기지 않음 → 불필요한 리빌드 방지.)
+    virtual void onResumeLive(bool /*seeked*/) {}
 
 protected:
     // 탭이 (재)표시될 때 호출 — 측정이 멈춘 상태에서 탭을 전환해도 보관 중인

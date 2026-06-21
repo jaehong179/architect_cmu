@@ -1,6 +1,7 @@
 #ifndef SHAREDAUDIO_H
 #define SHAREDAUDIO_H
 #include <QMutex>
+#include <atomic>
 
 #define CHANNELS      1
 #define SAMPLE_FORMAT QAudioFormat::Float
@@ -39,6 +40,10 @@ typedef struct
     TGtBeat        GtBeats[GT_EVENT_RING];
     unsigned int   GtHead;               // 다음 쓰기 위치(ring)
     uint64_t       GtTotal;              // 누적 정답 비트 수 (G-2 검출률 분모)
+    // ── [전체 정지] 정지 시 소스 워커가 진행을 멈춘다(playback/sim=위치 보존, live=캡처 폐기) ──
+    //  메인 스레드(CaptureController)가 set, 워커 스레드가 매 블록 read. 위치/인덱스가 안 흐르므로
+    //  resume 시 정확히 이어지고 비트 번호·트렌드에 갭이 없다.
+    std::atomic<bool> Paused{false};
 } TMasterAudioDataRaw;
 
 #endif // SHAREDAUDIO_H

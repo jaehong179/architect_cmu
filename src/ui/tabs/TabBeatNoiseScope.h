@@ -28,7 +28,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;            // [③] 다른 탭에서 선택한 시점을 Scope1에 표시
-    void onResumeLive() override { mBuf.clear(); mHaveLastBeat = false; mSelectedStrip = -1; }   // 라이브 복귀
+    void onResumeLive(bool seeked) override { mSelectedStrip = -1; if (seeked) { mBuf.clear(); mHaveLastBeat = false; } }   // 라이브 복귀
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 signals:
     void seekRequested(double absSample);   // [③] 스트립 비트 선택 → 그 비트의 절대 샘플

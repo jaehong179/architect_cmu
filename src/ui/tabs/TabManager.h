@@ -65,6 +65,7 @@ private:
     QVector<TabView *>  mTabs;
     QVector<WaveSink *> mWaveSinks;   // broadcastWave 시 함께 통지(소유 안 함)
     bool                mPaused = false;
+    bool                mSeekedSincePause = false;   // 이번 정지 구간에서 seek 발생 여부(resume 정리용)
 };
 
 #endif // TABMANAGER_H

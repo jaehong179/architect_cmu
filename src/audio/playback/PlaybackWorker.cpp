@@ -126,6 +126,11 @@ void TPlaybackWorker::StartPlayback(const QString &FileName)
     {
         Start=mTimer.elapsed();
 
+        // [전체 정지] 정지 중에는 파일을 읽지 않고 대기 → 재생 위치 보존(resume 시 그대로 이어짐).
+        while (mRawAudio->Paused.load(std::memory_order_relaxed) &&
+               !QThread::currentThread()->isInterruptionRequested())
+            QThread::msleep(20);
+
         BytesIn=in.readRawData(mDataIn, mDataInSize);
         if (BytesIn<0)
         {

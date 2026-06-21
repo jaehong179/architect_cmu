@@ -53,15 +53,19 @@ void TabManager::addWaveSink(WaveSink *sink)
 void TabManager::setPaused(bool p)
 {
     const bool resuming = (mPaused && !p);
+    if (p && !mPaused) mSeekedSincePause = false;   // 새 정지 구간 시작 → seek 추적 초기화
     mPaused = p;
-    if (resuming)                       // 라이브 복귀 → seek 임시 버퍼/커서 정리
+    if (resuming) {                     // 라이브 복귀 → 정지 중 seek 가 있었던 경우에만 임시 버퍼 정리
+        const bool seeked = mSeekedSincePause;
         for (TabView *t : mTabs)
-            if (t) t->onResumeLive();
+            if (t) t->onResumeLive(seeked);
+    }
 }
 
 void TabManager::broadcastSeek(double absSample)
 {
     if (!mPaused) return;   // seek 는 정지(동결) 중에만 의미 — 라이브 중 클릭은 무시.
+    mSeekedSincePause = true;   // 이번 정지 구간에서 seek 발생 → resume 시 해당 버퍼 정리 필요
     for (TabView *t : mTabs)
         if (t) t->onSeek(absSample);
 }

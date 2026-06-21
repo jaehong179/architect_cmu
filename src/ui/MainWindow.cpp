@@ -244,7 +244,8 @@ void MainWindow::RegisterDisplayTabs(void)
         }
         mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
         if (!p && mSeekLabel) mSeekLabel->clear();             // 라이브 복귀 시 표시 지움
-        if (mTabManager) mTabManager->setPaused(p);
+        if (mCapture)    mCapture->setPaused(p);               // [전체 정지] 소스 워커까지 멈춤(위치 보존)
+        if (mTabManager) mTabManager->setPaused(p);            // 인플라이트 데이터 차단 + seek 게이트
         if (mRateScope)  mRateScope->setPaused(p);
     });
 }
@@ -489,6 +490,8 @@ void MainWindow::Reset(void)
         mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
         mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
     }
+    if (mCapture)    mCapture->setPaused(false);   // 새 세션 = 소스 정지 플래그 해제
+    if (mTabManager) mTabManager->setPaused(false);
     EventsReset();
 }
 

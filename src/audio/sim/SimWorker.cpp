@@ -83,6 +83,11 @@ void TSimWorker::StartSim(WatchSynthStreamConfig cfg)
     {
         Start=mTimer.elapsed();
 
+        // [전체 정지] 정지 중에는 합성을 진행하지 않고 대기 → 스트림 위상 보존(resume 시 그대로 이어짐).
+        while (mRawAudio->Paused.load(std::memory_order_relaxed) &&
+               !QThread::currentThread()->isInterruptionRequested())
+            QThread::msleep(20);
+
         r = watch_synth_stream_fill_f32(&stream,  (float *)mDataIn, mDataInSize, events, 16);
         if (r.samples_written != mDataInSize) {
             fprintf(stderr, "short fill\n");
