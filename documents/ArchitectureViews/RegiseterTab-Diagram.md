@@ -29,7 +29,7 @@ The diagram below shows the process of applying the observer pattern to register
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-- N/A
+[ADR-003: Register display tabs through a Tab Manager](../ADRs/ADR003-register-display-tabs.md)
 
 ## Related Views
 - N/A
