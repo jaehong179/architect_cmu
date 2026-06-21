@@ -166,3 +166,37 @@ flowchart LR
 
 새 탭 추가 = `TabView` 상속 클래스 1개 + `MainWindow::RegisterDisplayTabs` 에 등록 1줄.
 코어/기존 탭은 건드리지 않는다(개방-폐쇄 원칙).
+
+---
+
+## 7. 일시정지 · 8분 스크롤백 · 교차탭 Seek
+
+위 라이브 흐름과 **나란히**, 들어온 모든 파형을 중앙에 8분 쌓아 두었다가 정지 후 과거를
+되짚어 본다. 추가는 무침습이다 — 같은 `broadcastWave` 가 시각 탭과 **이력 버퍼**를 함께 먹인다.
+
+```mermaid
+flowchart TD
+    WB["WaveBlock (매 슬라이스)"] --> TABS["시각 탭들 (onWave)"]
+    WB --> HIST[("WaveLodHistory<br/>WaveSink: 엔벨로프+raw+A/C 이벤트<br/>8분 · LOD 피라미드")]
+    PB["⏸ 정지(Pause)"] -->|"SharedAudio.Paused"| STOP["소스 워커 정지<br/>(위치·시간 동결)"]
+    CLK["트렌드 탭 클릭<br/>(정지 중)"] -->|"절대 샘플"| BS["TabManager.broadcastSeek"]
+    BS --> ON["각 탭 onSeek"]
+    HIST -.->|"그 구간 WaveBlock 복원"| ON
+    ON --> RZ["스코프=그 순간 파형 / 트렌드=커서선 동기"]
+```
+
+핵심 세 가지:
+
+1. **중앙 이력(WaveLodHistory)** — `TabView` 가 아니라 좁은 `WaveSink`(onWave 1개)로 등록된
+   비시각 구독자. 정지와 무관하게 엔벨로프·원신호·A/C 이벤트를 **절대 샘플 좌표**로 8분 누적하고,
+   빠른 줌아웃을 위해 min/max **LOD 피라미드**를 같이 만든다. (메모리: raw 8분 ≈ 92 MB @48 kHz)
+2. **전체 정지(full-stop)** — 정지하면 `SharedAudio.Paused` 로 **소스 워커 자체를 멈춘다**.
+   playback/sim 은 위치를 보존하고 live 는 캡처분을 버린다. 시간·인덱스가 안 흘러 **resume 시
+   정확히 이어진다**(비트 번호·트렌드에 갭 없음 = "비디오 일시정지").
+3. **교차탭 Seek** — 정지 중 아무 시계열 탭의 한 점을 클릭하면 그 시점의 절대 샘플을 emit →
+   `broadcastSeek`(정지 중에만) 가 전 탭에 전파. 순간 파형 탭은 이력에서 그 구간을 **복원(replay)**
+   해 그리고, 트렌드 탭은 커서선만 그 시점으로 옮긴다. 하단 스코프는 드래그로 8분을 스크롤백한다.
+
+> 좌표는 `totalSamples`·이벤트 `sample_index`·`processed_pcm_start_sample` 이 같은 절대 입력샘플
+> 도메인이라 탭 간 커서·replay 가 한 점으로 정렬된다. 구조·연결자 속성은
+> [ARCHITECTURE.md §5.1](ARCHITECTURE.md) · [CC_VIEW.md 그림 4](CC_VIEW.md) 참고.

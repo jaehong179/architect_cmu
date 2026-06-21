@@ -25,6 +25,8 @@
   A(언락)·C(드롭) 이벤트를 찾는다.
 - **표시**: 파형(`WaveBlock`)과 측정값(`MeasurementSnapshot`)을 `TabManager` 가 13개 탭에
   발행 → 각 탭이 그래프를 그린다.
+- **정지·스크롤백·seek**: 같은 파형을 `WaveLodHistory`(WaveSink)가 8분 누적 → 정지하면 소스를
+  멈추고(full-stop), 트렌드 탭의 한 점을 클릭하면 전 탭이 그 시점으로 이동(교차탭 seek)한다.
 - **계측**: `PERF_ENABLE=1` 빌드는 단계별 지연·정확도를 `perf_log.csv` 로, Pi에선 CPU·메모리·
   온도를 `resource_ext.csv` 로 남긴다. `=0` 이면 계측이 컴파일에서 사라진다.
 
@@ -56,8 +58,11 @@ architect_cmu/
 │   ├── render/        # 폴딩 사운드 이미지 렌더(픽셀)
 │   ├── perf/          # 성능 계측(횡단) — PERF_ENABLE 로 제거 가능
 │   └── ui/            # 화면
-│       ├── MainWindow     위젯 배선 + 저빈도 표시(순수 UI)
+│       ├── MainWindow     위젯 배선 + 저빈도 표시(순수 UI) + 전역 Pause/seek 라벨
 │       └── tabs/          TabView 추상화 · TabManager · 13개 탭
+│           ├── WaveLodHistory  8분 중앙 이력(WaveSink) + LOD + seek replay
+│           ├── WaveSink        비시각 청취자 인터페이스(onWave 1개, ISP)
+│           └── TrendSeek       클릭→seek + 커서선 공통 헬퍼(DRY)
 ├── tools/             # 측정·분석 도구
 │   ├── resource_sample.sh   외부 자원 샘플러(Pi: CPU·PSS·온도·스로틀)
 │   ├── analyze_perf.py      통계 + QA 합격/미달 + 발열 영향 리포트
@@ -118,3 +123,4 @@ flowchart TD
 | `MeasurementSnapshot` | 비트(C)마다 | 보율·비트오차·진폭 + rate 시리즈 |
 
 두 스트림은 독립(1:N). 상세는 [SIGNAL_FLOW.md §3](SIGNAL_FLOW.md).
+`WaveBlock` 은 시각 탭과 함께 `WaveLodHistory`(8분 이력·seek)도 소비한다 → [SIGNAL_FLOW.md §7](SIGNAL_FLOW.md).
