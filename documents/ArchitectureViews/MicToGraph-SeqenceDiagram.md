@@ -27,7 +27,7 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-- N/A
+- [ADR-004: shared waveform history buffer](../ADRs/ADR004-shared-waveform-history-buffer.md)
 
 ## Related Views
 - N/A
