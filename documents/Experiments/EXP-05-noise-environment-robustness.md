@@ -34,7 +34,7 @@ Quantify measurement degradation when 60 dB SPL speech noise is injected alongsi
 
 ## Links and references
 
-QAS-05 · RISK-04 · FR-SPT-5
+QAS-05 · [RISK-04](../06-risk-management.md#risk-04) · FR-SPT-5
 
 ## Results and recommendations
 

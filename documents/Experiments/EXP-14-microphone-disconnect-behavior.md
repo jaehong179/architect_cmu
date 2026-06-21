@@ -1,4 +1,4 @@
-# EXP-14 / Experiment for [RISK-19][QAS-11]: Characterize current behavior on microphone (USB) disconnect
+# EXP-14 / Experiment for [[RISK-19](../06-risk-management.md#risk-19)][QAS-11]: Characterize current behavior on microphone (USB) disconnect
 
 ## Objective
 
@@ -30,7 +30,7 @@
 
 ## Links and references
 
-QAS-01 · RISK-19 · EXP-06
+QAS-01 · [RISK-19](../06-risk-management.md#risk-19) · EXP-06
 
 ## Results and recommendations
 

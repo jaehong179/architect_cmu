@@ -56,7 +56,7 @@ Confirm the same codebase builds and runs on the ARM Pi 5, x86 PC, and macOS (In
 
 ## Links and references
 
-QAS-10 · RISK-16 · CON-SW-03
+QAS-10 · [RISK-16](../06-risk-management.md#risk-16) · CON-SW-03
 
 ## Results and recommendations
 

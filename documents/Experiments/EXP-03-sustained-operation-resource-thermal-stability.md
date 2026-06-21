@@ -36,7 +36,7 @@ Profile memory growth, CPU thermal ceilings and GUI loop stability during 30 min
 
 ## Links and references
 
-QAS-03 · RISK-01 · RISK-02
+QAS-03 · [RISK-01](../06-risk-management.md#risk-01) · [RISK-02](../06-risk-management.md#risk-02)
 
 ## Results and recommendations
 
