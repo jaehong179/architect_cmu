@@ -362,6 +362,24 @@ void TabRateScope::onSeek(double absSample)
     mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
     mInHistoryRender = false;
     renderHistoryWindow();
+
+    // [③] 상단 rate 플롯의 클릭 커서도 같은 시점으로 동기화(클릭 핸들러 좌표식의 역변환).
+    //  x = hi - (latest - absSample)/samplesPerBeat  (hi=최근, 좌로 갈수록 과거; 1 beat = 3600/bph 초).
+    if (mRateCursor) {
+        bool found = false;
+        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);
+        if (found && kr.upper > kr.lower) {
+            const int    bph = (mLastBph > 0) ? mLastBph : 28800;
+            const double samplesPerBeat = (3600.0 / (double)bph) * (double)mSampleRateHz;
+            const double latest = (mPaused && mPauseLatest > 0) ? (double)mPauseLatest
+                                                                : (double)mHistory->latestAbs();
+            double x = kr.upper - (latest - absSample) / samplesPerBeat;
+            x = qBound(kr.lower, x, kr.upper);
+            mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
+            mRateCursor->setVisible(true);
+            mRatePlot->replot();
+        }
+    }
 }
 
 void TabRateScope::onResetSession()
