@@ -96,6 +96,7 @@ private:
     void aEvent(double t, bool haveValidBph, double bph);
     void cEvent(double t, bool haveValidBph, double bph);
     void matchGroundTruth(double val, bool isAEvent);   // [PERF] 검출 vs Sim 정답 대조(A/C 공용)
+    void updateStatusMessage();
 
     MeasurementEngine *mEngine = nullptr;       // 소유 안 함(MainWindow)
     TabManager        *mTabs   = nullptr;        // 소유 안 함
@@ -144,6 +145,10 @@ private:
     double mForegroundLastFPS = 0, mForegroundLastSPF = 0, mForegroundLastSPS = 0;
     bool mForegroundTimerStarted = false;  QElapsedTimer mForegroundTimer;
     double mForegroundLastTime = 0.0;  uint64_t mForegroundFrameCount = 0, mForegroundSampleCount = 0;
+    double mScopePlotFPS = 0.0, mScopePlotLastFPS = 0.0;
+    uint64_t mScopePaintCount = 0;
+    bool mScopePaintTimerStarted = false;
+    QElapsedTimer mScopePaintTimer;
 
     // ── Sim 정답(GT)/정확도 ──
     bool mSimActive = false;  WatchSynthStreamConfig mLastSimCfg;

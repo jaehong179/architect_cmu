@@ -35,24 +35,43 @@ public:
         // 정상범위 판정(다른 탭의 밴드 상수와 일치): rate ±7 s/d, amplitude 270~300°, beat error ≤1.0 ms.
         const bool rateOk = s.rateValid      && std::fabs(s.rate) <= 7.0;
         const bool ampOk  = s.amplitudeValid && s.amplitudeDeg >= 270.0 && s.amplitudeDeg <= 300.0;
-        const bool beOk   = s.beatErrorValid && s.beatErrorMs <= 1.0;
+        const bool beOk   = s.beatErrorValid && s.beatErrorMs <= 0.5;
+
+        QString rateSymbol;
+        if (s.rateValid) {
+            if (std::fabs(s.rate) > 3.0) {
+                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#d01515'>&#10007;</span>");
+            } else if (rateOk) {
+                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>");
+            }
+        }
+
+        QString beSymbol;
+        if (s.beatErrorValid) {
+            if (s.beatErrorMs > 0.5) {
+                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#d01515'>&#10007;</span>");
+            } else if (beOk) {
+                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>");
+            }
+        }
+
+        const QString ampSymbol = ampOk ? QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>") : QString();
+        const QString bphSymbol = s.bphValid ? QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>") : QString();
+
         // 사양 readout 순서: RATE | BEAT ERROR | AMPLITUDE | BPH (Witschi Trace/Vario/Sequence 화면).
-        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    QStringLiteral("#1560d0"), rateOk);
-        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    QStringLiteral("#108040"), beOk);
-        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    QStringLiteral("#108040"), ampOk);
-        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), QStringLiteral("#333333"), s.bphValid);
+        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    QStringLiteral("#1560d0"), rateSymbol);
+        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    QStringLiteral("#108040"), beSymbol);
+        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    QStringLiteral("#108040"), ampSymbol);
+        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), QStringLiteral("#333333"), bphSymbol);
     }
 
 private:
     QLabel *mCell[4] = {nullptr, nullptr, nullptr, nullptr};
-    void set(int i, const QString &title, const QString &val, const QString &color, bool ok)
+    void set(int i, const QString &title, const QString &val, const QString &color, const QString &symbol)
     {
-        // 정상범위면 녹색 체크(✓)를 값 옆에 표시(FR-TD/FR-BED-1: "정상 시 체크 표시").
-        const QString check = ok ? QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>")
-                                 : QString();
         mCell[i]->setText(QString("<div style='font-size:10px;color:#666'>%1</div>"
                                   "<div style='font-size:20px;font-weight:bold;color:%2'>%3%4</div>")
-                              .arg(title, color, val, check));
+                              .arg(title, color, val, symbol));
     }
 };
 

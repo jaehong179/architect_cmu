@@ -9,7 +9,6 @@
 //   MainWindow 가 disp_paint_ms·e2e_full_ms·paint_fps 를 기록한다(perf 상태는 MainWindow 잔류).
 #include "TabView.h"
 #include <QColor>
-#include <QVector>
 class QCustomPlot;
 class QSpinBox;
 class QLabel;
@@ -49,7 +48,6 @@ private:
     void purgeHistory();
     void syncScopeXAxis(double timeEndSec);
     void updateScopeXAxisTicks(const QCPRange &range);
-    void syncRateXAxis(const QVector<double> &tx, const QVector<double> &ox);
     double sampleToTime(uint64_t sample) const;
 
     QLabel      *mWindowLabel = nullptr;

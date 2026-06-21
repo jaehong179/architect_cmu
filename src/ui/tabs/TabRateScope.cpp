@@ -46,23 +46,6 @@ static double amplitudeOf(double liftAngle, double t1Sec, double bph)
     return liftAngle / std::sin((2.0 * M_PI * t1Sec) / (7200.0 / bph));
 }
 
-// RatePlot X축: 1.0 s 간격 — 10초 창에서 10개 눈금(읽기 편한 밀도).
-class RateSecTicker : public QCPAxisTickerFixed {
-public:
-    RateSecTicker()
-    {
-        setTickStep(1.0);
-        setScaleStrategy(QCPAxisTickerFixed::ssNone);
-        setTickOrigin(0.0);
-    }
-protected:
-    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
-    {
-        Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
-        return QStringLiteral("%1s").arg(tick, 0, 'f', 0);
-    }
-};
-
 TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
@@ -190,33 +173,21 @@ void TabRateScope::setupPlots()
     mRatePlot->legend->setFont(legendFont);
     mRatePlot->legend->setSelectedFont(legendFont);
     mRatePlot->legend->setSelectableParts(QCPLegend::spItems);
-    mRatePlot->yAxis->setLabel("Rate error (ms)");
-    mRatePlot->xAxis->setLabel(QStringLiteral("time (s)"));
-    mRatePlot->xAxis->setTicker(QSharedPointer<RateSecTicker>::create());
-    QFont rateTickFont = mRatePlot->xAxis->tickLabelFont();
-    rateTickFont.setPointSize(10);
-    mRatePlot->xAxis->setTickLabelFont(rateTickFont);
-    QFont rateLabelFont = mRatePlot->xAxis->labelFont();
-    rateLabelFont.setPointSize(10);
-    mRatePlot->xAxis->setLabelFont(rateLabelFont);
-    mRatePlot->xAxis->setTickLabels(true);
-    mRatePlot->xAxis->setRange(0.0, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
+    mRatePlot->yAxis->setLabel("Rate Error (milliseconds)");
     mRatePlot->yAxis->setTickLabels(true);
+    mRatePlot->xAxis->setLabel("Time");
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    // 0선 강조 + 점선 그리드
-    mRatePlot->yAxis->grid()->setZeroLinePen(QPen(Theme::kZeroLine, 1, Qt::SolidLine));
-    mRatePlot->xAxis->grid()->setPen(QPen(Theme::kGrid, 1, Qt::DotLine));
-    mRatePlot->yAxis->grid()->setPen(QPen(Theme::kGrid, 1, Qt::DotLine));
+    mRatePlot->xAxis->setTickLabels(false);
     mRatePlot->clearGraphs();
     mRatePlot->addGraph();
     mRatePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
     mRatePlot->graph(0)->setLineStyle(QCPGraph::lsNone);
-    mRatePlot->graph(0)->setPen(QPen(Theme::kTicColor));
+    mRatePlot->graph(0)->setPen(QPen(Qt::red));
     mRatePlot->graph(0)->setName("Tic Rate");
     mRatePlot->addGraph();
     mRatePlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
     mRatePlot->graph(1)->setLineStyle(QCPGraph::lsNone);
-    mRatePlot->graph(1)->setPen(QPen(Theme::kTocColor));
+    mRatePlot->graph(1)->setPen(QPen(Qt::blue));
     mRatePlot->graph(1)->setName("Toc Rate");
     mRatePlot->legend->setVisible(true);
 }
@@ -240,8 +211,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     }
     mRatePlot->graph(0)->setData(tx, ty);
     mRatePlot->graph(1)->setData(ox, oy);
-    if (snap.sampleRateHz > 0) mSampleRateHz = snap.sampleRateHz;
-    syncRateXAxis(tx, ox);   // P0: 슬라이딩 윈도우로 X축 갱신
+    if (snap.rateMaxPoints > 0) mRatePlot->xAxis->setRange(0, snap.rateMaxPoints);
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -498,7 +468,6 @@ void TabRateScope::onResetSession()
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
     if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    mRatePlot->xAxis->setRange(0.0, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
     mRatePlot->replot();
 }
 
@@ -621,19 +590,6 @@ void TabRateScope::purgeHistory()
 double TabRateScope::sampleToTime(uint64_t sample) const
 {
     return sample / (double)mSampleRateHz;
-}
-
-// P0: RatePlot X축 슬라이딩 윈도우 — tic/toc 전체에서 최신 X값을 찾아 10초 창으로 표시.
-//  순환 버퍼라 벡터 순서가 시간순이 아닐 수 있으므로 max-scan 으로 최신 X를 구한다.
-void TabRateScope::syncRateXAxis(const QVector<double> &tx, const QVector<double> &ox)
-{
-    // 전체 데이터를 항상 표시 — 슬라이딩 윈도우 없이 0 ~ latestX+여백.
-    double latestX = 0.0;
-    for (double v : tx) if (v > latestX) latestX = v;
-    for (double v : ox) if (v > latestX) latestX = v;
-    // 최소 초기 범위(데이터 없을 때) = GRAPH_HISTORY_IN_SECONDS
-    const double xMax = qMax(latestX * 1.05, static_cast<double>(GRAPH_HISTORY_IN_SECONDS));
-    mRatePlot->xAxis->setRange(0.0, xMax);
 }
 
 void TabRateScope::syncScopeXAxis(double timeEndSec)

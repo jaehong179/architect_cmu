@@ -263,14 +263,13 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
     processSamples(p);
 
     if ((mBackgroundLastFPS != p->FPS) || (mBackgroundLastSPS != p->SPS) || (mBackgroundLastSPF != p->SPF) ||
-        (mForegroundLastFPS != mForegroundFPS) || (mForegroundLastSPS != mForegroundSPS) || (mForegroundLastSPF != mForegroundSPF))
+        (mForegroundLastFPS != mForegroundFPS) || (mForegroundLastSPS != mForegroundSPS) || (mForegroundLastSPF != mForegroundSPF) ||
+        (mScopePlotLastFPS != mScopePlotFPS))
     {
         mBackgroundLastFPS = p->FPS; mBackgroundLastSPS = p->SPS; mBackgroundLastSPF = p->SPF;
         mForegroundLastFPS = mForegroundFPS; mForegroundLastSPS = mForegroundSPS; mForegroundLastSPF = mForegroundSPF;
-        emit statusMessage(
-            QString("Backgroud Audio Thread Average - FPS:%1, SPS:%2, SPF: %3 Foregroud Audio Handler Average - FPS:%4, SPS:%5, SPF: %6")
-                .arg(mBackgroundLastFPS, 0, 'f', 0).arg(mBackgroundLastSPS, 0, 'f', 0).arg(mBackgroundLastSPF, 0, 'f', 0)
-                .arg(mForegroundLastFPS, 0, 'f', 0).arg(mForegroundLastSPS, 0, 'f', 0).arg(mForegroundLastSPF, 0, 'f', 0));
+        mScopePlotLastFPS = mScopePlotFPS;
+        updateStatusMessage();
     }
 }
 
@@ -469,6 +468,24 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
 // ── 실제 paint 완료(탭 ScopePlot afterReplot) → 표시 지연/프레임율 ──
 void CaptureController::onScopeReplotted()
 {
+    // UI용 Scope Plot FPS 계산
+    mScopePaintCount++;
+    if (!mScopePaintTimerStarted) {
+        mScopePaintTimer.start();
+        mScopePaintTimerStarted = true;
+    } else {
+        qint64 elapsedMs = mScopePaintTimer.elapsed();
+        if (elapsedMs >= 1000) {
+            mScopePlotFPS = (double)mScopePaintCount / (elapsedMs / 1000.0);
+            mScopePaintCount = 0;
+            mScopePaintTimer.restart();
+            if (mScopePlotLastFPS != mScopePlotFPS) {
+                mScopePlotLastFPS = mScopePlotFPS;
+                updateStatusMessage();
+            }
+        }
+    }
+
 #if PERF_ENABLE
     if (!mPerfReplotPending) return;
     mPerfReplotPending = false;
@@ -485,4 +502,13 @@ void CaptureController::onScopeReplotted()
         mPaintCount = 0; mReplotReqCount = 0; mPaintLastEmitMs = now;
     }
 #endif
+}
+
+void CaptureController::updateStatusMessage()
+{
+    emit statusMessage(
+        QString("Backgroud Audio Thread Average - FPS:%1, SPS:%2, SPF: %3 Foregroud Audio Handler Average - FPS:%4, SPS:%5, SPF: %6 Scope Plot Paint - FPS:%7")
+            .arg(mBackgroundLastFPS, 0, 'f', 0).arg(mBackgroundLastSPS, 0, 'f', 0).arg(mBackgroundLastSPF, 0, 'f', 0)
+            .arg(mForegroundLastFPS, 0, 'f', 0).arg(mForegroundLastSPS, 0, 'f', 0).arg(mForegroundLastSPF, 0, 'f', 0)
+            .arg(mScopePlotLastFPS, 0, 'f', 0));
 }
