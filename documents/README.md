@@ -29,5 +29,5 @@ Status: **In Progress**
 9. ADRs
    - [ADR-001: Limit AI (TinyML) to camera-based watch-position detection](/ADRs/ADR001-watch-position-detection-solution.md)
    - [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](/ADRs/ADR002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
-   - [ADR-003: Retain the bounded fixed ring buffer and add overwrite detection](/ADRs/ADR003-Retain the bounded fixed ring buffer and add overwrite detection.md)
+   - [ADR-003: Retain the bounded fixed ring buffer and add overwrite detection](/ADRs/ADR003-Retain%20the%20bounded%20fixed%20ring%20buffer%20and%20add%20overwrite%20detection.md)
 11. [References](10-references.md)
