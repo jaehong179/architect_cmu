@@ -1,4 +1,5 @@
 #include "TabSoundPrint.h"
+#include "LegendBox.h"
 #include "SoundImageWidget.h"
 #include <QVBoxLayout>
 
@@ -16,8 +17,23 @@ TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
+    lay->addWidget(makeLegendBox(QStringLiteral(
+        "<table cellspacing='0' cellpadding='2'>"
+        "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>folded sound print · "
+        "horizontal=successive beats · vertical=phase within beat (top to bottom)</td></tr>"
+        "<tr><td valign='top'><b>Envelope&nbsp;:</b></td><td>"
+        "<font color='#ff0000'><b>■ Rectified</b></font> folded |raw-DC| envelope (gamma), "
+        "darker=louder · same path as Rate/Scope scope <i>Rectified</i></td></tr>"
+        "<tr><td valign='top'><b>Onset&nbsp;:</b></td><td>"
+        "<font color='#00ff00'><b>■ A (unlock)</b></font> beat-onset marker · each onset alternates "
+        "<font color='#c82828'><b>Tic Rate</b></font> / "
+        "<font color='#2850c8'><b>Toc Rate</b></font> in Rate/Scope</td></tr>"
+        "<tr><td valign='top'><b>Impulse&nbsp;:</b></td><td>"
+        "<font color='#0000ff'><b>■ C (drop/lock)</b></font> lock-face impulse peak within the beat cycle "
+        "(escapement drop onto locking face)</td></tr>"
+        "</table>"), this));
     mImage = new SoundImageWidget(this);
-    lay->addWidget(mImage);
+    lay->addWidget(mImage, 1);
     // 고정 캔버스를 즉시 생성 → 탭 가시성/크기와 무관하게 항상 누적·즉시 표시(앞부분 손실·전환 지연 방지).
     mImage->CreateImage(kCanvasWidth, kCanvasHeight);
 }
