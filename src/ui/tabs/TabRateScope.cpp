@@ -67,7 +67,8 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         const double lo = kr.lower, hi = kr.upper;
         const double f  = (hi > lo) ? qBound(0.0, (x - lo) / (hi - lo), 1.0) : 1.0;
         const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-        const double winSamples = (hi - lo) * (3600.0 / (double)bph) * (double)mSampleRateHz;
+        // (hi-lo)=표시된 tic 개수, 1 tic = 2비트 → 창의 샘플폭 = ticN * 2 * 비트주기.
+        const double winSamples = (hi - lo) * 2.0 * (3600.0 / (double)bph) * (double)mSampleRateHz;
         const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
         double seekSample = latest - (1.0 - f) * winSamples;
         if (seekSample < 0.0) seekSample = 0.0;
@@ -366,16 +367,17 @@ void TabRateScope::onSeek(double absSample)
     mInHistoryRender = false;
     renderHistoryWindow();              // 하단: 그 시점 파형(좁은 창)
 
-    // [③] 상단은 동결된 라이브 형태(beat-index) 유지 — 데이터·축 불변, 커서선만 그 시점으로 역산 이동.
-    //  x = hi - (latest - absSample)/samplesPerBeat. 동결 창(최근 ~N비트) 밖이면 커서 숨김.
+    // [③] 상단은 동결된 라이브 형태 유지 — 데이터·축 불변, 커서선만 역산 이동.
+    //  graph(0)=Tic 의 x인덱스는 'tic' 단위(tic/toc 교대 → 2비트마다 1) 이므로 tic 주기(=2비트)로 나눈다.
+    //  x = hi - (latest - absSample)/samplesPerTic. 동결 창 밖이면 숨김.
     if (mRateCursor) {
         bool found = false;
         const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);
         if (found && kr.upper > kr.lower) {
             const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-            const double samplesPerBeat = (3600.0 / (double)bph) * (double)mSampleRateHz;
+            const double samplesPerTic = 2.0 * (3600.0 / (double)bph) * (double)mSampleRateHz;
             const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
-            const double x = kr.upper - (latest - absSample) / samplesPerBeat;
+            const double x = kr.upper - (latest - absSample) / samplesPerTic;
             if (x >= kr.lower && x <= kr.upper) {
                 mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
                 mRateCursor->setVisible(true);
