@@ -236,7 +236,20 @@ void CaptureController::matchGroundTruth(double val, bool isAEvent)
 void CaptureController::processSamples(TMasterAudioDataRaw *p)
 {
     mEngine->setConfig(mSampleRate, mAveragingPeriod, mLiftAngle);
-    int SamplesToAdd = mLocalTotalSamplesWritten - p->MainThrd_LastTotalSamplesWritten;
+    // [견고성] total 은 단조 증가가 정상이지만, 소스(버퍼) 재시작/되감김 또는 잔류 시그널로
+    //  mLocalTotalSamplesWritten 가 MainThrd_Last 보다 작아지면 uint64 뺄셈이 언더플로하여
+    //  int 로 좁혀질 때 음수/쓰레기 슬라이스가 된다(예: Playback 재시작 직후). 되감김을 감지하면
+    //  현재 위치로 재동기하고 이번 블록은 건너뛴다(다음 블록부터 정상 처리).
+    const uint64_t totalNow = mLocalTotalSamplesWritten;
+    const uint64_t lastDone = p->MainThrd_LastTotalSamplesWritten;
+    if (totalNow < lastDone) {
+        qInfo() << "processSamples: total rewind detected (resync) total=" << totalNow
+                << "last=" << lastDone;
+        p->MainThrd_LastTotalSamplesWritten = totalNow;
+        p->MainThrd_LastWriteIndex          = mLocalWriteIndex;
+        return;
+    }
+    int SamplesToAdd = (int)(totalNow - lastDone);
 
     int slice;
     if (!mForegroundTimerStarted) {

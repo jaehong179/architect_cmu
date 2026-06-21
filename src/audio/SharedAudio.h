@@ -22,15 +22,17 @@ typedef struct
 typedef struct
 {
     QMutex         Mutex;
-    float          *Samples;
-    int            NumberOfAudioSamples;
-    unsigned int   WriteIndex;
-    uint64_t       TotalSamplesWritten;
-    uint64_t       MainThrd_LastTotalSamplesWritten;
-    unsigned int   MainThrd_LastWriteIndex;
-    double         FPS;
-    double         SPF;
-    double         SPS;
+    float          *Samples = nullptr;
+    int            NumberOfAudioSamples = 0;
+    // 인덱스/총합은 워커 생성자가 0으로 세팅하지만, new 직후~워커 생성 사이 또는 잔류 시그널 처리 시
+    //  읽히면 쓰레기값이 될 수 있어 기본 0 으로 둔다(처리 루프의 total 단조성/언더플로 방지).
+    unsigned int   WriteIndex = 0;
+    uint64_t       TotalSamplesWritten = 0;
+    uint64_t       MainThrd_LastTotalSamplesWritten = 0;
+    unsigned int   MainThrd_LastWriteIndex = 0;
+    double         FPS = 0.0;
+    double         SPF = 0.0;
+    double         SPS = 0.0;
     // ── [PERF 계측] docs/PERF_VERIFICATION_GUIDE.md 측정용 (제품 기능 아님) ──
     //  아래 두 필드는 캡처 스레드(워커)가 Mutex 보호 하에 기록하고,
     //  메인 스레드가 같은 Mutex 안에서 읽어 지연/드롭을 산출한다.
