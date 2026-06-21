@@ -1,4 +1,4 @@
-# EXP-03 / Experiment for [QAS-03]: 30-minute sustained-operation resource & thermal stability
+# EXP-03 / Experiment for [[QAS-03](../04-quality-attribute-requirements.md#qas-03-long-run-resource-stability)]: 30-minute sustained-operation resource & thermal stability
 
 ## Objective
 
@@ -36,7 +36,7 @@ Profile memory growth, CPU thermal ceilings and GUI loop stability during 30 min
 
 ## Links and references
 
-QAS-03 · [RISK-01](../06-risk-management.md#risk-01) · [RISK-02](../06-risk-management.md#risk-02)
+[QAS-03](../04-quality-attribute-requirements.md#qas-03-long-run-resource-stability) · [RISK-01](../06-risk-management.md#risk-01) · [RISK-02](../06-risk-management.md#risk-02)
 
 ## Results and recommendations
 

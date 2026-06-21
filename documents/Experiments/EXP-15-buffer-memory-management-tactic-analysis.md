@@ -1,4 +1,4 @@
-# EXP-15 / Experiment for [[RISK-01](../06-risk-management.md#risk-01)][QAS-01][QAS-03]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based) → ADR-03
+# EXP-15 / Experiment for [[RISK-01](../06-risk-management.md#risk-01)][[QAS-01](../04-quality-attribute-requirements.md#qas-01-real-time-streaming-throughput)][[QAS-03](../04-quality-attribute-requirements.md#qas-03-long-run-resource-stability)]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based) → ADR-03
 
 ## Objective
 
@@ -34,7 +34,7 @@
 
 ## Links and references
 
-ADR-003 (buffer/memory-management tactic) · QAS-01 · QAS-03 · [RISK-01](../06-risk-management.md#risk-01) · EXP-03
+ADR-003 (buffer/memory-management tactic) · [QAS-01](../04-quality-attribute-requirements.md#qas-01-real-time-streaming-throughput) · [QAS-03](../04-quality-attribute-requirements.md#qas-03-long-run-resource-stability) · [RISK-01](../06-risk-management.md#risk-01) · EXP-03
 
 ## Results and recommendations
 

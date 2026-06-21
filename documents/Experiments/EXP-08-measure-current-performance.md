@@ -1,4 +1,4 @@
-# EXP-08 / Experiment for [QAS-02]: Measure current performance
+# EXP-08 / Experiment for [[QAS-02](../04-quality-attribute-requirements.md#qas-02-end-to-end-latency)]: Measure current performance
 
 ## Objective
 
@@ -36,7 +36,7 @@ Measure the current system's end-to-end performance (latency, drops, bottleneck)
 
 ## Links and references
 
-QAS-02
+[QAS-02](../04-quality-attribute-requirements.md#qas-02-end-to-end-latency)
 
 ## Results and recommendations
 

@@ -36,7 +36,7 @@
 
 ## Links and references
 
-QAS-06; [RISK-20](../06-risk-management.md#risk-20); ADR-01; follow-up to EXP-17, EXP-12.
+[QAS-06](../04-quality-attribute-requirements.md#qas-06); [RISK-20](../06-risk-management.md#risk-20); ADR-01; follow-up to EXP-17, EXP-12.
 
 ## Results and recommendations
 

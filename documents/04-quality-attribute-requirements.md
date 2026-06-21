@@ -175,7 +175,7 @@ Importance: High Difficulty: Medium
 
 #### Dependability → Safety + Usability
 
-While the system runs in Live Mode under normal capture load on the Raspberry Pi 5, when a measurement-continuity break or processing anomaly occurs at the audio input or signal-processing stage (microphone disconnect, stream loss, missed beats, or out-of-range amplitude), the Signal Validation Gate and GUI halt invalid output, preserve the last valid value, and show an error/status alert within 2 s, with zero invalid outputs displayed. (The user-facing notification timing for microphone disconnect is specified separately in QAS-11.)
+While the system runs in Live Mode under normal capture load on the Raspberry Pi 5, when a measurement-continuity break or processing anomaly occurs at the audio input or signal-processing stage (microphone disconnect, stream loss, missed beats, or out-of-range amplitude), the Signal Validation Gate and GUI halt invalid output, preserve the last valid value, and show an error/status alert within 2 s, with zero invalid outputs displayed. (The user-facing notification timing for microphone disconnect is specified separately in [QAS-11](#qas-11-microphone-disconnect-user-notification).)
 
 <table>
 <colgroup>
@@ -314,7 +314,7 @@ Importance: Medium Difficulty: Medium
 
 *Usability*
 
-While the system is running with the GUI in Live mode, when the Raspberry Pi loses its connection to the measurement microphone (USB audio input), the GUI shall display a dedicated "microphone disconnected" notification within 1 s. (Complements QAS-07, which covers the safety-side handling of the same fault.)
+While the system is running with the GUI in Live mode, when the Raspberry Pi loses its connection to the measurement microphone (USB audio input), the GUI shall display a dedicated "microphone disconnected" notification within 1 s. (Complements [QAS-07](#qas-07-graceful-degradation-and-fault-feedback), which covers the safety-side handling of the same fault.)
 
 | **Type**               | **Description**                                                                  |
 |------------------------|----------------------------------------------------------------------------------|

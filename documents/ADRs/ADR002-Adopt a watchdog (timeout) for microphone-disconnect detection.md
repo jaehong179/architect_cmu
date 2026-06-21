@@ -6,7 +6,7 @@ We decided to adopt a timeout-based watchdog on audio-block arrival, combined wi
 
 We detect microphone disconnect / signal loss at the **stream level** and surface it to the user.
 
-- A **watchdog** tracks the time since the last received audio block; if no block arrives within a bounded deadline (set to the stricter QAS-11 ≤ 1 s; meeting ≤ 1 s also satisfies QAS-07 ≤ 2 s), it declares a "microphone disconnected / signal lost" fault and the GUI shows a dedicated notification.
+- A **watchdog** tracks the time since the last received audio block; if no block arrives within a bounded deadline (set to the stricter [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) ≤ 1 s; meeting ≤ 1 s also satisfies [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback) ≤ 2 s), it declares a "microphone disconnected / signal lost" fault and the GUI shows a dedicated notification.
 
 - The **device error/state callback** (QAudioSource::error() / stateChanged) is wired as an immediate **fast-path** for cases where the OS reports the failure explicitly (currently these are only Perf::log-ged, not surfaced).
 
@@ -28,7 +28,7 @@ Accepted
 
 **Positive**
 
-- Bounds disconnect detection within 1 s, satisfying QAS-11 (and QAS-07's 2 s automatically).
+- Bounds disconnect detection within 1 s, satisfying [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) (and [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback)'s 2 s automatically).
 
 - Reuses a proven in-code pattern → low implementation risk, no new architecture.
 

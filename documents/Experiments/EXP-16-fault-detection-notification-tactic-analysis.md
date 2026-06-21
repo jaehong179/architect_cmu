@@ -1,8 +1,8 @@
-# EXP-16 / Experiment for [[RISK-19](../06-risk-management.md#risk-19)][QAS-07][QAS-11]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → ADR-02
+# EXP-16 / Experiment for [[RISK-19](../06-risk-management.md#risk-19)][[QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback)][[QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification)]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → ADR-02
 
 ## Objective
 
-- Without implementing or measuring, statically analyze the available fault signals in the existing code and compare candidate tactics to produce the evidence for choosing a detection/notification tactic that guarantees a user-facing notification within the deadline (QAS-11 ≤ 1 s) on microphone disconnect / signal loss. The final decision, rationale, and consequences are recorded in ADR-02.
+- Without implementing or measuring, statically analyze the available fault signals in the existing code and compare candidate tactics to produce the evidence for choosing a detection/notification tactic that guarantees a user-facing notification within the deadline ([QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) ≤ 1 s) on microphone disconnect / signal loss. The final decision, rationale, and consequences are recorded in ADR-02.
 
 ## Status
 
@@ -34,7 +34,7 @@
 
 ## Links and references
 
-ADR-02 (fault-detection & notification tactic); [RISK-19](../06-risk-management.md#risk-19); QAS-07, QAS-11; EXP-14 (current behavior) as input.
+ADR-02 (fault-detection & notification tactic); [RISK-19](../06-risk-management.md#risk-19); [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback), [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification); EXP-14 (current behavior) as input.
 
 ## Results and recommendations
 
