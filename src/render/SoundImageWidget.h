@@ -12,6 +12,7 @@ class SoundImageWidget : public QWidget
     Q_OBJECT
 public:
     explicit SoundImageWidget(QWidget *parent = nullptr);
+    ~SoundImageWidget() override;                    // 캔버스(image) 해제 — 위젯 파괴 시 누수 방지
     void     CreateImage(int width, int height);   // 고정 크기 캔버스 생성(위젯 크기와 무관). 1회 호출.
     void     DrawImage(void);                       // 재그리기 요청(update)
     QImage  *GetImage(void);                         // 렌더러가 그릴 대상 캔버스
