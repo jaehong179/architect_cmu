@@ -50,6 +50,15 @@ void TabManager::addWaveSink(WaveSink *sink)
     if (sink) mWaveSinks.push_back(sink);
 }
 
+void TabManager::setPaused(bool p)
+{
+    const bool resuming = (mPaused && !p);
+    mPaused = p;
+    if (resuming)                       // 라이브 복귀 → seek 임시 버퍼/커서 정리
+        for (TabView *t : mTabs)
+            if (t) t->onResumeLive();
+}
+
 void TabManager::broadcastSeek(double absSample)
 {
     if (!mPaused) return;   // seek 는 정지(동결) 중에만 의미 — 라이브 중 클릭은 무시.

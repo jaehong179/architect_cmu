@@ -23,6 +23,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;            // [③] 다른 탭 선택 시점의 스펙트로그램 표시
+    void onResumeLive() override { mBuf.clear(); mEvtBuf.clear(); }   // 라이브 복귀: seek 버퍼 비움
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;

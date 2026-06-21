@@ -55,7 +55,7 @@ public:
 
     // [8분 스크롤백] 전역 정지 — 켜면 모든 탭 방송을 멈춰 전체 동결(이력 버퍼는 계속 채움).
     //  Rate/Scope 의 Pause 버튼이 MainWindow 경유로 토글한다.
-    void setPaused(bool p) { mPaused = p; }
+    void setPaused(bool p);   // 정지 ON/OFF — 해제 시 각 탭에 onResumeLive() 통지
     bool isPaused() const  { return mPaused; }
 
     int count() const { return mTabs.size(); }

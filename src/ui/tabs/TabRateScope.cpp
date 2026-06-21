@@ -274,6 +274,7 @@ void TabRateScope::setPaused(bool paused)
     } else {
         // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
         mHistActive = false;
+        if (mRateCursor) mRateCursor->setVisible(false);   // 상단 클릭 커서 숨김
         mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0;
         mScopePlot->graph(0)->data()->clear();
         mScopePlot->graph(1)->data()->clear();
