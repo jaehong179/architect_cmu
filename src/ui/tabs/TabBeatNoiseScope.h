@@ -16,6 +16,7 @@ class QLabel;
 class QWidget;
 class ReadoutBar;
 class QMouseEvent;
+class WaveLodHistory;   // [③] 8분 이력(중앙) — seek 대상
 
 class TabBeatNoiseScope : public TabView
 {
@@ -26,6 +27,8 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;            // [③] 다른 탭에서 선택한 시점을 Scope1에 표시
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
 signals:
     void seekRequested(double absSample);   // [③] 스트립 비트 선택 → 그 비트의 절대 샘플
 protected:
@@ -54,6 +57,7 @@ private:
     QLabel      *mInfo   = nullptr;
     QLabel      *mCycle  = nullptr;   // Σ 사이클 진행/완료 + 축별 평균 진폭
     WaveBuffer   mBuf;
+    WaveLodHistory *mHistory = nullptr;   // 주입된 중앙 이력(소유 안 함)
     bool         mConfigured = false;
     bool         mShowScope2 = false; // false=Scope1, true=Scope2
     // y 스케일 안정화: 매 프레임 max 대신 스무딩 피크(상승 즉시·하강 천천히) → 출렁임 억제.

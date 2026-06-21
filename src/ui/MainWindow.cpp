@@ -198,6 +198,7 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
     auto *bnsTab = new TabBeatNoiseScope(this);                // FR-BNS
+    bnsTab->setHistory(&mWaveHistory);                         // [③] seek 대상(그 비트 표시)
     connect(bnsTab, &TabBeatNoiseScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
     connect(bnsTab, &TabBeatNoiseScope::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(bnsTab);
@@ -213,7 +214,9 @@ void MainWindow::RegisterDisplayTabs(void)
     auto *escTab = new TabEscapementAnalyzer(this);             // FR-EAM
     escTab->setHistory(&mWaveHistory);                          // [③] seek replay 원본 주입
     mTabManager->registerTab(escTab);
-    mTabManager->registerTab(new TabSpectrogram(this));         // FR-TFS
+    auto *specTab = new TabSpectrogram(this);                  // FR-TFS
+    specTab->setHistory(&mWaveHistory);                        // [③] seek 대상(그 구간 스펙트로그램)
+    mTabManager->registerTab(specTab);
     auto *wcmpTab = new TabWaveformCompare(this);               // FR-WCD
     wcmpTab->setHistory(&mWaveHistory);
     mTabManager->registerTab(wcmpTab);

@@ -57,14 +57,22 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
     mRateCursor->setVisible(false);
     connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
-        if (!mPaused || !mHistory || !mHistory->hasData() || mRateMaxPoints <= 0 || mLastBph <= 0) return;
-        const double x = mRatePlot->xAxis->pixelToCoord(e->position().x());
-        double f = x / (double)mRateMaxPoints; f = qBound(0.0, f, 1.0);
-        const double winSamples = (double)mRateMaxPoints * (3600.0 / (double)mLastBph) * (double)mSampleRateHz;
-        double seekSample = (double)mPauseLatest - (1.0 - f) * winSamples;
+        if (!mHistory || !mHistory->hasData()) return;   // (seek 자체는 broadcastSeek 가 정지 중에만 전파)
+        bool found = false;
+        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);     // 실제 그려진 점들의 x범위
+        if (!found) return;
+        const double x  = mRatePlot->xAxis->pixelToCoord(e->position().x());
+        const double lo = kr.lower, hi = kr.upper;
+        const double f  = (hi > lo) ? qBound(0.0, (x - lo) / (hi - lo), 1.0) : 1.0;   // 0=오래된 좌 ~ 1=최근 우
+        const int    bph = (mLastBph > 0) ? mLastBph : 28800;
+        const double beats = hi - lo;                                   // 표시된 비트 수(x≈beat index)
+        const double winSamples = beats * (3600.0 / (double)bph) * (double)mSampleRateHz;
+        const double latest = (mPaused && mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
+        double seekSample = latest - (1.0 - f) * winSamples;
         if (seekSample < 0.0) seekSample = 0.0;
         mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
-        mRateCursor->setVisible(true); mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+        mRateCursor->setVisible(true);
+        mRatePlot->replot();                                            // 즉시 갱신
         emit seekRequested(seekSample);
     });
 
@@ -372,7 +380,7 @@ void TabRateScope::onResetSession()
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
-    mRatePlot->clearItems();
+    if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
     mRatePlot->replot();
 }

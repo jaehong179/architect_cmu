@@ -12,6 +12,7 @@ class QCPColorMap;
 class QComboBox;
 class QLabel;
 class QProgressBar;
+class WaveLodHistory;   // [③] 8분 이력(중앙) — seek 대상
 
 class TabSpectrogram : public TabView
 {
@@ -21,9 +22,12 @@ public:
     QString tabTitle() const override { return QStringLiteral("Time-Frequency Spectrogram Display"); }
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;            // [③] 다른 탭 선택 시점의 스펙트로그램 표시
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;
 private:
+    WaveLodHistory *mHistory = nullptr;
     void recompute();
     QCustomPlot *mPlot = nullptr;
     QCPColorMap *mMap  = nullptr;

@@ -1,6 +1,7 @@
 #include "TabBeatNoiseScope.h"
 #include "ReadoutBar.h"
 #include "ScopeRender.h"
+#include "WaveLodHistory.h"   // [③] seek 대상 replay
 #include <QComboBox>
 #include <QCheckBox>
 #include <QPushButton>
@@ -124,6 +125,19 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
     //  그래서 정지 화면의 스트립·선택이 그대로 유지되고, 그 비트를 골라 확대할 수 있다.)
     processNewBeats();
     if (isVisible()) render();
+}
+
+// [③] 다른 탭에서 선택한 시점 → 그 비트를 이력에서 복원해 Scope1에 표시(스트립 선택 해제, 누적 동결).
+void TabBeatNoiseScope::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 0.8)); mWin = (int)(0.020 * sr); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, nullptr, absSample, (int)(sr * 0.8));
+    mSelectedStrip = -1;       // 스트립 선택 해제 → Scope1 이 mBuf 최신(=seek 비트)을 표시
+    mShowScope2 = false;       // Scope1 모드로
+    applyScopeView();
 }
 
 // E8 (Equations_v0 Part IV): Amp = 3600·λ / (π·n·t_AC), t_AC = 같은 비트 패킷의 A→C 간격(s).
