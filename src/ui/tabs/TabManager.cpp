@@ -52,7 +52,7 @@ void TabManager::addWaveSink(WaveSink *sink)
 
 void TabManager::broadcastSeek(double absSample)
 {
-    // 정지와 무관하게 전파(정지 중에만 스코프가 반응). 트렌드 탭 클릭 → 모든 스코프 탭 점프.
+    if (!mPaused) return;   // seek 는 정지(동결) 중에만 의미 — 라이브 중 클릭은 무시.
     for (TabView *t : mTabs)
         if (t) t->onSeek(absSample);
 }

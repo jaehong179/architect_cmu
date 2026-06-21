@@ -1,6 +1,7 @@
 #include "TabSyncSweepScope.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QSpinBox>
 #include <QCheckBox>
@@ -75,6 +76,17 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
             if (w.events[i].type == 1) { mSweepAnchor = w.events[i].sample; mHaveAnchor = true; break; }
     }
     if (isVisible() && !(mPause && mPause->isChecked())) render();   // Pause 시 화면 정지
+}
+
+// [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(스윕 앵커 등 누적은 동결).
+void TabSyncSweepScope::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 1.6)); mRawBuf.configure((int)(sr * 1.6)); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, (int)(sr * 1.6));
+    render();
 }
 
 void TabSyncSweepScope::render()

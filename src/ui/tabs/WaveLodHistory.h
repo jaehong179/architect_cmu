@@ -31,6 +31,7 @@
 #include <cstdint>
 #include "WaveSink.h"
 #include "MeasurementModel.h"   // WaveBlock (onWave 인자)
+#include "WaveBuffer.h"         // [③ replay] 스코프 탭 버퍼 채우기 헬퍼용
 
 class WaveLodHistory : public WaveSink
 {
@@ -41,6 +42,10 @@ public:
     {
         if (w.sampleRateHz > 0 && w.sampleRateHz != mSampleRate)
             configure(w.sampleRateHz, mHistorySeconds);
+        // 절대 인덱스가 크게 후퇴 = 세션 리셋/모드전환(카운터 0 복귀) → 이력 비우고 새로 시작.
+        //  (안 비우면 옛 큰 인덱스 + 새 작은 인덱스가 섞여 이벤트 순서·좌표가 꼬임 → 음수 간격 등.)
+        if (mHave && w.n > 0 && w.startSample + 64 < mEnd)
+            clear();
         if (w.env && w.n > 0)
             push(w.env, w.n, w.startSample);
         // [A안] raw PCM 도 8분 보관(LOD 없이 풀해상도 링) — seek replay 시 WaveBlock 완전 복원용.
@@ -80,6 +85,25 @@ public:
         b.raw = rb.raw.constData(); b.rawN = count; b.rawStart = from;
         b.events = rb.events.constData(); b.numEvents = rb.events.size();
         b.sampleRateHz = mSampleRate; b.bph = mLastBph; b.synced = mLastSynced; b.onsetThreshold = mLastOnset;
+    }
+
+    // [③ replay] 시점(absSample) 주변 win 샘플을 복원해 스코프 탭의 버퍼(엔벨로프 + 선택적 raw)에 채운다.
+    //  탭은 이후 자기 render() 만 호출하면 그 시점 파형이 그려진다(누적부는 손대지 않음).
+    static void replayInto(const WaveLodHistory &hist, WaveBuffer &envBuf, WaveBuffer *rawBuf,
+                           double absSample, int win)
+    {
+        if (win <= 0 || !hist.hasData()) return;
+        const uint64_t half = (uint64_t)(win / 2);
+        const uint64_t from = ((uint64_t)absSample > half) ? (uint64_t)absSample - half : 0;
+        ReconBlock rb;
+        hist.reconstruct(from, win, rb);
+        envBuf.push(rb.block);                                  // 엔벨로프 + 이벤트
+        if (rawBuf && rb.block.raw && rb.block.rawN > 0) {      // 원신호 → rawBuf
+            WaveBlock raw;
+            raw.env = rb.block.raw; raw.n = rb.block.rawN; raw.startSample = rb.block.rawStart;
+            raw.sampleRateHz = rb.block.sampleRateHz; raw.bph = rb.block.bph; raw.synced = rb.block.synced;
+            rawBuf->push(raw);
+        }
     }
 
     // [from,to) 절대 인덱스 구간의 A/C 이벤트(markSample 기준).

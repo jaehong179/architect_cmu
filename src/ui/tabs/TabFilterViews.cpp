@@ -2,6 +2,7 @@
 #include "ScopeFilters.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -111,6 +112,17 @@ void TabFilterViews::onWave(const WaveBlock &w)
     // ~30FPS 스로틀: 직전 렌더로부터 충분히 지났을 때만 그린다(오디오 콜백 빈도와 무관).
     if (mThrottle.isValid() && mThrottle.elapsed() < kRenderIntervalMs) return;
     mThrottle.restart();
+    render();
+}
+
+// [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(F0~F3 raw 필터 입력 포함).
+void TabFilterViews::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 1.6)); mRawBuf.configure((int)(sr * 1.6)); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, (int)(sr * 1.6));
     render();
 }
 

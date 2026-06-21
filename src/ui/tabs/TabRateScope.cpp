@@ -303,18 +303,20 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
             }
             lastA = x; haveA = true;
         } else if (e.type == kEventC) {                            // A→C 진폭(6.9 ms / 303°)
-            const double delta = x - lastA;
-            QString text;
-            if (mLastBph > 0 && haveA) {
-                const int Amp = qRound(amplitudeOf(mLiftAngle, delta / mSampleRateHz, mLastBph));
-                text = (Amp < 360) ? QString(" %1 ms\n%2°").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1).arg(Amp)
-                                   : QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
-            } else {
-                text = QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
-            }
             addVerticalMarker(x, e.peak, Qt::red);
-            if (haveA) addHorizontalMarkerInward(lastA, x, inwardLen, e.peak, Qt::black);
-            addText(x + inwardLen, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+            if (haveA) {                                           // 선행 A 있을 때만 간격/진폭 라벨
+                const double delta = x - lastA;
+                QString text;
+                if (mLastBph > 0) {
+                    const int Amp = qRound(amplitudeOf(mLiftAngle, delta / mSampleRateHz, mLastBph));
+                    text = (Amp < 360) ? QString(" %1 ms\n%2°").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1).arg(Amp)
+                                       : QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+                } else {
+                    text = QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+                }
+                addHorizontalMarkerInward(lastA, x, inwardLen, e.peak, Qt::black);
+                addText(x + inwardLen, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+            }
         }
     }
 }

@@ -50,17 +50,46 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     lay->addWidget(mRate, 1);
     lay->addWidget(mAmp, 1);
 
-    // [③] 트렌드 클릭 → 그 x(초) 위치의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
+    // [③] 클릭 지점 세로 커서선(자홍, 점선) — 선택한 시각을 두 그래프에 표시(확인용).
+    mCurRate = new QCPItemStraightLine(mRate);
+    mCurRate->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurRate->setVisible(false);
+    mCurAmp = new QCPItemStraightLine(mAmp);
+    mCurAmp->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurAmp->setVisible(false);
+    mCurLabel = new QCPItemText(mRate);                 // 선택 시각/샘플 표시(상단 근처)
+    mCurLabel->setColor(QColor(150, 0, 150));
+    mCurLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    mCurLabel->position->setTypeX(QCPItemPosition::ptPlotCoords);
+    mCurLabel->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    mCurLabel->setVisible(false);
+
+    // [③] 트렌드 클릭 → 커서 표시 + 그 x(초)의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
     connect(mRate, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
-        if (!mXtoSample.isEmpty())
-            emit seekRequested(sampleAtX(mRate->xAxis->pixelToCoord(e->position().x())));
+        if (mXtoSample.isEmpty()) return;
+        const double x = mRate->xAxis->pixelToCoord(e->position().x());
+        showCursor(x); emit seekRequested(sampleAtX(x));
     });
     connect(mAmp, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
-        if (!mXtoSample.isEmpty())
-            emit seekRequested(sampleAtX(mAmp->xAxis->pixelToCoord(e->position().x())));
+        if (mXtoSample.isEmpty()) return;
+        const double x = mAmp->xAxis->pixelToCoord(e->position().x());
+        showCursor(x); emit seekRequested(sampleAtX(x));
     });
 
     onResetSession();
+}
+
+// [③] 선택한 시각(x초)에 두 그래프 세로 커서선을 표시.
+void TabTraceDisplay::showCursor(double xSeconds)
+{
+    if (mCurLabel) {
+        mCurLabel->position->setCoords(xSeconds, 0.04);   // 상단 4% 위치
+        mCurLabel->setText(QString("t=%1 s   #%2")
+                           .arg(xSeconds, 0, 'f', 1).arg((qint64)sampleAtX(xSeconds)));
+        mCurLabel->setVisible(true);
+    }
+    if (mCurRate) { mCurRate->point1->setCoords(xSeconds, 0); mCurRate->point2->setCoords(xSeconds, 1);
+                    mCurRate->setVisible(true); mRate->replot(QCustomPlot::rpQueuedReplot); }
+    if (mCurAmp)  { mCurAmp->point1->setCoords(xSeconds, 0);  mCurAmp->point2->setCoords(xSeconds, 1);
+                    mCurAmp->setVisible(true);  mAmp->replot(QCustomPlot::rpQueuedReplot); }
 }
 
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)

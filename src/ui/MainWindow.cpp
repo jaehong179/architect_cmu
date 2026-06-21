@@ -193,11 +193,19 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS
     mTabManager->registerTab(new TabBeatErrorTrace(this));      // FR-BED
     mTabManager->registerTab(new TabLongTermPerformance(this)); // FR-LTP
-    mTabManager->registerTab(new TabEscapementAnalyzer(this));  // FR-EAM
+    auto *escTab = new TabEscapementAnalyzer(this);             // FR-EAM
+    escTab->setHistory(&mWaveHistory);                          // [③] seek replay 원본 주입
+    mTabManager->registerTab(escTab);
     mTabManager->registerTab(new TabSpectrogram(this));         // FR-TFS
-    mTabManager->registerTab(new TabWaveformCompare(this));     // FR-WCD
-    mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS
-    mTabManager->registerTab(new TabFilterViews(this));         // FR-SFM(F0~F3)
+    auto *wcmpTab = new TabWaveformCompare(this);               // FR-WCD
+    wcmpTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(wcmpTab);
+    auto *sweepTab = new TabSyncSweepScope(this);               // FR-SMS
+    sweepTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(sweepTab);
+    auto *filterTab = new TabFilterViews(this);                 // FR-SFM(F0~F3)
+    filterTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(filterTab);
 
     // [8분 스크롤백] 전역 Pause/Resume — 탭바 코너에 두어 어느 탭에서나 보인다.
     //  정지 → TabManager 전 탭 동결(방송 중단, 이력 버퍼는 계속) + Rate/Scope 스크롤백 진입.
@@ -441,6 +449,7 @@ void MainWindow::Reset(void)
     // 세션 리셋: 탭 비움(broadcastReset) + 측정엔진 리셋(EventsReset → readout).
     //  검출기 생성·파이프라인 상태(mInputAbsSample·FPS) 리셋은 CaptureController::startX 가 담당.
     if (mTabManager) mTabManager->broadcastReset();
+    mWaveHistory.clear();   // [8분 이력] 세션 리셋 = 8분 이력도 비움(좌표 불연속 방지)
     if (mPauseBtn && mPauseBtn->isChecked()) {   // 새 세션 = 정지 해제(전역 버튼 원복)
         mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
         mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
