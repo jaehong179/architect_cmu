@@ -1,4 +1,4 @@
-# ADR-004: Register display tabs through a Tab Manager
+# ADR-003: Register display tabs through a Tab Manager
 
 We decided to introduce a Tab Manager that registers each watch-visualization tab through a uniform registration interface, so that adding a new tab requires no changes to the core DSP modules or to existing tab source files.
 
