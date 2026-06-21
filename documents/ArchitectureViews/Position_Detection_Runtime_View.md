@@ -1,10 +1,10 @@
 # Position-Detection Runtime View
 
-## 1. Primary Presentation
+##  Primary Presentation
 
 *(Insert the structural diagram of the position-detection runtime here: the Main UI coordinating the external Camera, the Classifier (TinyML), and the deterministic Measurement path, with the User interacting in Live mode.)*
 
-## 2. Element catalog
+##  Element catalog
 
 The architecture is composed of five categories of elements:
 the user, the main UI thread, an external camera, an on-device AI classifier (TinyML), and the deterministic measurement path inside the Main UI.
@@ -27,15 +27,15 @@ The Measurement path is the deterministic, rule/signal-processing logic inside t
 ### Position usage by mode
 The detected position is used differently depending on the display mode. In the Multi-Position Sequence Display mode, the measured values are recorded into the detected position's row of the sequence table; if confidence is below threshold or the camera is unavailable, the system withholds auto-recording and asks the user to select the position manually. In other display modes, the current position is shown for display only (e.g., 9H) and is not used to record measurements; when confidence is low or the camera is unavailable, the position is simply not shown.
 
-## 3. Behavior
+##  Behavior
 
 ![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
 
-## 4. Context diagram
+##  Context diagram
 
 The external camera is the new external entity for this view: it sits outside the system boundary and supplies frames to the Main UI on request. The acoustic input and the rest of the measurement pipeline are unchanged by this view.
 
-## 5. Variability guide
+##  Variability guide
 
 The source of the measurement position is variable at runtime:
 - **AI auto-detection (default):** the camera and TinyML classifier determine the position automatically.
@@ -43,10 +43,10 @@ The source of the measurement position is variable at runtime:
 
 Binding time: runtime, decided per measurement based on the classifier confidence and camera availability.
 
-## 6. Related ADRs
+##  Related ADRs
 
 [ADR-001: Limit AI (TinyML) to camera-based watch-position detection](../ADRs/ADR001-watch-position-detection-solution.md)
 
-## 7. Related views
+##  Related views
 
 N/A
