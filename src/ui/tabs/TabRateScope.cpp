@@ -46,23 +46,6 @@ static double amplitudeOf(double liftAngle, double t1Sec, double bph)
     return liftAngle / std::sin((2.0 * M_PI * t1Sec) / (7200.0 / bph));
 }
 
-// ScopePlot X축: 100 ms 간격 고정 눈금 + 초(s) 라벨.
-class ScopeSecTicker : public QCPAxisTickerFixed {
-public:
-    ScopeSecTicker()
-    {
-        setTickStep(0.1);
-        setScaleStrategy(QCPAxisTickerFixed::ssNone);
-        setTickOrigin(0.0);
-    }
-protected:
-    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
-    {
-        Q_UNUSED(locale); Q_UNUSED(formatChar); Q_UNUSED(precision);
-        return QStringLiteral("%1s").arg(tick, 0, 'f', 1);
-    }
-};
-
 // RatePlot X축: 1.0 s 간격 — 10초 창에서 10개 눈금(읽기 편한 밀도).
 class RateSecTicker : public QCPAxisTickerFixed {
 public:
@@ -150,6 +133,11 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     });
 
+    connect(mScopePlot->xAxis,
+            static_cast<void (QCPAxis::*)(const QCPRange &)>(&QCPAxis::rangeChanged),
+            this,
+            [this](const QCPRange &range) { updateScopeXAxisTicks(range); });
+
 #if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
     //  계측 OFF 면 매 replot 마다의 시그널 방출 자체를 제거.
@@ -172,7 +160,7 @@ void TabRateScope::setupPlots()
     mScopePlot->legend->setSelectableParts(QCPLegend::spItems);
     mScopePlot->yAxis->setLabel("Amplitude");
     mScopePlot->xAxis->setLabel(QStringLiteral("time (s)"));
-    mScopePlot->xAxis->setTicker(QSharedPointer<ScopeSecTicker>::create());
+    mScopePlot->xAxis->setNumberFormat(QStringLiteral("f"));
     QFont scopeTickFont = mScopePlot->xAxis->tickLabelFont();
     scopeTickFont.setPointSize(10);
     mScopePlot->xAxis->setTickLabelFont(scopeTickFont);
@@ -182,6 +170,7 @@ void TabRateScope::setupPlots()
     mScopePlot->yAxis->setRange(0, 0.1);
     mScopePlot->xAxis->setTickLabels(true);
     mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec);
+    updateScopeXAxisTicks(mScopePlot->xAxis->range());
     mScopePlot->clearGraphs();
     mScopePlot->addGraph();
     pen.setWidth(1); pen.setColor(Theme::kEnvelope);
@@ -635,4 +624,46 @@ void TabRateScope::syncScopeXAxis(double timeEndSec)
         mScopePlot->xAxis->setRange(0.0, windowSec);
     else
         mScopePlot->xAxis->setRange(timeEndSec, windowSec, Qt::AlignRight);
+
+    updateScopeXAxisTicks(mScopePlot->xAxis->range());
+}
+
+void TabRateScope::updateScopeXAxisTicks(const QCPRange &range)
+{
+    const double spanSec = qMax(1e-6, range.size());
+
+    double tickStep = 1.0;
+    int precision = 0;
+    if (spanSec <= 0.2) {
+        tickStep = 0.02;
+        precision = 3;
+    } else if (spanSec <= 0.5) {
+        tickStep = 0.05;
+        precision = 2;
+    } else if (spanSec <= 1.0) {
+        tickStep = 0.1;
+        precision = 2;
+    } else if (spanSec <= 2.0) {
+        tickStep = 0.2;
+        precision = 1;
+    } else if (spanSec <= 5.0) {
+        tickStep = 0.5;
+        precision = 1;
+    } else if (spanSec <= 10.0) {
+        tickStep = 1.0;
+        precision = 0;
+    } else if (spanSec <= 20.0) {
+        tickStep = 2.0;
+        precision = 0;
+    } else {
+        tickStep = 5.0;
+        precision = 0;
+    }
+
+    QSharedPointer<QCPAxisTickerFixed> ticker = QSharedPointer<QCPAxisTickerFixed>::create();
+    ticker->setTickStep(tickStep);
+    ticker->setScaleStrategy(QCPAxisTickerFixed::ssNone);
+    ticker->setTickOrigin(0.0);
+    mScopePlot->xAxis->setTicker(ticker);
+    mScopePlot->xAxis->setNumberPrecision(precision);
 }
