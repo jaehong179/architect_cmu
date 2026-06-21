@@ -1,4 +1,4 @@
-# Limit AI (TinyML) to camera-based watch-position detection
+# ADR001 : Limit AI (TinyML) to camera-based watch-position detection
 
 We keep all acoustic measurement rule-based, and use TinyML only to read the watch position from a camera. This keeps measurement trustworthy, and adds AI only where rules cannot help.
 
