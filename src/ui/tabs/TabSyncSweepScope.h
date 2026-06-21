@@ -34,7 +34,6 @@ private:
     ReadoutBar  *mBar    = nullptr;
     QCustomPlot *mPlot   = nullptr;     // folded 그래스 sweep 보기
     QSpinBox    *mBeats  = nullptr;     // sweep 창 = NBEATS
-    QCheckBox   *mPause  = nullptr;     // Pause/Scope: 화면 정지
     QLabel      *mInfo   = nullptr;
     WaveBuffer   mBuf;       // 엔벨로프(동기/박자용)
     WaveBuffer   mRawBuf;    // 원신호(folded 표시용)

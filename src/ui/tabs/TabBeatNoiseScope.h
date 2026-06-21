@@ -49,7 +49,6 @@ private:
     QCustomPlot *mTr1    = nullptr;   // Scope2 trace 1 (짝수 비트)
     QCustomPlot *mTr2    = nullptr;   // Scope2 trace 2 (홀수 비트)
     QPushButton *mScopeToggle = nullptr; // Scope1 ↔ Scope2 전환
-    QCheckBox   *mPause  = nullptr;   // 화면 정지(일시정지)
     QComboBox   *mRange  = nullptr;
     QCheckBox   *mAvg    = nullptr;   // Σ 평균 토글
     QLabel      *mInfo   = nullptr;

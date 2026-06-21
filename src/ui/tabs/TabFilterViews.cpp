@@ -43,9 +43,7 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
         "F0·F1·F2 mirror(±) · F3 upper(rectified) · y axis=amplitude(normalized) · center dashed lines=T1/T2/T3</td></tr>"
         "</table>"), this));
 
-    auto *ctl = new QHBoxLayout();                       // Pause + 상태
-    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);
-    ctl->addWidget(mPause);
+    auto *ctl = new QHBoxLayout();                       // 상태(정지는 전역 버튼이 담당)
     ctl->addStretch(1);
     mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -108,7 +106,7 @@ void TabFilterViews::onWave(const WaveBlock &w)
         rb.sampleRateHz = w.sampleRateHz; rb.bph = w.bph; rb.synced = w.synced;
         mRawBuf.push(rb);
     }
-    if (!isVisible() || (mPause && mPause->isChecked())) return;   // Pause 시 화면 정지
+    if (!isVisible()) return;   // (정지는 전역 Pause = TabManager 방송 중단이 담당)
     // ~30FPS 스로틀: 직전 렌더로부터 충분히 지났을 때만 그린다(오디오 콜백 빈도와 무관).
     if (mThrottle.isValid() && mThrottle.elapsed() < kRenderIntervalMs) return;
     mThrottle.restart();

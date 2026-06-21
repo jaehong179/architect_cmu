@@ -38,8 +38,6 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     auto *ctl = new QHBoxLayout();
     mScopeToggle = new QPushButton(QStringLiteral("● Scope 1 showing  ▶ click for Scope 2"), this);   // 현재 모드 + 전환
     ctl->addWidget(mScopeToggle);
-    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);                  // 화면 정지
-    ctl->addWidget(mPause);
     ctl->addWidget(new QLabel(QStringLiteral("Scope1 range:"), this));
     mRange = new QComboBox(this);
     mRange->addItem(QStringLiteral("20 ms"), 20);
@@ -91,7 +89,6 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     lay->addWidget(mStrips, 1);
 
     connect(mScopeToggle, &QPushButton::clicked, this, [this]{ mShowScope2 = !mShowScope2; applyScopeView(); });
-    connect(mPause, &QCheckBox::toggled, this, [this](bool paused){ if (!paused && isVisible()) render(); });
     connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible() && !mShowScope2) renderScope1(); });
     connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible() && mShowScope2) renderScope2(); });
 }
@@ -122,12 +119,11 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
         mWin = (int)(0.020 * w.sampleRateHz);     // 20ms 평균 윈도우
         mConfigured = true;
     }
-    const bool paused = mPause && mPause->isChecked();
     mBuf.push(w);
-    // Pause: 화면뿐 아니라 비트 누적/스트립/선택(mSelectedStrip)·평균 트레이스까지 동결.
-    //  → 정지 화면의 스트립과 실제 데이터가 일치하므로, 정지 후 스트립을 골라 확대하고
-    //    토글 버튼으로 Scope1 ↔ Scope2 를 오가도 선택이 그대로 유지된다.
-    if (!paused) { processNewBeats(); if (isVisible()) render(); }
+    // (정지는 전역 Pause = TabManager 방송 중단이 담당 → 정지 중엔 onWave 자체가 안 옴.
+    //  그래서 정지 화면의 스트립·선택이 그대로 유지되고, 그 비트를 골라 확대할 수 있다.)
+    processNewBeats();
+    if (isVisible()) render();
 }
 
 // E8 (Equations_v0 Part IV): Amp = 3600·λ / (π·n·t_AC), t_AC = 같은 비트 패킷의 A→C 간격(s).

@@ -32,9 +32,7 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     ctl->addWidget(new QLabel(QStringLiteral("sweep(beats):"), this));
     mBeats = new QSpinBox(this); mBeats->setRange(2, 8); mBeats->setValue(6);   // NBEATS 기본 6
     ctl->addWidget(mBeats);
-    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);          // 화면 정지(스코프 모드)
-    ctl->addWidget(mPause);
-    ctl->addStretch(1);
+    ctl->addStretch(1);   // (정지는 전역 Pause 버튼이 담당)
     mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
     ctl->addWidget(mInfo);
@@ -75,7 +73,7 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
         for (int i = 0; i < w.numEvents; ++i)
             if (w.events[i].type == 1) { mSweepAnchor = w.events[i].sample; mHaveAnchor = true; break; }
     }
-    if (isVisible() && !(mPause && mPause->isChecked())) render();   // Pause 시 화면 정지
+    if (isVisible()) render();   // (정지는 전역 Pause = 방송 중단이 담당)
 }
 
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(스윕 앵커 등 누적은 동결).
