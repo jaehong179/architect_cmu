@@ -361,7 +361,12 @@ void TabRateScope::renderRateHistoryWindow()
     }
     mRatePlot->graph(0)->setData(tx, ty);
     mRatePlot->graph(1)->setData(ox, oy);
-    mRatePlot->xAxis->setRange((double)fromAbs - mHistOffset, (double)toAbs - mHistOffset);  // 전체 이력 폭
+    // x폭은 '최소 ~250비트'(라이브 윈도우와 동일) 보장 + oldest 기준 좌측 앵커.
+    //  → 짧은 세션은 라이브처럼 데이터가 좌측에만 차고 우측은 비어, 정지해도 모습이 그대로(점프 없음).
+    //  → 길어져 250비트를 넘으면 자연스럽게 전체 이력 폭으로 확장(스크롤백 네비게이션).
+    const double pts      = (mRateMaxPoints > 0) ? (double)mRateMaxPoints : 250.0;
+    const double rightAbs = qMax((double)toAbs, (double)fromAbs + pts * period * (double)sr);
+    mRatePlot->xAxis->setRange((double)fromAbs - mHistOffset, rightAbs - mHistOffset);
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
