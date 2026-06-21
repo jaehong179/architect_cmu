@@ -204,6 +204,50 @@ flowchart LR
 
 ---
 
+## 그림 4 — 정지 · 8분 이력 · 교차탭 Seek (런타임 확장)
+
+라이브 팬아웃과 **동시에** 도는 비시각 경로(이력)와, 정지 중에만 활성화되는 seek 경로다.
+같은 `broadcastWave` 가 13개 시각 탭과 1개 `WaveLodHistory`(WaveSink)를 함께 먹인다.
+
+```mermaid
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Segoe UI, Helvetica, Arial, sans-serif','fontSize':'13px','lineColor':'#94a3b8'},'flowchart':{'curve':'basis','nodeSpacing':40,'rankSpacing':70,'padding':12}}}%%
+flowchart LR
+  CC("CaptureController") -- "P1 broadcastWave 11.7/s" --> TM(["TabManager"])
+  TM -- "P2 onWave (pub-sub)" --> TABS("13 x TabView")
+  TM -- "P3 onWave (WaveSink)" --> HIST(["WaveLodHistory<br/>8분: env+raw+events+LOD"])
+  PAUSE["Pause 버튼"] -- "P4 setPaused → Paused(atomic)" --> WORK(["소스 워커<br/>STOP / 위치보존"])
+  SRC("클릭 소스 트렌드<br/>Rate/Scope·Trace·Long-Term·BeatErr·BeatNoise") -- "P5 seekRequested(절대샘플)" --> TM
+  TM -- "P6 broadcastSeek (Paused only)" --> TGT("대상 스코프 탭<br/>onSeek")
+  HIST -. "P7 reconstruct WaveBlock(win)" .-> TGT
+
+  classDef ctrl fill:#eff6ff,stroke:#3b82f6,stroke-width:1.5px,color:#1e3a8a
+  classDef pub fill:#f0fdfa,stroke:#0d9488,stroke-width:1.5px,color:#134e4a
+  classDef view fill:#faf5ff,stroke:#9333ea,stroke-width:1.5px,color:#581c87
+  classDef hist fill:#fefce8,stroke:#ca8a04,stroke-width:1.5px,color:#713f12
+  classDef ctl fill:#fff1f2,stroke:#e11d48,stroke-width:1.5px,color:#881337
+  class CC ctrl
+  class TM pub
+  class TABS,TGT,SRC view
+  class HIST hist
+  class PAUSE,WORK ctl
+```
+
+### 정지·seek 연결자 카탈로그
+
+| # | 연결자 | 타입 | From → To | 페이로드 | 활성 조건 | ↯스레드 |
+|---|---|---|---|---|---|:---:|
+| **P3** | `WaveSink::onWave` | 직접 호출(발행, 비시각) | TabManager → WaveLodHistory | `WaveBlock`(env+raw+events) | **항상**(정지 무관) | 아니오 |
+| **P4** | `setPaused` → `Paused` | shared-flag (atomic) | MainWindow → 워커 | bool | 정지 토글 | **예** |
+| **P5** | `seekRequested` | Qt signal | 트렌드 탭 → MainWindow→TabManager | 절대 샘플(double) | 정지 중 클릭 | 아니오 |
+| **P6** | `broadcastSeek` | **publish-subscribe 1:N** | TabManager → onSeek(전 탭) | 절대 샘플 | `mPaused==true` 게이트 | 아니오 |
+| **P7** | `reconstruct`/`replayInto` | call-return | WaveLodHistory → 대상 탭 버퍼 | 복원 `WaveBlock`(win 샘플) | onSeek 시 | 아니오 |
+
+> **분석 포인트** — 이력 경로(P3)는 라이브와 병행하므로 추가 비용은 슬라이스당 1회 링 쓰기뿐
+> (LOD 갱신 포함, 시각 탭 render 보다 훨씬 가볍다). seek 경로(P5~P7)는 **정지 중에만** 도므로
+> 라이브 핫패스에 0 영향이다. 좌표는 전부 **절대 입력샘플**이라 탭 간 커서·replay 가 정렬된다.
+
+---
+
 ## 컴포넌트 카탈로그
 
 | 컴포넌트 | 스레드 | 역할 | 주요 보유 상태 | 비용 특성 |
@@ -215,6 +259,7 @@ flowchart LR
 | `MainWindow` | main | `DisplayResults` → 스냅샷 채워 게시 | 위젯, readout 상태 | 경량(스칼라) |
 | `TabManager` | main | 발행자(1:N), 탭별 `tab_update_ms` 계측 | 탭 리스트 | 순회 비용 = Σ 탭 |
 | `TabView` ×13 | main | 구독자(그래프), 자기 버퍼 보관 | `WaveBuffer`(기본 0.5 s), 플롯 데이터 | `isVisible()`로 숨은 탭 render 생략 |
+| `WaveLodHistory` ×1 | main | **비시각** 구독자(`WaveSink`) — 8분 이력 + seek replay 원천 | 엔벨로프 L0 링 · raw PCM 링 · A/C 이벤트 · LOD 피라미드 | raw 8분 ≈ **92 MB** 상주(48 kHz) |
 
 ---
 

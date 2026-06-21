@@ -38,6 +38,7 @@
 | UI 응답성 계측 | `MainWindow` 타이머 | **`UiResponsivenessSampler`** (perf) |
 | 링버퍼 쓰기 | 3개 워커에 복붙 | **`AudioRingBuffer::writeSamplesToRing`** (DRY) |
 | 성능 계측 ON/OFF | 런타임 분기(반쪽) | **`PERF_ENABLE` 컴파일 스위치**(완전 제거) |
+| 8분 정지·스크롤백·seek | (없음) | **`WaveLodHistory`(WaveSink 구독자) + 전체정지(full-stop) + 교차탭 seek** |
 
 → `MainWindow` 는 이제 **순수 UI**(위젯 배선 + 저빈도 표시 갱신)에 가깝다.
 
@@ -195,6 +196,42 @@ flowchart LR
 
 > 데이터 흐름의 단계별 상세와 시퀀스 다이어그램은 **[SIGNAL_FLOW.md](SIGNAL_FLOW.md)** 참고.
 
+### 5.1 정지(Pause) · 8분 스크롤백 · 교차탭 Seek
+
+라이브 팬아웃(위)에 더해 **일시정지 후 과거 8분을 되짚어 보는** 기능을 무침습(non-invasive)
+으로 얹었다. 핵심은 **중앙 이력 버퍼를 별도 구독자로 추가**하고, 표시를 동결한 채 그 이력을
+다시 그리는 것이다. 기존 파이프라인(`CaptureController`·탭)은 거의 손대지 않았다(OCP).
+
+```mermaid
+flowchart LR
+    CC[CaptureController] -- broadcastWave --> TM{{TabManager}}
+    TM -- "onWave (시각)" --> TABS[13 TabView]
+    TM -- "onWave (비시각, WaveSink)" --> HIST[("WaveLodHistory<br/>8분 이력: 엔벨로프 + raw + A/C 이벤트<br/>+ min/max LOD 피라미드")]
+    PB["정지(Pause)"] -- "SharedAudio.Paused (atomic)" --> WK[소스 워커 정지]
+    SRC["클릭 소스: Rate/Scope 상단 · Trace ·<br/>Long-Term · BeatError · BeatNoise 스트립"] -- "seekRequested(절대샘플)" --> TM
+    TM -- "broadcastSeek (정지 중에만)" --> TGT["대상 스코프 탭"]
+    HIST -. "WaveBlock 복원(replay)" .-> TGT
+```
+
+- **중앙 이력 = WaveSink 구독자** — `WaveLodHistory` 는 `TabView` 가 아니라 좁은
+  `WaveSink`(`onWave` 1개) 인터페이스로 `TabManager` 에 등록된다(ISP). 정지와 무관하게
+  매 슬라이스 **엔벨로프 · 원신호(raw) · A/C 이벤트**를 절대 샘플 좌표로 8분간 누적하고,
+  빠른 줌아웃 렌더를 위해 min/max **LOD 피라미드**를 함께 유지한다.
+- **전체 정지(full-stop Pause)** — 정지 시 `SharedAudio.Paused`(atomic)를 세워 **소스 워커
+  자체를 멈춘다**(playback/sim = 위치 보존, live = 캡처 폐기). 시간·인덱스가 안 흘러 resume 시
+  정확히 이어지고 비트 번호·트렌드에 갭이 없다("비디오 일시정지").
+- **교차탭 Seek = 절대 샘플 좌표** — 모든 시계열(트렌드) 탭이 클릭 소스다. 클릭하면 그 시점의
+  **절대 입력 샘플 인덱스**를 emit → `TabManager.broadcastSeek`(정지 중에만) 가 전 탭에 전파.
+  순간을 보여 주는 스코프 탭은 이력에서 그 구간 `WaveBlock` 을 **복원(replay)** 해 자기 버퍼에
+  넣고 평소 `render()` 만 호출한다(누적 상태 불변). 트렌드 탭은 커서선만 그 시점으로 동기화.
+- **좌표 통일** — `totalSamples`(측정) · 이벤트 `sample_index` · `processed_pcm_start_sample`
+  이 모두 같은 절대 입력샘플 도메인이라 탭 간 커서·replay 가 정렬된다.
+- **재사용 헬퍼** — 클릭→seek + 자홍 커서선은 `TrendSeek`(헤더온리, Q_OBJECT 없이
+  `std::function` 콜백)로 공통화해 여러 트렌드 탭이 동일하게 쓴다(DRY).
+
+> 단계별 흐름은 **[SIGNAL_FLOW.md §7](SIGNAL_FLOW.md)**, 런타임 연결자 속성은
+> **[CC_VIEW.md](CC_VIEW.md)** 의 정지·seek 절 참고.
+
 ---
 
 ## 6. 적용한 패턴 · 전술 (무엇을 / 왜)
@@ -260,6 +297,8 @@ flowchart LR
 | **메모리 상한 유지** | `pruneOldMarkers` · `TrendSeek::setPurgeWindow` · 히스토리 링 | 장시간 스트림에서 무한 증가 차단 |
 | **방어적 가드/클램핑** | null 체크 · 파라미터 `[min,max]` 클램프 · 인덱스 경계 검사 | 비정상 입력에서 조기 탈출 |
 | **자원 수명 = 객체 수명 (RAII)** | `Rolling*`·`SoundImageWidget`·`CaptureController` 소멸자 정리(스레드 join 포함) | 누수·use-after-free 방지 |
+| **전체 정지 = 소스 동결** | 정지 시 `SharedAudio.Paused` 로 워커를 멈춰 시간·위치 불변 | resume 시 갭/리셋 없이 정확히 이어짐(§5.1) |
+| **세션 경계 상태 리셋** | 새 세션·되감김에서 이력/커서/seek 라벨 비움(`broadcastReset`·`onResumeLive`) | 이전 세션 좌표·표시 잔존 방지 |
 
 ### 6.5 테스트용이성·관찰가능성(Testability / Observability) 전술
 
@@ -296,3 +335,6 @@ flowchart LR
 
 두 스트림은 **독립**이다(1:1 아님). 한 `WaveBlock` 에 0..N 개의 `MeasurementSnapshot`
 이 대응할 수 있다. 자세한 관계는 [SIGNAL_FLOW.md](SIGNAL_FLOW.md) §3 참고.
+
+`WaveBlock` 은 시각 탭뿐 아니라 **`WaveLodHistory`(WaveSink)** 도 같이 소비한다(§5.1) — 8분
+이력 누적·seek replay 의 원천이며, 정지와 무관하게 항상 공급된다.
