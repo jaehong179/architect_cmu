@@ -200,5 +200,6 @@ void TabLongTermPerformance::onResetSession()
         if (L->stats) L->stats->setText(QString());
     }
     if (mBar) mBar->update(MeasurementSnapshot{});
+    for (int i = 0; i < 3; ++i) if (mCursors[i]) mCursors[i]->setVisible(false);   // [③] seek 커서 리셋
     for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot();
 }

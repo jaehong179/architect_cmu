@@ -206,6 +206,10 @@ void TabTraceDisplay::onResetSession()
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     if (mBar) mBar->update(MeasurementSnapshot{});
+    // [③] 이전 세션의 seek 커서/라벨 제거(새 세션 = 시점 표시 리셋).
+    if (mCurRate)  mCurRate->setVisible(false);
+    if (mCurAmp)   mCurAmp->setVisible(false);
+    if (mCurLabel) mCurLabel->setVisible(false);
     if (mRate) { PlotHelpers::clearAllGraphs(mRate); mRate->replot(); }
     if (mAmp)  { PlotHelpers::clearAllGraphs(mAmp);  mAmp->replot(); }
 }
