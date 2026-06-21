@@ -36,6 +36,9 @@
 
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLabel>
+#include <QPushButton>
+#include <QStackedWidget>
 #include <QDebug>
 #include <QtMath>
 #include <QMessageBox>
@@ -121,6 +124,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowTitle("TimeGrapher");
+    BuildControlPanelModeStack();
 
     ui->StopPushButton->setEnabled(false);
     ui->LiftAngleSpinBox->setFocusPolicy(Qt::NoFocus);
@@ -132,6 +136,7 @@ MainWindow::MainWindow(QWidget *parent)
     LoadSimBPH();
     LoadAudioDevices();
     LoadAverageingPeriod();
+    ApplyModeUiState();
     DisplayResults();
 
     // ── [PERF 계측] CPU·메모리·스로틀(자원)은 앱 내부에서 측정하지 않는다 ──
@@ -264,6 +269,198 @@ void MainWindow::updateSeekLabel(double absSample)
     mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
 }
 
+int MainWindow::CurrentMode(void) const
+{
+    const QVariant mode = ui->ModeComboBox->currentData();
+    return mode.isValid() ? mode.toInt() : ui->ModeComboBox->currentIndex();
+}
+
+void MainWindow::BuildControlPanelModeStack(void)
+{
+    ui->RunParamLabel->setText(tr("Mode / Source"));
+    ui->ModeLabel->setGeometry(10, 27, 91, 22);
+    ui->ModeComboBox->setGeometry(100, 27, 131, 22);
+    ui->AveragingPeriodLabel->setGeometry(10, 183, 141, 22);
+    ui->AveragingPeriodComboBox->setGeometry(160, 183, 71, 22);
+    ui->StartPushButton->setGeometry(10, 214, 61, 21);
+    ui->StopPushButton->setGeometry(170, 214, 61, 21);
+
+    mModeStackedWidget = new QStackedWidget(ui->RunFrame);
+    mModeStackedWidget->setObjectName(QStringLiteral("ModeStackedWidget"));
+    mModeStackedWidget->setGeometry(0, 55, 242, 125);
+
+    QWidget *livePage = new QWidget(mModeStackedWidget);
+    livePage->setObjectName(QStringLiteral("page_live"));
+    QWidget *playbackPage = new QWidget(mModeStackedWidget);
+    playbackPage->setObjectName(QStringLiteral("page_playback"));
+    QWidget *simPage = new QWidget(mModeStackedWidget);
+    simPage->setObjectName(QStringLiteral("page_sim"));
+
+    ui->GainLabel->setParent(livePage);
+    ui->GainLabel->setGeometry(10, 0, 41, 20);
+    ui->MicrophoneHorizontalSlider->setParent(livePage);
+    ui->MicrophoneHorizontalSlider->setGeometry(70, 0, 161, 20);
+    ui->InputDeviceComboBox->setParent(livePage);
+    ui->InputDeviceComboBox->setGeometry(10, 30, 221, 22);
+    ui->RefreshPushButton->setParent(livePage);
+    ui->RefreshPushButton->setGeometry(10, 60, 70, 21);
+    ui->SampleRateLabel->setParent(livePage);
+    ui->SampleRateLabel->setGeometry(10, 90, 91, 22);
+    ui->SampleRatesComboBox->setParent(livePage);
+    ui->SampleRatesComboBox->setGeometry(100, 90, 131, 22);
+
+    mPlaybackBrowseButton = new QPushButton(tr("Browse WAV"), playbackPage);
+    mPlaybackBrowseButton->setGeometry(10, 0, 101, 22);
+    mPlaybackSelectedFileLabel = new QLabel(tr("No WAV selected"), playbackPage);
+    mPlaybackSelectedFileLabel->setGeometry(10, 32, 221, 22);
+    mPlaybackSelectedFileLabel->setWordWrap(false);
+    mPlaybackSampleRateLabel = new QLabel(tr("Sample Rate: -"), playbackPage);
+    mPlaybackSampleRateLabel->setGeometry(10, 62, 221, 22);
+    QLabel *playbackHintLabel = new QLabel(tr("Start uses the selected file."), playbackPage);
+    playbackHintLabel->setGeometry(10, 90, 221, 22);
+
+    ui->SimBphLabel->setParent(simPage);
+    ui->SimBphLabel->setText(tr("Sim BPH"));
+    ui->SimBphLabel->setGeometry(10, 0, 91, 22);
+    ui->SimBPHComboBox->setParent(simPage);
+    ui->SimBPHComboBox->setGeometry(119, 0, 111, 22);
+    ui->SimErrorRateLabel->setParent(simPage);
+    ui->SimErrorRateLabel->setGeometry(10, 28, 91, 22);
+    ui->SimErrorRateSpinBox->setParent(simPage);
+    ui->SimErrorRateSpinBox->setGeometry(119, 28, 111, 22);
+    ui->SimAmpLabel->setParent(simPage);
+    ui->SimAmpLabel->setGeometry(10, 56, 91, 22);
+    ui->SimAmplitudeSpinBox->setParent(simPage);
+    ui->SimAmplitudeSpinBox->setGeometry(119, 56, 111, 22);
+    ui->SimBeatErrorLabel->setParent(simPage);
+    ui->SimBeatErrorLabel->setGeometry(10, 84, 91, 22);
+    ui->SimBeatErrorSpinBox->setParent(simPage);
+    ui->SimBeatErrorSpinBox->setGeometry(119, 84, 111, 22);
+    ui->RealisticCheckBox->setParent(simPage);
+    ui->RealisticCheckBox->setGeometry(10, 108, 91, 16);
+
+    mModeStackedWidget->addWidget(livePage);
+    mModeStackedWidget->addWidget(playbackPage);
+    mModeStackedWidget->addWidget(simPage);
+
+    ui->SimFrame->hide();
+    ui->WatchParamLabel->setText(tr("Measurement"));
+    ui->WatchBphLabel->setText(tr("Detector BPH"));
+    ui->WatchBphLabel->setGeometry(10, 30, 101, 22);
+    ui->BPHComboBox->setGeometry(120, 30, 111, 22);
+    mSimDetectorBphHintLabel = new QLabel(tr("Detector BPH follows Sim BPH"), ui->WatchFrame);
+    mSimDetectorBphHintLabel->setGeometry(10, 30, 221, 22);
+    QFont hintFont = mSimDetectorBphHintLabel->font();
+    hintFont.setBold(true);
+    mSimDetectorBphHintLabel->setFont(hintFont);
+    mSimDetectorBphHintLabel->hide();
+    ui->MiscFrame->setGeometry(0, 350, 242, 181);
+    ui->MiscLabel->setText(tr("Advanced / Detector Tuning"));
+
+    connect(mPlaybackBrowseButton, &QPushButton::clicked, this, [this]() { ChoosePlaybackFile(); });
+    connect(ui->SimBPHComboBox, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, [this](int) { SyncDetectorBphToSimBph(); });
+}
+
+void MainWindow::ApplyModeUiState(void)
+{
+    const int mode = CurrentMode();
+    const bool canEdit = ui->ModeComboBox->isEnabled() && ui->StartPushButton->isEnabled();
+
+    if (mModeStackedWidget) {
+        switch (mode) {
+        case LIVE:
+            mModeStackedWidget->setCurrentIndex(PAGE_LIVE);
+            break;
+        case PLAYBACK:
+            mModeStackedWidget->setCurrentIndex(PAGE_PLAYBACK);
+            break;
+        case SIM:
+            mModeStackedWidget->setCurrentIndex(PAGE_SIM);
+            SyncDetectorBphToSimBph();
+            break;
+        default:
+            mModeStackedWidget->setCurrentIndex(PAGE_PLAYBACK);
+            break;
+        }
+    }
+
+    const bool liveMode = (mode == LIVE);
+    const bool playbackMode = (mode == PLAYBACK);
+    const bool simMode = (mode == SIM);
+
+    ui->InputDeviceComboBox->setEnabled(canEdit && liveMode);
+    ui->RefreshPushButton->setEnabled(canEdit && liveMode);
+    ui->MicrophoneHorizontalSlider->setEnabled(canEdit && liveMode);
+    ui->SampleRatesComboBox->setEnabled(canEdit && !playbackMode);
+
+    if (mPlaybackBrowseButton) mPlaybackBrowseButton->setEnabled(canEdit && playbackMode);
+
+    ui->WatchBphLabel->setVisible(!simMode);
+    ui->BPHComboBox->setVisible(!simMode);
+    if (mSimDetectorBphHintLabel) mSimDetectorBphHintLabel->setVisible(simMode);
+}
+
+void MainWindow::SyncDetectorBphToSimBph(void)
+{
+    if (!ui->SimBPHComboBox || !ui->BPHComboBox) return;
+
+    const int simBph = ui->SimBPHComboBox->currentData().toInt();
+    const int detectorIndex = ui->BPHComboBox->findData(simBph);
+    if (detectorIndex >= 0 && ui->BPHComboBox->currentIndex() != detectorIndex) {
+        ui->BPHComboBox->setCurrentIndex(detectorIndex);
+    }
+}
+
+bool MainWindow::ChoosePlaybackFile(void)
+{
+    QFileDialog fileDialog(this, tr("Open WAV File"), mCurrentDir.absolutePath(), tr("WAV Files (*.wav)"));
+    fileDialog.setOptions(QFileDialog::DontUseNativeDialog);
+
+    while (fileDialog.exec() == QDialog::Accepted) {
+        if (SetPlaybackFile(fileDialog.selectedFiles().constFirst())) return true;
+    }
+    return false;
+}
+
+bool MainWindow::SetPlaybackFile(const QString &fileName)
+{
+    WavFileInfo info = WavFileReader::readHeader(fileName);
+    if (!info.ok) {
+        statusBar()->showMessage(tr("File %1 could not be opened").arg(QDir::toNativeSeparators(fileName)));
+        QMessageBox::critical(this, tr("Error"), tr("Failed to open WAV file: %1").arg(info.error));
+        return false;
+    }
+
+    if (!WavFileReader::isSupportedFormat(info.header)) {
+        statusBar()->showMessage(tr("File %1 is not a supported mono 32-bit float WAV file").arg(fileName));
+        QMessageBox::critical(this, tr("Error"), tr("Invalid PCM Wave File"));
+        return false;
+    }
+
+    mPlaybackFileName = fileName;
+    mPlaybackFileSampleRate = (int)info.header.sampleRate;
+    mCurrentDir = QFileInfo(fileName).dir();
+    UpdatePlaybackFileUi();
+    statusBar()->showMessage(tr("Playback file selected: %1").arg(QFileInfo(fileName).fileName()));
+    return true;
+}
+
+void MainWindow::UpdatePlaybackFileUi(void)
+{
+    if (!mPlaybackSelectedFileLabel || !mPlaybackSampleRateLabel) return;
+
+    if (mPlaybackFileName.isEmpty()) {
+        mPlaybackSelectedFileLabel->setText(tr("No WAV selected"));
+        mPlaybackSampleRateLabel->setText(tr("Sample Rate: -"));
+        return;
+    }
+
+    mPlaybackSelectedFileLabel->setText(QFileInfo(mPlaybackFileName).fileName());
+    mPlaybackSelectedFileLabel->setToolTip(QDir::toNativeSeparators(mPlaybackFileName));
+    mPlaybackSampleRateLabel->setText(tr("Sample Rate: %1 Hz").arg(mPlaybackFileSampleRate));
+}
+
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
 //  이 스냅샷에만 의존한다(QA-MOD-01 / Restrict dependencies).
 void MainWindow::PublishMeasurementToTabs(void)
@@ -284,7 +481,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.sampleRateHz   = mCurrentSamplesPerSecond;
     snap.totalSamples   = mCapture ? mCapture->totalSamples() : 0;
     snap.liftAngle      = (int)mLiftAngle;
-    snap.mode           = ui->ModeComboBox->currentIndex();
+    snap.mode           = CurrentMode();
     // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사).
     snap.rateTicX = mEngine.ticX().constData(); snap.rateTicY = mEngine.ticY().constData(); snap.rateTicN = mEngine.ticX().size();
     snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
@@ -463,7 +660,7 @@ MainWindow::~MainWindow()
 void MainWindow::HandlePlaybackDoneReadingFile()
 {
     SetGuiStopMode();
-   if (ui->ModeComboBox->currentIndex()==PLAYBACK)
+   if (CurrentMode()==PLAYBACK)
     {
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
@@ -475,7 +672,7 @@ void MainWindow::HandleSimDone()
 {
     // mSimActive=false 는 CaptureController::onSimWorkerDone 에서 처리(G-1 비교 중단).
     SetGuiStopMode();
-    if (ui->ModeComboBox->currentIndex()==SIM)
+    if (CurrentMode()==SIM)
     {
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
@@ -660,6 +857,7 @@ void   MainWindow::SetGuiRunMode(void)
     ui->RealisticCheckBox->setEnabled(false);
     ui->UseConsetCheckBox->setEnabled(false);
     ui->HighLineEdit->setEnabled(false);
+    if (mPlaybackBrowseButton) mPlaybackBrowseButton->setEnabled(false);
 }
 
 void   MainWindow::SetGuiStopMode(void)
@@ -693,13 +891,16 @@ void   MainWindow::SetGuiStopMode(void)
     ui->RealisticCheckBox->setEnabled(true);
     ui->UseConsetCheckBox->setEnabled(true);
     ui->HighLineEdit->setEnabled(true);
+    ApplyModeUiState();
 }
 // 캡처/파이프라인 설정을 UI 에서 읽어 CaptureController 에 주입(세션 시작 직전).
 void   MainWindow::pushCaptureConfig(void)
 {
     mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
-    bool bphAuto   = (ui->BPHComboBox->currentIndex()==0);
-    int  manualBph = bphAuto ? 0 : ManualAutoBPH[ui->BPHComboBox->currentIndex()];
+    if (CurrentMode() == SIM) SyncDetectorBphToSimBph();
+    bool bphAuto   = (CurrentMode() != SIM && ui->BPHComboBox->currentIndex()==0);
+    int  manualBph = CurrentMode() == SIM ? ui->SimBPHComboBox->currentData().toInt()
+                                          : (bphAuto ? 0 : ui->BPHComboBox->currentData().toInt());
     mCapture->setDetectorConfig(bphAuto, manualBph, ui->HighLineEdit->text().toDouble());
     mCapture->setUseConset(ui->UseConsetCheckBox->isChecked());
     mCapture->setWavWriter(mWavWriter);   // 녹음 대상(없으면 nullptr)
@@ -716,28 +917,22 @@ void   MainWindow::LiveStart(void)
 }
 void   MainWindow::PlaybackStart(void)
 {
-    bool status=false;
-
+    if (mPlaybackFileName.isEmpty() && !ChoosePlaybackFile()) return;
     if (!RecordSessionCheck()) return;
-
-    QFileDialog fileDialog(this, tr("Open Document"), mCurrentDir.absolutePath(),tr("WAV Files (*.wav)"));
-    fileDialog.setOptions(QFileDialog::DontUseNativeDialog);
-    while (fileDialog.exec() == QDialog::Accepted
-           && !(status=OpenFile(fileDialog.selectedFiles().constFirst()))) {
-    }
-    if (!status) return;
+    if (!OpenFile(mPlaybackFileName)) return;
     Reset();
     pushCaptureConfig();
-    mCapture->startPlayback(fileDialog.selectedFiles().constFirst(), mCurrentSamplesPerSecond);
+    mCapture->startPlayback(mPlaybackFileName, mCurrentSamplesPerSecond);
     SetGuiRunMode();
     statusBar()->showMessage("Running");
 }
 void   MainWindow::SimStart(void)
 {
     // UI 위젯값만 모은다 — 합성기 구조/기본값/규약은 SimConfigBuilder 가 안다(SoC).
+    SyncDetectorBphToSimBph();
     SimConfigParams p;
     p.realistic          = ui->RealisticCheckBox->isChecked();
-    p.bph                = SimBPH[ui->SimBPHComboBox->currentIndex()];
+    p.bph                = ui->SimBPHComboBox->currentData().toInt();
     p.sampleRateHz       = mAvalableRates[ui->SampleRatesComboBox->currentIndex()];
     p.beatErrorMs        = ui->SimBeatErrorSpinBox->value();
     p.watchAmplitudeDeg  = ui->SimAmplitudeSpinBox->value();
@@ -800,6 +995,7 @@ void MainWindow::on_ModeComboBox_currentTextChanged(const QString &arg1)
         }
 
     }
+    ApplyModeUiState();
 }
 void MainWindow::on_RefreshPushButton_clicked()
 {
@@ -823,16 +1019,17 @@ void MainWindow::on_MicrophoneHorizontalSlider_sliderMoved(int position)
 }
 void MainWindow::on_StartPushButton_clicked()
 {
-    if (ui->ModeComboBox->currentText()==ModeStrings[LIVE])
+    const int mode = CurrentMode();
+    if (mode==LIVE)
     {
         ConfigureSoundCard();
         LiveStart();
     }
-    else if (ui->ModeComboBox->currentText()==ModeStrings[PLAYBACK])
+    else if (mode==PLAYBACK)
     {
         PlaybackStart();
     }
-    else if (ui->ModeComboBox->currentText()==ModeStrings[SIM])
+    else if (mode==SIM)
     {
         SimStart();
     }
@@ -842,12 +1039,13 @@ void MainWindow::on_StopPushButton_clicked()
 {
     SetGuiStopMode();
 
-    if(ui->ModeComboBox->currentText()==ModeStrings[LIVE])
+    const int mode = CurrentMode();
+    if(mode==LIVE)
     {
         mCapture->stopLive();
         AudioCloseCheck();
     }
-    else if(ui->ModeComboBox->currentText()==ModeStrings[PLAYBACK])
+    else if(mode==PLAYBACK)
     {
         mCapture->stopPlayback();
 
@@ -862,7 +1060,7 @@ void MainWindow::on_StopPushButton_clicked()
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
     }
-    else if(ui->ModeComboBox->currentText()==ModeStrings[SIM])
+    else if(mode==SIM)
     {
         mCapture->stopSim();
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
@@ -886,7 +1084,7 @@ void MainWindow::on_InputDeviceComboBox_currentIndexChanged(int index)
     }
     else if (ui->InputDeviceComboBox->currentText()==PLAYBACK_OR_SIM_PCM)
     {
-        if (ui->ModeComboBox->currentText()==ModeStrings[LIVE])
+        if (CurrentMode()==LIVE)
         {
           int index =ui->ModeComboBox->findText(ModeStrings[PLAYBACK]);
           if (index!=-1) ui->ModeComboBox->setCurrentIndex(index);

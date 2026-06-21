@@ -43,6 +43,9 @@ private:
     void addHorizontalMarkerOutward(double xLeft, double xRight, double height, const QColor &color);
     void removeMarkersAndText(double rangeMin, double rangeMax);
     void purgeHistory();
+    void syncScopeXAxis(double timeEndSec);
+    void applyFixedRateXAxis();
+    double sampleToTime(uint64_t sample) const;
 
     QCustomPlot    *mRatePlot   = nullptr;
     QCustomPlot    *mScopePlot  = nullptr;

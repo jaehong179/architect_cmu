@@ -48,7 +48,8 @@ private:
     SeriesUpdate computeRateError(double aEventSample, bool haveValidBph, double bph);
     void computeBeatError(double aEventSample, bool haveValidBph, double bph);
     void computeAmplitude(double cEventSample, bool haveValidBph, double bph);
-    static void   addOrOverwrite(QVector<double>& xv, QVector<double>& yv, double value, int maxS, int& index);
+    static void   addOrOverwrite(QVector<double>& xv, QVector<double>& yv,
+                                 double xValue, double yValue, int maxS, int& index);
     static double wrapInToRange(double number, double lowerBound, double upperBound);
 
     struct RateState {
