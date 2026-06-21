@@ -1,8 +1,8 @@
 # Position-Detection Runtime View
 
-##  Primary Presentation
+##  Behavior
 
-*(Insert the structural diagram of the position-detection runtime here: the Main UI coordinating the external Camera, the Classifier (TinyML), and the deterministic Measurement path, with the User interacting in Live mode.)*
+![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
 
 ##  Element catalog
 
@@ -27,13 +27,7 @@ The Measurement path is the deterministic, rule/signal-processing logic inside t
 ### Position usage by mode
 The detected position is used differently depending on the display mode. In the Multi-Position Sequence Display mode, the measured values are recorded into the detected position's row of the sequence table; if confidence is below threshold or the camera is unavailable, the system withholds auto-recording and asks the user to select the position manually. In other display modes, the current position is shown for display only (e.g., 9H) and is not used to record measurements; when confidence is low or the camera is unavailable, the position is simply not shown.
 
-##  Behavior
 
-![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
-
-##  Context diagram
-
-The external camera is the new external entity for this view: it sits outside the system boundary and supplies frames to the Main UI on request. The acoustic input and the rest of the measurement pipeline are unchanged by this view.
 
 ##  Variability guide
 
