@@ -35,11 +35,8 @@ Notation: UML
 #### libasound.so
 - ALSA audio library, present only on the Raspberry Pi deployment. Windows and macOS use OS-native audio APIs that do not require a separate shared library.
 
-#### perf_log.csv
-- Performance instrumentation output file. Only generated when the application is built with `PERF_ENABLE=1`. Not present in production builds.
-
 ## Behavior
-- N/A.
+- N/A
 
 ## Related ADRs
 - N/A
