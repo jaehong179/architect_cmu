@@ -45,7 +45,7 @@ Binding time: runtime, decided per measurement based on the classifier confidenc
 
 ## 6. Related ADRs
 
-ADR-01: Limit AI (TinyML) to camera-based watch-position reading
+[ADR-001: Limit AI (TinyML) to camera-based watch-position detection](../ADRs/ADR001-watch-position-detection-solution.md)
 
 ## 7. Related views
 
