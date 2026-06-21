@@ -373,10 +373,13 @@ void TabRateScope::onSeek(double absSample)
             const double samplesPerBeat = (3600.0 / (double)bph) * (double)mSampleRateHz;
             const double latest = (mPaused && mPauseLatest > 0) ? (double)mPauseLatest
                                                                 : (double)mHistory->latestAbs();
-            double x = kr.upper - (latest - absSample) / samplesPerBeat;
-            x = qBound(kr.lower, x, kr.upper);
-            mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
-            mRateCursor->setVisible(true);
+            const double x = kr.upper - (latest - absSample) / samplesPerBeat;
+            if (x >= kr.lower && x <= kr.upper) {   // 상단 rate 는 '최근 윈도우' 뷰 → 그 안일 때만 커서 표시
+                mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
+                mRateCursor->setVisible(true);
+            } else {
+                mRateCursor->setVisible(false);     // 윈도우 밖(더 과거) 시점은 상단에 표현 불가(하단 스코프가 담당)
+            }
             mRatePlot->replot();
         }
     }

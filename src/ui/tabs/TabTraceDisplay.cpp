@@ -102,6 +102,8 @@ void TabTraceDisplay::onSeek(double absSample)
         if (err < bestErr) { bestErr = err; bestX = p.first; }
     }
     showCursor(bestX);
+    // 크로스탭 seek 시 로컬 t/# 라벨은 숨김 — 시점 표시는 전역 코너 라벨로 일원화(스냅값 충돌 방지).
+    if (mCurLabel) { mCurLabel->setVisible(false); if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot); }
 }
 
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
