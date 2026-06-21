@@ -16,6 +16,7 @@ class QSpinBox;
 class QLabel;
 class QCPItemStraightLine;
 class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
+class QCPRange;
 
 class TabRateScope : public TabView
 {
@@ -47,6 +48,7 @@ private:
     void removeMarkersAndText(double rangeMin, double rangeMax);
     void purgeHistory();
     void syncScopeXAxis(double timeEndSec);
+    void updateScopeXAxisTicks(const QCPRange &range);
     void syncRateXAxis(const QVector<double> &tx, const QVector<double> &ox);
     double sampleToTime(uint64_t sample) const;
 
