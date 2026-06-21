@@ -36,8 +36,6 @@ signals:
 private:
     void setupPlots();
     void renderHistoryWindow();         // 현재 보이는 시간창을 이력에서 잘라 그림(줌/팬 시 재호출)
-    void renderRateHistoryWindow();     // [③] 정지 중 상단 rate 트렌드를 전체 이력 A이벤트로 재구성(넓은 뷰)
-    void positionRateCursor(double absSample);   // [③] 상단 rate 커서만 그 시점으로 이동(트렌드 유지)
     void drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs);   // 이력 이벤트로 A/C 마커·ms 복원
     void addVerticalMarker(double x, double height, const QColor &color);
     void addText(double x, double height, const QString &text, const QColor &color, Qt::Alignment alignment);
@@ -51,9 +49,7 @@ private:
     QSpinBox       *mScopeScale = nullptr;
     QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
     int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
-    uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 시점 기준)
-    // [③] 상단 rate 트렌드 이력 재구성용 앵커(라이브 StartTime/zero-offset 재현). 정지 시 1회 계산.
-    double          mRateAnchorT = 0.0, mRateZeroOff = 0.0; bool mRateAnchorValid = false;
+    uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)
     WaveLodHistory *mHistory    = nullptr;      // 주입된 중앙 이력 버퍼(소유 안 함)
     bool            mPaused     = false;        // true=이력 스크롤백 모드
     bool            mInHistoryRender = false;   // rangeChanged 재귀 가드
