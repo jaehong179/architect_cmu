@@ -6,6 +6,7 @@
 //  기울기 = rate (E6: R = −(m/I_target)·86400), 두 라인 간 수직 간격 = beat error.
 //  |기울기|>45°(시간-오차 평면, ΔE/I_target 기준) → major fault, 간격>0.6ms → 경고.
 #include "TabView.h"
+#include "TrendSeek.h"   // [③] 클릭→seek 헬퍼
 class QCustomPlot;
 class QCPItemLine;
 class QCPItemText;
@@ -21,9 +22,13 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override { mSeek.showCursorAtSample(absSample); }   // [③] 다른 탭 seek → 커서 동기화
+signals:
+    void seekRequested(double absSample);   // [③] 정지 중 점 클릭 → 그 비트의 절대 샘플
 protected:
     void onShown() override;
 private:
+    TrendSeek mSeek;   // x(beat#) → 절대 샘플 매핑 + 클릭 커서
     ReadoutBar  *mBar  = nullptr;
     QCustomPlot *mPlot = nullptr;
     QLabel      *mAlert= nullptr;

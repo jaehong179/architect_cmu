@@ -3,6 +3,10 @@
 #include "./ui_MainWindow.h"
 #include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices)
 #include <QAudioDevice>
+#include <QPushButton>     // 전역 Pause/Resume(탭바 코너위젯)
+#include <QLabel>          // 전역 seek 위치 라벨
+#include <QHBoxLayout>     // 코너 위젯(라벨+버튼) 레이아웃
+#include <QWidget>
 #include "WaveHeader.h"
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
@@ -174,22 +178,87 @@ MainWindow::MainWindow(QWidget *parent)
 void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
+    // [8분 이력] 중앙 엔벨로프 버퍼를 wave 방송 청취자로 등록(구독자 방식 · OCP/ISP).
+    //  탭이 아닌 비시각 수집기라 broadcastWave 만 받는다. 첫 wave 에서 샘플레이트로 지연 구성.
+    mTabManager->addWaveSink(&mWaveHistory);
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
     mRateScope = new TabRateScope(this);
+    mRateScope->setHistory(&mWaveHistory);                      // [8분 스크롤백] 정지 중 렌더 원본 주입
+    // [③] 상단 RatePlot 클릭 → 그 시점을 전파 + 코너 라벨.
+    connect(mRateScope, &TabRateScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(mRateScope, &TabRateScope::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
-    mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
+    auto *traceTab = new TabTraceDisplay(this);                 // FR-TD
+    // [③] 정지 중 Trace 트렌드 클릭 → 그 시점을 모든 스코프 탭에 전파(Rate/Scope 점프) + 코너 라벨 갱신.
+    connect(traceTab, &TabTraceDisplay::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(traceTab, &TabTraceDisplay::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(traceTab);
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
-    mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS
-    mTabManager->registerTab(new TabBeatErrorTrace(this));      // FR-BED
-    mTabManager->registerTab(new TabLongTermPerformance(this)); // FR-LTP
-    mTabManager->registerTab(new TabEscapementAnalyzer(this));  // FR-EAM
-    mTabManager->registerTab(new TabSpectrogram(this));         // FR-TFS
-    mTabManager->registerTab(new TabWaveformCompare(this));     // FR-WCD
-    mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS
-    mTabManager->registerTab(new TabFilterViews(this));         // FR-SFM(F0~F3)
+    auto *bnsTab = new TabBeatNoiseScope(this);                // FR-BNS
+    bnsTab->setHistory(&mWaveHistory);                         // [③] seek 대상(그 비트 표시)
+    connect(bnsTab, &TabBeatNoiseScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(bnsTab, &TabBeatNoiseScope::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(bnsTab);
+    auto *bedTab = new TabBeatErrorTrace(this);                // FR-BED
+    connect(bedTab, &TabBeatErrorTrace::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(bedTab, &TabBeatErrorTrace::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(bedTab);
+    auto *ltpTab = new TabLongTermPerformance(this);           // FR-LTP
+    // [③] Long-Term 트렌드(8분 시간축) 클릭 → 그 시점을 스코프 탭에 전파 + 코너 라벨 갱신.
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(ltpTab);
+    auto *escTab = new TabEscapementAnalyzer(this);             // FR-EAM
+    escTab->setHistory(&mWaveHistory);                          // [③] seek replay 원본 주입
+    mTabManager->registerTab(escTab);
+    auto *specTab = new TabSpectrogram(this);                  // FR-TFS
+    specTab->setHistory(&mWaveHistory);                        // [③] seek 대상(그 구간 스펙트로그램)
+    mTabManager->registerTab(specTab);
+    auto *wcmpTab = new TabWaveformCompare(this);               // FR-WCD
+    wcmpTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(wcmpTab);
+    auto *sweepTab = new TabSyncSweepScope(this);               // FR-SMS
+    sweepTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(sweepTab);
+    auto *filterTab = new TabFilterViews(this);                 // FR-SFM(F0~F3)
+    filterTab->setHistory(&mWaveHistory);
+    mTabManager->registerTab(filterTab);
+
+    // [8분 스크롤백] 전역 Pause/Resume + seek 위치 라벨 — 탭바 코너에 두어 어느 탭에서나 보인다.
+    //  정지 → TabManager 전 탭 동결(방송 중단, 이력 버퍼는 계속) + Rate/Scope 스크롤백 진입.
+    auto *corner = new QWidget(this);
+    auto *cl = new QHBoxLayout(corner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
+    mSeekLabel = new QLabel(this);                          // 현재 보는 시점(t/샘플) — 모든 탭 공통
+    mSeekLabel->setStyleSheet(QStringLiteral("color:#960096; font-weight:bold;"));
+    mPauseBtn = new QPushButton(QStringLiteral("⏸ Pause"), this);
+    mPauseBtn->setCheckable(true);
+    cl->addWidget(mSeekLabel); cl->addWidget(mPauseBtn);
+    ui->GraphicsTabWidget->setCornerWidget(corner, Qt::TopRightCorner);
+    connect(mPauseBtn, &QPushButton::toggled, this, [this](bool p) {
+        if (p && !mWaveHistory.hasData()) {                     // 아직 이력 없으면 정지 무시(버튼 원복)
+            mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false); mPauseBtn->blockSignals(false);
+            return;
+        }
+        mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
+        // 시점 라벨: 정지 시작 → 마지막(최신) 위치로 채움 / 라이브 복귀 → 지움.
+        if (p) updateSeekLabel((double)mWaveHistory.latestAbs());
+        else if (mSeekLabel) mSeekLabel->clear();
+        if (mCapture)    mCapture->setPaused(p);               // [전체 정지] 소스 워커까지 멈춤(위치 보존)
+        if (mTabManager) mTabManager->setPaused(p);            // 인플라이트 데이터 차단 + seek 게이트
+        if (mRateScope)  mRateScope->setPaused(p);
+    });
+}
+
+// [③] 코너 seek 위치 라벨 갱신 — 모든 트렌드 클릭 소스가 공통으로 호출.
+void MainWindow::updateSeekLabel(double absSample)
+{
+    if (!mSeekLabel) return;
+    const int sr = mWaveHistory.sampleRate();
+    const double t = sr > 0 ? absSample / (double)sr : 0.0;
+    mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
 }
 
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
@@ -418,6 +487,14 @@ void MainWindow::Reset(void)
     // 세션 리셋: 탭 비움(broadcastReset) + 측정엔진 리셋(EventsReset → readout).
     //  검출기 생성·파이프라인 상태(mInputAbsSample·FPS) 리셋은 CaptureController::startX 가 담당.
     if (mTabManager) mTabManager->broadcastReset();
+    mWaveHistory.clear();   // [8분 이력] 세션 리셋 = 8분 이력도 비움(좌표 불연속 방지)
+    if (mPauseBtn && mPauseBtn->isChecked()) {   // 새 세션 = 정지 해제(전역 버튼 원복)
+        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
+        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
+    }
+    if (mCapture)    mCapture->setPaused(false);   // 새 세션 = 소스 정지 플래그 해제
+    if (mTabManager) mTabManager->setPaused(false);
+    if (mSeekLabel)  mSeekLabel->clear();          // 새 세션 = 시점 표시 리셋
     EventsReset();
 }
 
@@ -584,6 +661,15 @@ void   MainWindow::SetGuiRunMode(void)
 
 void   MainWindow::SetGuiStopMode(void)
 {
+    // 세션 종료(Stop/재생완료/Sim완료) = 정지/시점 표시 해제(라이브 종료 상태로 원복).
+    if (mPauseBtn && mPauseBtn->isChecked()) {
+        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
+        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
+    }
+    if (mCapture)    mCapture->setPaused(false);
+    if (mTabManager) mTabManager->setPaused(false);
+    if (mSeekLabel)  mSeekLabel->clear();
+
     ui->StopPushButton->setEnabled(false);
     ui->ModeComboBox->setEnabled(true);
     ui->RefreshPushButton->setEnabled(true);

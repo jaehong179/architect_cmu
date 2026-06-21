@@ -93,6 +93,9 @@ void TAudioWorker::ProcessAudioInput()
 
     QByteArray ba =  mAudioInputDevice->readAll();
 
+    // [전체 정지] 정지 중에는 캡처분을 폐기(장치 버퍼는 비워 오버플로 방지) → 인덱스 미진행, resume 시 연속.
+    if (mRawAudio->Paused.load(std::memory_order_relaxed)) return;
+
     unsigned int NumberOfSamples = ba.length() / SAMPLE_SIZE;
     float *AudioSamples=(float *)ba.constData();
     // 공용 링버퍼 쓰기. [PERF §A-1/A-2] 인덱스 갱신과 원자적으로 이 블록의 캡처 시각을 남긴다

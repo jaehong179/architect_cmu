@@ -2,6 +2,7 @@
 #include "ScopeFilters.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -42,9 +43,7 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
         "F0·F1·F2 mirror(±) · F3 upper(rectified) · y axis=amplitude(normalized) · center dashed lines=T1/T2/T3</td></tr>"
         "</table>"), this));
 
-    auto *ctl = new QHBoxLayout();                       // Pause + 상태
-    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);
-    ctl->addWidget(mPause);
+    auto *ctl = new QHBoxLayout();                       // 상태(정지는 전역 버튼이 담당)
     ctl->addStretch(1);
     mInfo = new QLabel(QStringLiteral("Waiting for signal…"), this);
     mInfo->setStyleSheet(QStringLiteral("font-family:monospace;"));
@@ -107,10 +106,21 @@ void TabFilterViews::onWave(const WaveBlock &w)
         rb.sampleRateHz = w.sampleRateHz; rb.bph = w.bph; rb.synced = w.synced;
         mRawBuf.push(rb);
     }
-    if (!isVisible() || (mPause && mPause->isChecked())) return;   // Pause 시 화면 정지
+    if (!isVisible()) return;   // (정지는 전역 Pause = TabManager 방송 중단이 담당)
     // ~30FPS 스로틀: 직전 렌더로부터 충분히 지났을 때만 그린다(오디오 콜백 빈도와 무관).
     if (mThrottle.isValid() && mThrottle.elapsed() < kRenderIntervalMs) return;
     mThrottle.restart();
+    render();
+}
+
+// [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(F0~F3 raw 필터 입력 포함).
+void TabFilterViews::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 1.6)); mRawBuf.configure((int)(sr * 1.6)); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, (int)(sr * 1.6));
     render();
 }
 

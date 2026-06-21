@@ -42,6 +42,15 @@ public:
     // 측정 세션 리셋(Start/모드 전환) 시 호출 — 누적 데이터·그래프를 비운다.
     virtual void onResetSession() {}
 
+    // [8분 스크롤백/③] 시점 점프 — 트렌드 탭에서 선택한 '절대 샘플 인덱스'로 이동.
+    //  정지 중에만 의미. 8분 이력 버퍼를 읽는 스코프 탭이 override 해 그 시점을 그린다. 기본 무시.
+    virtual void onSeek(double /*absSample*/) {}
+
+    // [③] 정지 해제(라이브 복귀) 시 호출 — 정지 중 seek 가 있었으면(seeked=true) seek 로 채운
+    //  임시 버퍼를 비워 라이브로 깨끗이 복귀. seek 없이 정지만 했으면 버퍼가 연속이므로 그대로 둔다.
+    //  (소스까지 멈추는 '전체 정지'라 resume 시 인덱스가 끊기지 않음 → 불필요한 리빌드 방지.)
+    virtual void onResumeLive(bool /*seeked*/) {}
+
 protected:
     // 탭이 (재)표시될 때 호출 — 측정이 멈춘 상태에서 탭을 전환해도 보관 중인
     //  데이터로 화면을 다시 그리도록 한다(빈 화면 방지). 갱신 트리거가 없는 idle 시 중요.

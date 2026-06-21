@@ -16,6 +16,7 @@ class QLabel;
 class QWidget;
 class ReadoutBar;
 class QMouseEvent;
+class WaveLodHistory;   // [③] 8분 이력(중앙) — seek 대상
 
 class TabBeatNoiseScope : public TabView
 {
@@ -26,6 +27,11 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;            // [③] 다른 탭에서 선택한 시점을 Scope1에 표시
+    void onResumeLive(bool seeked) override { mSelectedStrip = -1; if (seeked) { mBuf.clear(); mHaveLastBeat = false; } }   // 라이브 복귀
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
+signals:
+    void seekRequested(double absSample);   // [③] 스트립 비트 선택 → 그 비트의 절대 샘플
 protected:
     void onShown() override;
 private:
@@ -47,12 +53,12 @@ private:
     QCustomPlot *mTr1    = nullptr;   // Scope2 trace 1 (짝수 비트)
     QCustomPlot *mTr2    = nullptr;   // Scope2 trace 2 (홀수 비트)
     QPushButton *mScopeToggle = nullptr; // Scope1 ↔ Scope2 전환
-    QCheckBox   *mPause  = nullptr;   // 화면 정지(일시정지)
     QComboBox   *mRange  = nullptr;
     QCheckBox   *mAvg    = nullptr;   // Σ 평균 토글
     QLabel      *mInfo   = nullptr;
     QLabel      *mCycle  = nullptr;   // Σ 사이클 진행/완료 + 축별 평균 진폭
     WaveBuffer   mBuf;
+    WaveLodHistory *mHistory = nullptr;   // 주입된 중앙 이력(소유 안 함)
     bool         mConfigured = false;
     bool         mShowScope2 = false; // false=Scope1, true=Scope2
     // y 스케일 안정화: 매 프레임 max 대신 스무딩 피크(상승 즉시·하강 천천히) → 출렁임 억제.
@@ -70,6 +76,7 @@ private:
     long                     mTr1AmpN = 0,  mTr2AmpN = 0;
     double                   mLastCycleAmp1 = 0, mLastCycleAmp2 = 0; bool mHaveCycleResult = false;
     QVector<QVector<double>> mRecent;          // 최근 비트(스트립용)
+    QVector<uint64_t>        mRecentSample;    // [③] 각 스트립 비트의 A 절대 샘플(선택→seek)
     int                      mSelectedStrip = -1;   // 선택된 스트립(-1=라이브)
     static constexpr int     kStrips = 8;     // 최근 비트 스트립 8개
     static constexpr long    kCycleN = 50;     // Plan: 50 tic + 50 tac 간격에서 사이클 완료

@@ -3,6 +3,7 @@
 // =============================================================================
 #include "TabManager.h"
 #include "TabView.h"
+#include "WaveSink.h"              // 비시각 청취자(8분 이력 버퍼 등)
 #include <QTabWidget>
 #include "PerfInstrumentation.h"   // [PERF 계측 · §F-1] 탭별 갱신시간 tab_update_ms
 
@@ -20,6 +21,7 @@ void TabManager::registerTab(TabView *tab)
 
 void TabManager::broadcastMeasurement(const MeasurementSnapshot &snap)
 {
+    if (mPaused) return;   // [8분 스크롤백] 전역 정지 중엔 모든 탭 동결.
     // 모든 탭에 스냅샷 전달. 탭별 onMeasurement 소요시간을 측정해 병목 후보를 드러낸다.
     //  (탭 내부에서 무거운 replot 은 isVisible() 가드를 권장 → 숨은 탭은 데이터만 누적)
     for (TabView *t : mTabs) {
@@ -35,12 +37,42 @@ void TabManager::broadcastWave(const WaveBlock &wave)
 {
     // 고빈도(처리 슬라이스마다) → perf 로그는 생략(로그 폭주 방지). 탭이 자체적으로
     //  isVisible() 가드로 렌더 비용을 줄인다.
+    if (!mPaused)                       // [8분 스크롤백] 정지 중엔 탭 갱신만 동결.
+        for (TabView *t : mTabs)
+            if (t) t->onWave(wave);
+    // 비시각 청취자(8분 이력 버퍼 등)에는 정지와 무관하게 항상 전달 → 이력은 계속 누적.
+    for (WaveSink *s : mWaveSinks)
+        if (s) s->onWave(wave);
+}
+
+void TabManager::addWaveSink(WaveSink *sink)
+{
+    if (sink) mWaveSinks.push_back(sink);
+}
+
+void TabManager::setPaused(bool p)
+{
+    const bool resuming = (mPaused && !p);
+    if (p && !mPaused) mSeekedSincePause = false;   // 새 정지 구간 시작 → seek 추적 초기화
+    mPaused = p;
+    if (resuming) {                     // 라이브 복귀 → 정지 중 seek 가 있었던 경우에만 임시 버퍼 정리
+        const bool seeked = mSeekedSincePause;
+        for (TabView *t : mTabs)
+            if (t) t->onResumeLive(seeked);
+    }
+}
+
+void TabManager::broadcastSeek(double absSample)
+{
+    if (!mPaused) return;   // seek 는 정지(동결) 중에만 의미 — 라이브 중 클릭은 무시.
+    mSeekedSincePause = true;   // 이번 정지 구간에서 seek 발생 → resume 시 해당 버퍼 정리 필요
     for (TabView *t : mTabs)
-        if (t) t->onWave(wave);
+        if (t) t->onSeek(absSample);
 }
 
 void TabManager::broadcastReset()
 {
+    mPaused = false;   // 새 세션 시작 = 정지 해제(전역).
     for (TabView *t : mTabs)
         if (t) t->onResetSession();
 }

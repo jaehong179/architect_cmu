@@ -11,6 +11,8 @@
 #include <QColor>
 class QCustomPlot;
 class QSpinBox;
+class QCPItemStraightLine;
+class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
 
 class TabRateScope : public TabView
 {
@@ -21,10 +23,20 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;   // [③] 정지 중 트렌드 클릭 → 그 시점으로 스코프 이동
+
+    // 8분 이력 버퍼 주입(MainWindow 소유). pause 중 이 버퍼를 queryWindow 로 그린다.
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
+
+    // 정지 ↔ 8분 이력 스크롤백 전환. 전역 Pause 버튼(MainWindow)이 호출한다.
+    void setPaused(bool paused);
 signals:
     void scopeReplotted();   // ScopePlot afterReplot → MainWindow::OnScopeReplotted 로 연결(perf)
+    void seekRequested(double absSample);   // [③] 정지 중 상단 RatePlot 클릭 → 그 시점
 private:
     void setupPlots();
+    void renderHistoryWindow();         // 현재 보이는 시간창을 이력에서 잘라 그림(줌/팬 시 재호출)
+    void drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs);   // 이력 이벤트로 A/C 마커·ms 복원
     void addVerticalMarker(double x, double height, const QColor &color);
     void addText(double x, double height, const QString &text, const QColor &color, Qt::Alignment alignment);
     void addHorizontalMarkerInward(double xLeft, double xRight, double length, double height, const QColor &color);
@@ -32,13 +44,22 @@ private:
     void removeMarkersAndText(double rangeMin, double rangeMax);
     void purgeHistory();
 
-    QCustomPlot *mRatePlot   = nullptr;
-    QCustomPlot *mScopePlot  = nullptr;
-    QSpinBox    *mScopeScale = nullptr;
-    uint64_t     mGraphTicks = 0;        // 엔벨로프 샘플 카운터
+    QCustomPlot    *mRatePlot   = nullptr;
+    QCustomPlot    *mScopePlot  = nullptr;
+    QSpinBox       *mScopeScale = nullptr;
+    QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
+    int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
+    uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)
+    WaveLodHistory *mHistory    = nullptr;      // 주입된 중앙 이력 버퍼(소유 안 함)
+    bool            mPaused     = false;        // true=이력 스크롤백 모드
+    bool            mInHistoryRender = false;   // rangeChanged 재귀 가드
+    bool            mHistActive = false;        // 정지 후 사용자가 드래그/줌해 이력 렌더로 전환됨
+    double          mHistOffset = 0.0;          // 이력 절대인덱스 − 라이브 mGraphTicks (정지 시 고정)
+    uint64_t        mGraphTicks = 0;            // 엔벨로프 샘플 카운터
     double       mLastA = 0.0; bool mHaveLastA = false;
     int          mSampleRateHz = 48000;
     int          mLiftAngle = 52;        // C 마커 진폭 라벨용(onMeasurement 에서 갱신)
+    int          mLastBph = 0;           // 이력 마커 진폭 계산용(onWave 에서 갱신)
     // min/max 데시메이션 누적 상태(고레이트 스코프: 점 수↓ + 피크 보존). 구간을 onWave 경계 넘어 누적.
     int          mDecimCount = 0;
     float        mDecimMin = 0.0f, mDecimMax = 0.0f;

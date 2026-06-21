@@ -1,6 +1,7 @@
 #include "TabEscapementAnalyzer.h"
 #include "ReadoutBar.h"
 #include "LegendBox.h"
+#include "WaveLodHistory.h"   // [③] seek replay 시 과거 구간 복원
 #include "qcustomplot.h"
 #include <QSpinBox>
 #include <QCheckBox>
@@ -81,6 +82,28 @@ void TabEscapementAnalyzer::onWave(const WaveBlock &w)
     }
     accumBeats(w);                                              // 가운데 점열 누적
     if (isVisible()) render();
+}
+
+// [③] 정지 중 트렌드 클릭 → 그 시점 주변 파형을 이력에서 복원해 표시(파형부만; 가운데 누적 점열은 동결).
+void TabEscapementAnalyzer::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure(sr); mRawBuf.configure(sr); mConfigured = true; }
+    const int win = sr / 2;                                     // ~0.5초(비트 여러 개)
+    const uint64_t half = (uint64_t)(win / 2);
+    const uint64_t from = ((uint64_t)absSample > half) ? (uint64_t)absSample - half : 0;
+    WaveLodHistory::ReconBlock rb;
+    mHistory->reconstruct(from, win, rb);
+    mBuf.push(rb.block);                                        // 엔벨로프 + 이벤트
+    if (rb.block.raw && rb.block.rawN > 0) {                    // 원신호 → mRawBuf
+        WaveBlock raw;
+        raw.env = rb.block.raw; raw.n = rb.block.rawN; raw.startSample = rb.block.rawStart;
+        raw.sampleRateHz = rb.block.sampleRateHz; raw.bph = rb.block.bph; raw.synced = rb.block.synced;
+        mRawBuf.push(raw);
+    }
+    render();   // 파형부만 갱신(accumBeats 미호출 → 가운데 누적 점열 보존)
 }
 
 // 새 A 이벤트마다 비트 타이밍오차 점 누적(E1~E3). 짝수 비트=Tic, 홀수=Tac.

@@ -11,6 +11,7 @@
 class QCustomPlot;
 class QLabel;
 class ReadoutBar;
+class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay
 
 class TabWaveformCompare : public TabView
 {
@@ -21,9 +22,13 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;            // [③] 정지 중 트렌드 클릭 → 그 시점 표시
+    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mRawBuf.clear(); } }   // seek 했으면 버퍼 비움
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;
 private:
+    WaveLodHistory *mHistory = nullptr;
     void render();
     void accumulate(const WaveBlock &w);                 // C 정렬 tic/toc 평균 + A onset 누적
     QCustomPlot *makeScope();                            // 검정 배경 흰 미러 파형 패널 1개

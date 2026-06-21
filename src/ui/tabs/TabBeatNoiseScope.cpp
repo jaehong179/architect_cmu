@@ -1,6 +1,7 @@
 #include "TabBeatNoiseScope.h"
 #include "ReadoutBar.h"
 #include "ScopeRender.h"
+#include "WaveLodHistory.h"   // [③] seek 대상 replay
 #include <QComboBox>
 #include <QCheckBox>
 #include <QPushButton>
@@ -38,8 +39,6 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     auto *ctl = new QHBoxLayout();
     mScopeToggle = new QPushButton(QStringLiteral("● Scope 1 showing  ▶ click for Scope 2"), this);   // 현재 모드 + 전환
     ctl->addWidget(mScopeToggle);
-    mPause = new QCheckBox(QStringLiteral("⏸ Pause"), this);                  // 화면 정지
-    ctl->addWidget(mPause);
     ctl->addWidget(new QLabel(QStringLiteral("Scope1 range:"), this));
     mRange = new QComboBox(this);
     mRange->addItem(QStringLiteral("20 ms"), 20);
@@ -91,7 +90,6 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     lay->addWidget(mStrips, 1);
 
     connect(mScopeToggle, &QPushButton::clicked, this, [this]{ mShowScope2 = !mShowScope2; applyScopeView(); });
-    connect(mPause, &QCheckBox::toggled, this, [this](bool paused){ if (!paused && isVisible()) render(); });
     connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible() && !mShowScope2) renderScope1(); });
     connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible() && mShowScope2) renderScope2(); });
 }
@@ -122,12 +120,24 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
         mWin = (int)(0.020 * w.sampleRateHz);     // 20ms 평균 윈도우
         mConfigured = true;
     }
-    const bool paused = mPause && mPause->isChecked();
     mBuf.push(w);
-    // Pause: 화면뿐 아니라 비트 누적/스트립/선택(mSelectedStrip)·평균 트레이스까지 동결.
-    //  → 정지 화면의 스트립과 실제 데이터가 일치하므로, 정지 후 스트립을 골라 확대하고
-    //    토글 버튼으로 Scope1 ↔ Scope2 를 오가도 선택이 그대로 유지된다.
-    if (!paused) { processNewBeats(); if (isVisible()) render(); }
+    // (정지는 전역 Pause = TabManager 방송 중단이 담당 → 정지 중엔 onWave 자체가 안 옴.
+    //  그래서 정지 화면의 스트립·선택이 그대로 유지되고, 그 비트를 골라 확대할 수 있다.)
+    processNewBeats();
+    if (isVisible()) render();
+}
+
+// [③] 다른 탭에서 선택한 시점 → 그 비트를 이력에서 복원해 Scope1에 표시(스트립 선택 해제, 누적 동결).
+void TabBeatNoiseScope::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 0.8)); mWin = (int)(0.020 * sr); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, nullptr, absSample, (int)(sr * 0.8));
+    mSelectedStrip = -1;       // 스트립 선택 해제 → Scope1 이 mBuf 최신(=seek 비트)을 표시
+    mShowScope2 = false;       // Scope1 모드로
+    applyScopeView();
 }
 
 // E8 (Equations_v0 Part IV): Amp = 3600·λ / (π·n·t_AC), t_AC = 같은 비트 패킷의 A→C 간격(s).
@@ -189,7 +199,9 @@ void TabBeatNoiseScope::processNewBeats()
         }
         // 스트립 링
         mRecent.push_back(beat);
-        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (mSelectedStrip >= 0) --mSelectedStrip; }
+        mRecentSample.push_back(e.sample);     // [③] 이 비트의 A 절대 샘플(선택→seek)
+        while (mRecent.size() > kStrips) { mRecent.removeFirst(); if (!mRecentSample.isEmpty()) mRecentSample.removeFirst();
+                                           if (mSelectedStrip >= 0) --mSelectedStrip; }
         if (mSelectedStrip < -1) mSelectedStrip = -1;
         mLastBeatASample = e.sample; mHaveLastBeat = true; ++mBeatCount;
     }
@@ -297,6 +309,8 @@ void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
     const int idx = (int)(xc / (winMs + 2.0));
     if (idx < 0 || idx >= mRecent.size()) return;
     mSelectedStrip = (mSelectedStrip == idx) ? -1 : idx;   // 재클릭 → 라이브 복귀
+    if (mSelectedStrip >= 0 && mSelectedStrip < mRecentSample.size())
+        emit seekRequested((double)mRecentSample[mSelectedStrip]);   // [③] 선택 비트 시점 전파
     // 선택 비트 확대는 Scope1 에서 — Scope2 보기였다면 Scope1 으로 전환.
     mShowScope2 = false;
     applyScopeView();          // render(Scope1) + renderStrips() 수행
@@ -369,7 +383,7 @@ void TabBeatNoiseScope::onResetSession()
     mTr1Last.clear(); mTr2Last.clear();
     mTr1AmpSum = mTr2AmpSum = 0; mTr1AmpN = mTr2AmpN = 0;
     mHaveCycleResult = false; mLastCycleAmp1 = mLastCycleAmp2 = 0;
-    mRecent.clear(); mSelectedStrip = -1;
+    mRecent.clear(); mRecentSample.clear(); mSelectedStrip = -1;
     mPeakScope1 = mPeakStrips = mPeakTr1 = mPeakTr2 = 0;
     if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));

@@ -1,5 +1,6 @@
 #include "TabWaveformCompare.h"
 #include "ReadoutBar.h"
+#include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QPushButton>
 #include <QHBoxLayout>
@@ -138,6 +139,17 @@ void TabWaveformCompare::onWave(const WaveBlock &w)
     }
     accumulate(w);
     if (isVisible()) render();
+}
+
+// [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(파형부만; 평균/paperstrip 누적은 동결).
+void TabWaveformCompare::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure(sr * 2); mRawBuf.configure(sr * 2); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, sr * 2);
+    render();
 }
 
 // C 정렬 tic/toc 코히어런트 평균(EMA) + A onset paperstrip 누적.

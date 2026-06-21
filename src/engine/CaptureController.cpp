@@ -22,6 +22,19 @@ CaptureController::CaptureController(MeasurementEngine *engine, TabManager *tabs
 
 CaptureController::~CaptureController()
 {
+    // [수명주기] 실행 중인 소스를 멈추고 워커 스레드를 join 한 뒤에야 공유버퍼를 해제한다.
+    //  안 그러면 워커 스레드가 살아있는 채로 mRawAudio(+Samples)가 delete 돼 use-after-free/크래시.
+    //  join 전에 워커·스레드의 'this 대상' 연결을 끊는다 — 파괴 중인 this 로의 큐드 콜백(포인터
+    //  null화 람다·dataReady 등)이 나중에 dangling this 를 건드리지 못하게.
+    stopLive(); stopPlayback(); stopSim();
+    auto joinWorker = [this](QThread *th, QObject *wk) {
+        if (wk) disconnect(wk, nullptr, this, nullptr);
+        if (th) { disconnect(th, nullptr, this, nullptr); th->quit(); th->wait(); }
+    };
+    joinWorker(mAudioThread,    mAudioWorker);
+    joinWorker(mPlaybackThread, mPlaybackWorker);
+    joinWorker(mSimThread,      mSimWorker);
+
     deleteDetectors();
     if (mRawAudio) {
         if (mRawAudio->Samples) { delete[] mRawAudio->Samples; mRawAudio->Samples = nullptr; }
@@ -93,6 +106,11 @@ void CaptureController::startLive(const QAudioDevice &device, int sampleRate, fl
     connect(this, &CaptureController::localStartAudio,          mAudioWorker, &TAudioWorker::StartAudioRecording);
     connect(this, &CaptureController::localStopAudio,           mAudioWorker, &TAudioWorker::StopAudioRecording);
     connect(this, &CaptureController::localSetAudioInputVolume, mAudioWorker, &TAudioWorker::SetAudioInputVolume);
+    // [수명주기] 정상 종료(deleteLater) 후 멤버 포인터를 무효화 — stop*/소멸자의 dangling 접근 방지.
+    { QThread *th = mAudioThread; TAudioWorker *wk = mAudioWorker;
+      connect(mAudioThread, &QThread::finished, this, [this, th, wk]{
+          if (mAudioThread == th) mAudioThread = nullptr;
+          if (mAudioWorker == wk) mAudioWorker = nullptr; }); }
     mAudioThread->start(QThread::TimeCriticalPriority);
     emit localStartAudio(device, sampleRate, micVol);
 }
@@ -111,6 +129,11 @@ void CaptureController::startPlayback(const QString &fileName, int sampleRate)
     connect(this, &CaptureController::localStartPlayback, mPlaybackWorker, &TPlaybackWorker::StartPlayback);
     connect(mPlaybackWorker, &TPlaybackWorker::PlaybackDataReady,       this, &CaptureController::onPlaybackData);
     connect(mPlaybackWorker, &TPlaybackWorker::PlaybackDoneReadingFile, this, &CaptureController::playbackDoneReadingFile);
+    // [수명주기] 정상 종료(deleteLater) 후 멤버 포인터를 무효화 — stopPlayback/소멸자의 dangling 접근 방지.
+    { QThread *th = mPlaybackThread; TPlaybackWorker *wk = mPlaybackWorker;
+      connect(mPlaybackThread, &QThread::finished, this, [this, th, wk]{
+          if (mPlaybackThread == th) mPlaybackThread = nullptr;
+          if (mPlaybackWorker == wk) mPlaybackWorker = nullptr; }); }
     mPlaybackThread->start(QThread::TimeCriticalPriority);
     emit localStartPlayback(fileName);
 }
@@ -130,6 +153,11 @@ void CaptureController::startSim(const WatchSynthStreamConfig &cfg, int sampleRa
     connect(this, &CaptureController::localStartSim, mSimWorker, &TSimWorker::StartSim);
     connect(mSimWorker, &TSimWorker::SimDataReady, this, &CaptureController::onSimData);
     connect(mSimWorker, &TSimWorker::SimDone,      this, &CaptureController::onSimWorkerDone);
+    // [수명주기] 정상 종료(deleteLater) 후 멤버 포인터를 무효화 — stopSim/소멸자의 dangling 접근 방지.
+    { QThread *th = mSimThread; TSimWorker *wk = mSimWorker;
+      connect(mSimThread, &QThread::finished, this, [this, th, wk]{
+          if (mSimThread == th) mSimThread = nullptr;
+          if (mSimWorker == wk) mSimWorker = nullptr; }); }
     mSimThread->start(QThread::TimeCriticalPriority);
     emit localStartSim(cfg);
 }
@@ -236,7 +264,20 @@ void CaptureController::matchGroundTruth(double val, bool isAEvent)
 void CaptureController::processSamples(TMasterAudioDataRaw *p)
 {
     mEngine->setConfig(mSampleRate, mAveragingPeriod, mLiftAngle);
-    int SamplesToAdd = mLocalTotalSamplesWritten - p->MainThrd_LastTotalSamplesWritten;
+    // [견고성] total 은 단조 증가가 정상이지만, 소스(버퍼) 재시작/되감김 또는 잔류 시그널로
+    //  mLocalTotalSamplesWritten 가 MainThrd_Last 보다 작아지면 uint64 뺄셈이 언더플로하여
+    //  int 로 좁혀질 때 음수/쓰레기 슬라이스가 된다(예: Playback 재시작 직후). 되감김을 감지하면
+    //  현재 위치로 재동기하고 이번 블록은 건너뛴다(다음 블록부터 정상 처리).
+    const uint64_t totalNow = mLocalTotalSamplesWritten;
+    const uint64_t lastDone = p->MainThrd_LastTotalSamplesWritten;
+    if (totalNow < lastDone) {
+        qInfo() << "processSamples: total rewind detected (resync) total=" << totalNow
+                << "last=" << lastDone;
+        p->MainThrd_LastTotalSamplesWritten = totalNow;
+        p->MainThrd_LastWriteIndex          = mLocalWriteIndex;
+        return;
+    }
+    int SamplesToAdd = (int)(totalNow - lastDone);
 
     int slice;
     if (!mForegroundTimerStarted) {

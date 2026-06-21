@@ -3,6 +3,7 @@
 #include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
+#include <QMouseEvent>   // [③] 트렌드 클릭 → 시점 변환
 
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 {
@@ -48,7 +49,73 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 
     lay->addWidget(mRate, 1);
     lay->addWidget(mAmp, 1);
+
+    // [③] 클릭 지점 세로 커서선(자홍, 점선) — 선택한 시각을 두 그래프에 표시(확인용).
+    mCurRate = new QCPItemStraightLine(mRate);
+    mCurRate->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurRate->setVisible(false);
+    mCurAmp = new QCPItemStraightLine(mAmp);
+    mCurAmp->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurAmp->setVisible(false);
+    mCurLabel = new QCPItemText(mRate);                 // 선택 시각/샘플 표시(상단 근처)
+    mCurLabel->setColor(QColor(150, 0, 150));
+    mCurLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
+    mCurLabel->position->setTypeX(QCPItemPosition::ptPlotCoords);
+    mCurLabel->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+    mCurLabel->setVisible(false);
+
+    // [③] 트렌드 클릭 → 커서 표시 + 그 x(초)의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
+    connect(mRate, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
+        if (mXtoSample.isEmpty()) return;
+        const double x = mRate->xAxis->pixelToCoord(e->position().x());
+        showCursor(x); emit seekRequested(sampleAtX(x));
+    });
+    connect(mAmp, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
+        if (mXtoSample.isEmpty()) return;
+        const double x = mAmp->xAxis->pixelToCoord(e->position().x());
+        showCursor(x); emit seekRequested(sampleAtX(x));
+    });
+
     onResetSession();
+}
+
+// [③] 선택한 시각(x초)에 두 그래프 세로 커서선을 표시.
+void TabTraceDisplay::showCursor(double xSeconds)
+{
+    if (mCurLabel) {
+        mCurLabel->position->setCoords(xSeconds, 0.04);   // 상단 4% 위치
+        mCurLabel->setText(QString("t=%1 s   #%2")
+                           .arg(xSeconds, 0, 'f', 1).arg((qint64)sampleAtX(xSeconds)));
+        mCurLabel->setVisible(true);
+    }
+    if (mCurRate) { mCurRate->point1->setCoords(xSeconds, 0); mCurRate->point2->setCoords(xSeconds, 1);
+                    mCurRate->setVisible(true); mRate->replot(QCustomPlot::rpQueuedReplot); }
+    if (mCurAmp)  { mCurAmp->point1->setCoords(xSeconds, 0);  mCurAmp->point2->setCoords(xSeconds, 1);
+                    mCurAmp->setVisible(true);  mAmp->replot(QCustomPlot::rpQueuedReplot); }
+}
+
+// [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 측정점의 x(초)로 커서를 옮긴다(트렌드 동기화).
+void TabTraceDisplay::onSeek(double absSample)
+{
+    if (mXtoSample.isEmpty()) return;
+    double bestX = mXtoSample.first().first, bestErr = qAbs(mXtoSample.first().second - absSample);
+    for (const auto &p : mXtoSample) {
+        const double err = qAbs(p.second - absSample);
+        if (err < bestErr) { bestErr = err; bestX = p.first; }
+    }
+    showCursor(bestX);
+    // 크로스탭 seek 시 로컬 t/# 라벨은 숨김 — 시점 표시는 전역 코너 라벨로 일원화(스냅값 충돌 방지).
+    if (mCurLabel) { mCurLabel->setVisible(false); if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot); }
+}
+
+// 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
+double TabTraceDisplay::sampleAtX(double xSeconds) const
+{
+    if (mXtoSample.isEmpty()) return 0.0;
+    double best = mXtoSample.first().second, bestDx = qAbs(mXtoSample.first().first - xSeconds);
+    for (const auto &p : mXtoSample) {
+        const double dx = qAbs(p.first - xSeconds);
+        if (dx < bestDx) { bestDx = dx; best = p.second; }
+    }
+    return best;
 }
 
 void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
@@ -56,6 +123,7 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
     mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     const double x = (s.timeMs - mT0) / 1000.0;
+    mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
 
     double smoothed = 0.0; bool haveSmoothed = false;
     if (s.rateValid) {
@@ -74,6 +142,7 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
     mRate->graph(0)->data()->removeBefore(cutoff);
     mRate->graph(1)->data()->removeBefore(cutoff);
     mAmp->graph(0)->data()->removeBefore(cutoff);
+    while (!mXtoSample.isEmpty() && mXtoSample.first().first < cutoff) mXtoSample.removeFirst();
 
     // ── 파생 측정 (Plan §Expected Enhancements / Chour) ─────────────────────
     //  비트당 주기 편차(ms) = rate(s/d) × I_target / 86400 × 1000,  I_target = 3600/BPH (E1).
@@ -118,17 +187,29 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
 
 void TabTraceDisplay::onShown()
 {
-    if (mRate) mRate->replot();
-    if (mAmp)  mAmp->replot();
+    // 숨은 동안 쌓인 데이터(축 미조정)나 정지 상태에서 전환해도 제대로 보이도록 축을 맞춘다.
+    //  (onMeasurement 의 rescale 은 isVisible() 가드라, 숨김+정지 조합에선 호출 안 됨.)
+    if (mRate) { mRate->rescaleAxes(); mRate->replot(); }
+    if (mAmp)  {
+        mAmp->rescaleAxes();
+        QCPRange yr = mAmp->yAxis->range();
+        mAmp->yAxis->setRange(qMin(yr.lower, kAmpLo - 5.0), qMax(yr.upper, kAmpHi + 5.0));
+        mAmp->replot();
+    }
 }
 
 void TabTraceDisplay::onResetSession()
 {
     mHaveT0 = false; mRateWin.clear(); mRateSum=mAmpSum=0; mRateN=mAmpN=0;
     mDevWin.clear(); mDevSum=0; mDevN=0;
+    mXtoSample.clear();
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     if (mBar) mBar->update(MeasurementSnapshot{});
+    // [③] 이전 세션의 seek 커서/라벨 제거(새 세션 = 시점 표시 리셋).
+    if (mCurRate)  mCurRate->setVisible(false);
+    if (mCurAmp)   mCurAmp->setVisible(false);
+    if (mCurLabel) mCurLabel->setVisible(false);
     if (mRate) { PlotHelpers::clearAllGraphs(mRate); mRate->replot(); }
     if (mAmp)  { PlotHelpers::clearAllGraphs(mAmp);  mAmp->replot(); }
 }

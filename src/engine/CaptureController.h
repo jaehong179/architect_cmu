@@ -43,6 +43,9 @@ public:
     void setDetectorConfig(bool bphAuto, int manualBph, double hpfCutoffHz)
         { mBphAuto = bphAuto; mManualBph = manualBph; mHpfCutoffHz = hpfCutoffHz; }
     void setUseConset(bool v) { mUseConset = v; }
+    // [전체 정지] 소스 워커를 멈춰 시간/위치가 안 흐르게 한다(playback/sim=위치 보존, live=캡처 폐기).
+    //  resume 시 정확히 이어져 비트 번호·트렌드에 갭이 없다. 데이터 흐름 자체가 멎으므로 탭·이력도 자연 동결.
+    void setPaused(bool p) { if (mRawAudio) mRawAudio->Paused.store(p, std::memory_order_relaxed); }
     void setInputVolume(float vol) { emit localSetAudioInputVolume(vol); }
     void setWavWriter(WavStreamWriter *w) { mWavWriter = w; }   // 녹음 대상(소유 안 함)
 

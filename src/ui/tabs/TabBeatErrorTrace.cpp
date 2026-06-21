@@ -49,6 +49,10 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mGapText->setVisible(false);
 
     lay->addWidget(mPlot, 1);
+
+    // [③] 정지 중 점 클릭 → 그 비트(beat#)의 절대 샘플 방출 + 커서.
+    mSeek.attach(mPlot, [this](double absSample) { emit seekRequested(absSample); });
+
     onResetSession();
 }
 
@@ -93,6 +97,7 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         if (y < 0) y += kWrapMs;
         y -= kWrapMs / 2.0;
         mPlot->graph(n % 2 == 0 ? 0 : 1)->addData((double)n, y);
+        mSeek.addPoint((double)n, (double)e.sample);   // [③] beat# → 절대 샘플(클릭→시점)
 
         // E6: 기울기 m = ΔE/Δn (ms/비트) — 검출 누락으로 비트 번호가 건너뛰어도
         //  '비트당'으로 정규화해야 rate 환산이 맞는다. 지수평활로 안정화.
@@ -166,6 +171,7 @@ void TabBeatErrorTrace::onShown() { if (mPlot) mPlot->replot(); }
 void TabBeatErrorTrace::onResetSession()
 {
     mAnchored = false; mTstart = 0; mN = 0; mLastA = 0; mBph = 0;
+    mSeek.clear();
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));

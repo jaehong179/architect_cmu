@@ -25,6 +25,7 @@
 
 class QTabWidget;
 class TabView;
+class WaveSink;     // 엔벨로프 방송을 받는 비시각 청취자(예: 8분 이력 버퍼) — tabs/WaveSink.h
 
 class TabManager : public QObject
 {
@@ -39,17 +40,32 @@ public:
     // 측정 스냅샷을 모든 탭에 전달(+탭별 갱신시간 §F-1 로깅).
     void broadcastMeasurement(const MeasurementSnapshot &snap);
 
-    // 파형(엔벨로프+이벤트) 블록을 모든 탭에 전달. (고빈도 호출 → per-tab 로깅 생략)
+    // 파형(엔벨로프+이벤트) 블록을 모든 탭 + 등록된 WaveSink 에 전달. (고빈도 → per-tab 로깅 생략)
     void broadcastWave(const WaveBlock &wave);
 
     // 세션 리셋을 모든 탭에 전파.
     void broadcastReset();
 
+    // [③ 시점 동기화] 선택한 절대 샘플 인덱스를 모든 탭에 전파(정지 중 트렌드 클릭 → 스코프 점프).
+    void broadcastSeek(double absSample);
+
+    // 비시각 청취자 등록 — 탭이 아닌 수집기(8분 이력 버퍼 등)가 엔벨로프 방송을 받도록.
+    //  소유권은 호출 측(보통 MainWindow)이 가진다. (OCP: 방송 로직 수정 없이 확장)
+    void addWaveSink(WaveSink *sink);
+
+    // [8분 스크롤백] 전역 정지 — 켜면 모든 탭 방송을 멈춰 전체 동결(이력 버퍼는 계속 채움).
+    //  Rate/Scope 의 Pause 버튼이 MainWindow 경유로 토글한다.
+    void setPaused(bool p);   // 정지 ON/OFF — 해제 시 각 탭에 onResumeLive() 통지
+    bool isPaused() const  { return mPaused; }
+
     int count() const { return mTabs.size(); }
 
 private:
-    QTabWidget        *mHost = nullptr;
-    QVector<TabView *> mTabs;
+    QTabWidget         *mHost = nullptr;
+    QVector<TabView *>  mTabs;
+    QVector<WaveSink *> mWaveSinks;   // broadcastWave 시 함께 통지(소유 안 함)
+    bool                mPaused = false;
+    bool                mSeekedSincePause = false;   // 이번 정지 구간에서 seek 발생 여부(resume 정리용)
 };
 
 #endif // TABMANAGER_H

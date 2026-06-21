@@ -13,6 +13,7 @@ class QSpinBox;
 class QLabel;
 class QCheckBox;
 class ReadoutBar;
+class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay
 
 class TabSyncSweepScope : public TabView
 {
@@ -23,14 +24,17 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;            // [③] 정지 중 트렌드 클릭 → 그 시점 표시
+    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mRawBuf.clear(); } }   // seek 했으면 버퍼 비움
+    void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;
 private:
+    WaveLodHistory *mHistory = nullptr;
     void render();
     ReadoutBar  *mBar    = nullptr;
     QCustomPlot *mPlot   = nullptr;     // folded 그래스 sweep 보기
     QSpinBox    *mBeats  = nullptr;     // sweep 창 = NBEATS
-    QCheckBox   *mPause  = nullptr;     // Pause/Scope: 화면 정지
     QLabel      *mInfo   = nullptr;
     WaveBuffer   mBuf;       // 엔벨로프(동기/박자용)
     WaveBuffer   mRawBuf;    // 원신호(folded 표시용)

@@ -1,5 +1,6 @@
 #include "TabSpectrogram.h"
 #include "LegendBox.h"
+#include "WaveLodHistory.h"   // [③] seek 대상 replay
 #include "qcustomplot.h"
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -87,6 +88,17 @@ void TabSpectrogram::onWave(const WaveBlock &w)
     }
     // 스로틀: 매 8번째 블록만 재계산(렌더 비용 절감).
     if ((mTick++ % 8) == 0 && isVisible()) recompute();
+}
+
+// [③] 다른 탭 선택 시점 → 그 구간을 이력에서 복원해 스펙트로그램 표시(raw→mBuf, env→mEvtBuf).
+void TabSpectrogram::onSeek(double absSample)
+{
+    if (!mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    if (!mConfigured) { mBuf.configure((int)(sr * 2.2)); mEvtBuf.configure((int)(sr * 2.2)); mConfigured = true; }
+    WaveLodHistory::replayInto(*mHistory, mEvtBuf, &mBuf, absSample, (int)(sr * 2.2));   // env→mEvtBuf, raw→mBuf
+    recompute();
 }
 
 void TabSpectrogram::recompute()

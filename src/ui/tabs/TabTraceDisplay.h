@@ -7,6 +7,8 @@
 #include <QVector>
 class QCustomPlot;
 class QCPItemRect;
+class QCPItemStraightLine;
+class QCPItemText;
 class QLabel;
 class ReadoutBar;
 
@@ -18,9 +20,20 @@ public:
     QString tabTitle() const override { return QStringLiteral("Trace Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;   // [③] 다른 탭 seek → 커서 동기화
+signals:
+    // [③] 정지 중 트렌드 그래프 클릭 → 해당 절대 샘플 시점(스코프 탭들이 점프).
+    void seekRequested(double absSample);
 protected:
     void onShown() override;
 private:
+    // 클릭한 x(초) → 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples).
+    double sampleAtX(double xSeconds) const;
+    void   showCursor(double xSeconds);          // [③] 클릭 지점 세로 커서선(선택 확인용)
+    QVector<QPair<double,double>> mXtoSample;   // (x초, totalSamples) — 클릭→시점 변환용
+    QCPItemStraightLine *mCurRate = nullptr;    // 클릭 커서(상단)
+    QCPItemStraightLine *mCurAmp  = nullptr;    // 클릭 커서(하단)
+    QCPItemText         *mCurLabel = nullptr;   // 선택 시각/샘플 표시(상단)
     ReadoutBar  *mBar   = nullptr;
     QCustomPlot *mRate  = nullptr;   // 상단: rate(raw+smoothed)
     QCustomPlot *mAmp   = nullptr;   // 하단: amplitude
