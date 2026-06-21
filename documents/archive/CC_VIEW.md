@@ -53,7 +53,7 @@ flowchart LR
     TG[["Timegrapher tg_process()<br/>6-stage pipe, O(n)/slice"]]
     MW("MainWindow<br/>DisplayResults<br/>fills Snapshot")
     TM("TabManager<br/>fan-out + per-tab timing")
-    TABS("13 x TabView<br/>파형계열: WaveBuffer 링 0.5~2s<br/>isVisible() render guard")
+    TABS("13 x TabView<br/>스코프 6개: WaveBuffer 링 0.5~2s<br/>isVisible() render guard")
   end
 
   AW -- "L0 PCM write<br/>shared-data<br/>device cadence, non-block" --> RING
@@ -258,7 +258,7 @@ flowchart LR
 | `Timegrapher` (`tg_*`) | main | 검출 파이프&필터(그림 2) | HPF/env 상태, PLL, noise floor | 슬라이스당 O(n) |
 | `MainWindow` | main | `DisplayResults` → 스냅샷 채워 게시 | 위젯, readout 상태 | 경량(스칼라) |
 | `TabManager` | main | 발행자(1:N), 탭별 `tab_update_ms` 계측 | 탭 리스트 | 순회 비용 = Σ 탭 |
-| `TabView` ×13 | main | 구독자(그래프), 자기 버퍼 보관 | `WaveBuffer`(탭별 0.5~2 s), 플롯 데이터 | `isVisible()`로 숨은 탭 render 생략 |
+| `TabView` ×13 | main | 구독자(그래프) | 스코프 6개만 `WaveBuffer`(0.5~2 s) · 나머지는 plot/이미지/이벤트 | `isVisible()`로 숨은 탭 render 생략 |
 | `WaveLodHistory` ×1 | main | **비시각** 구독자(`WaveSink`) — 8분 이력 + seek replay 원천 | 엔벨로프 L0 링 · raw PCM 링 · A/C 이벤트 · LOD 피라미드 | 엔벨로프 ~92 + raw ~92 + LOD ~26 ≈ **210 MB** 상주(48 kHz·8분) |
 
 ---

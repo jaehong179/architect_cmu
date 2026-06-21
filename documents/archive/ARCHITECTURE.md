@@ -174,11 +174,8 @@ flowchart LR
     end
 
     subgraph TABS["📊 TabView 구독자 (13)"]
-        T1[Rate/Scope]
-        T2[Sound Print]
-        T3[수치전용 4개<br/>버퍼 없음]
-        T4[... 그 외]
-        WB[("🔁 WaveBuffer 링<br/>파형 탭마다 1개 · 0.5~2s")]
+        TV["onWave 받는 9 · onMeasurement 받는 12<br/>(둘 다 받는 탭 8 · 측정전용 4 · 파형전용 1)"]
+        WB[("🔁 WaveBuffer 링<br/>스코프 6개만 보유 · 0.5~2s")]
     end
     HIST[("🔁 WaveLodHistory (WaveSink)<br/>8분 이력 · 엔벨로프링 + raw링 + LOD<br/>~210 MB")]
 
@@ -188,15 +185,18 @@ flowchart LR
     PF -- "A/C 이벤트" --> ME
     PF -- "WaveBlock(파형)" --> TM
     ME -- "MeasurementSnapshot(스칼라)" --> TM
-    TM -- "onWave/onMeasurement (시각)" --> T1 & T2 & T3 & T4
-    T1 -. 보유 .-> WB
-    T2 -. 보유 .-> WB
-    T4 -. 보유 .-> WB
+    TM -- "onWave (파형 9개)" --> TV
+    TM -- "onMeasurement (측정 12개)" --> TV
+    TV -. "스코프 6개가 보유" .-> WB
     TM -- "onWave (비시각, WaveSink)" --> HIST
 ```
 
-세 버퍼가 모두 **링(원통 노드)** 이다 — 워커 경계의 `SharedAudio`, 파형 탭마다의
-`WaveBuffer`, 중앙의 `WaveLodHistory`. 수치/추세 전용 탭(`T3`)은 파형을 안 받아 버퍼가 없다.
+> **화살표는 버퍼가 아니라 메서드 호출**(`onWave`/`onMeasurement`)이다. 버퍼는 원통 노드 셋뿐 —
+> 워커 경계 `SharedAudio`, 스코프 탭의 `WaveBuffer`, 중앙 `WaveLodHistory`. `onWave` 는 파형
+> 받는 9개 탭(+이력)에, `onMeasurement` 는 측정 받는 12개 탭에 간다(8개는 둘 다). `WaveBuffer`
+> 는 그 중 **스코프 6개**(Escapement·Filter·Waveform·SyncSweep·BeatNoise·Spectrogram)만 가진다 —
+> Rate/Scope·SoundPrint·BeatError 는 파형을 받지만 plot/이미지/이벤트로 따로 보관하고, 측정 전용
+> 4개(Trace·Vario·Sequence·Long-Term)는 파형 자체를 안 받는다. (탭별 정밀 분류 = CC_VIEW 그림 3)
 
 - **경계 큐(ring buffer)**: 워커는 `Mutex` 보호 하에 쓰고, 메인 스레드는 같은 락으로
   스냅샷만 떠서 즉시 빠진다 → 락 보유 시간 최소화.
@@ -209,7 +209,7 @@ flowchart LR
 | 버퍼 | 위치 | 종류 | 크기(48 kHz) | 역할 |
 |---|---|---|---|---|
 | **SharedAudio 링** | 워커 ↔ 메인 경계 | 고정 ring (Mutex 보호) | 30 s = **5.76 MB** | 생산자-소비자 경계 큐 — 드롭/backlog 흡수 |
-| **WaveBuffer** (탭별) | 각 **파형 계열** TabView | 고정 ring (헤더온리) | **0.5~2 s** (탭마다) | 탭이 최근 구간을 보관 → 재렌더·A/C 마커 정렬 |
+| **WaveBuffer** (탭별) | **스코프 6개** TabView | 고정 ring (헤더온리) | **0.5~2 s** (탭마다) | 탭이 최근 구간을 보관 → 재렌더·seek replay 대상 |
 | **WaveLodHistory** | 중앙 1개 (WaveSink) | **풀해상도 ring ×2** + min/max LOD | 8 분 = **~210 MB** (엔벨로프 92 + raw 92 + LOD 26) | 8분 스크롤백·seek replay 원천(§5.1) |
 
 > 셋 다 **절대 입력샘플 인덱스**(`% 용량`)로 주소지정되는 링이라 좌표가 통일된다. 단, **SharedAudio
