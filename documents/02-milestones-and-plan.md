@@ -39,7 +39,7 @@ Architecture overview</p>
 <td>Sprint 1</td>
 <td>Week 2</td>
 <td>06/08-06/12</td>
-<td>06/12Architecture finalization &amp; experiment execution — design decisions and baseline/feasibility experiments</td>
+<td>Architecture finalization &amp; experiment execution — design decisions and baseline/feasibility experiments</td>
 <td>Software Architecture Document / Experiment results (baseline·feasibility: EXP-08/09/10/12/14) / Validated design decisions</td>
 <td>MS-2 preparation</td>
 </tr>
@@ -48,7 +48,7 @@ Architecture overview</p>
 <td>Week 3</td>
 <td>06/15-06/19</td>
 <td>Core build &amp; initial visualization — signal capture·detection·measurement·basic display</td>
-<td>Design-decision ADRs (EXP-15/16/17) /Revised Software Architecture Document / Live Mode operation · rate/BE/amp computation / Summary Bar / Vario·Sequence / Single-Beat Waveform / Scope/2·Beat Error / Long-Term Trace Display</td>
+<td>Design-decision ADRs (EXP-15/16/17) / Revised Software Architecture Document / Live Mode operation · rate/BE/amp computation / Summary Bar / Vario·Sequence / Single-Beat Waveform / Scope/2·Beat Error / Long-Term Trace Display</td>
 <td>MS-2 submission</td>
 </tr>
 <tr class="even">
