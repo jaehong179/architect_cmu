@@ -1,5 +1,6 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
+#include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -34,6 +35,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     ctlRow->addWidget(scaleLabel);
     ctlRow->addWidget(mScopeScale);
     ctlRow->addStretch(1);
+    // (정지/재생은 모든 탭에 보이는 전역 버튼 = QTabWidget 코너위젯이 담당. MainWindow 가 setPaused 호출.)
     lay->addLayout(ctlRow);
 
     mRatePlot  = new QCustomPlot(this);
@@ -42,6 +44,11 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     lay->addWidget(mScopePlot, 1);
 
     setupPlots();
+
+    // [8분 스크롤백] 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 다시 잘라 그린다.
+    //  (라이브 중에는 mPaused=false 라 무시 — line 207 의 AlignRight setRange 도 그냥 통과.)
+    connect(mScopePlot->xAxis, QOverload<const QCPRange &>::of(&QCPAxis::rangeChanged),
+            this, [this](const QCPRange &) { if (mPaused && !mInHistoryRender) renderHistoryWindow(); });
 
 #if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
@@ -112,6 +119,8 @@ void TabRateScope::setupPlots()
 // RatePlot: snapshot 의 tic/toc 시리즈를 받아 그린다(setData 가 자체 복사).
 void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
 {
+    // [8분 스크롤백/A안] 정지 중엔 위쪽 Rate 트렌드도 동결(스코프와 함께). 측정은 백그라운드 계속.
+    if (mPaused) return;
     if (snap.liftAngle > 0) mLiftAngle = snap.liftAngle;
 
     QVector<double> tx, ty, ox, oy;
@@ -132,6 +141,8 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
 // ScopePlot: 엔벨로프 + 임계선 + A/C 마커.
 void TabRateScope::onWave(const WaveBlock &wave)
 {
+    // [8분 스크롤백] 정지 중엔 라이브 갱신 중단. (이력은 중앙 버퍼가 WaveSink 로 계속 누적 → 데이터 손실 없음.)
+    if (mPaused) return;
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
 
     const double threshold = wave.onsetThreshold;
@@ -209,8 +220,75 @@ void TabRateScope::onWave(const WaveBlock &wave)
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
+// ── [8분 스크롤백] 정지 ↔ 라이브 전환 ─────────────────────────────────────────
+//  정지 = "비디오 일시정지": 현재 라이브 프레임을 그대로 동결한다(재렌더 X, 마커 유지).
+//  사용자가 드래그/줌해 화면이 바뀔 때 비로소 이력으로 스크롤한다(좌표는 라이브와 일치).
+void TabRateScope::setPaused(bool paused)
+{
+    if (paused && (!mHistory || !mHistory->hasData())) return;   // 이력 없으면 무시(전역 버튼이 원복)
+    if (paused == mPaused) return;
+    mPaused = paused;
+
+    if (paused) {
+        // 라이브 mGraphTicks 좌표 ↔ 이력 절대 인덱스의 고정 오프셋을 잡아둔다.
+        //  이걸로 이력을 라이브와 같은 좌표로 환산 → 동결 화면에서 이음매 없이 스크롤.
+        mHistOffset = (double)mHistory->latestAbs() - (double)mGraphTicks;
+        mHistActive = false;                                  // 아직 동결(드래그 전): 재렌더 안 함
+        mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 가로(시간) 전용 드래그/줌
+        mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal);
+        mScopePlot->xAxis->setLabel(QStringLiteral("PAUSED — drag/zoom to scroll back up to 8 min"));
+        mScopePlot->replot(QCustomPlot::rpQueuedReplot);      // 라벨만 갱신(데이터·범위 그대로 = 동결)
+    } else {
+        // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
+        mHistActive = false;
+        mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0;
+        mScopePlot->graph(0)->data()->clear();
+        mScopePlot->graph(1)->data()->clear();
+        mScopePlot->clearItems();
+        mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
+        mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
+        mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+        mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+    }
+}
+
+// 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 잘라 그린다(라이브와 같은 좌표).
+void TabRateScope::renderHistoryWindow()
+{
+    if (!mPaused || !mHistory || !mHistory->hasData()) return;
+    const int sr = mHistory->sampleRate();
+    if (sr <= 0) return;
+    const QCPRange r = mScopePlot->xAxis->range();          // 라이브(mGraphTicks) 좌표
+    double fromAbs = r.lower + mHistOffset;                  // → 이력 절대 인덱스
+    double toAbs   = r.upper + mHistOffset;
+    if (fromAbs < 0.0) fromAbs = 0.0;
+    if (toAbs <= fromAbs) return;
+    const int px = qMax(64, mScopePlot->axisRect()->width());   // 화면 픽셀폭 = 목표 점 수
+    QVector<double> xs, ys;
+    mHistory->queryWindow((uint64_t)fromAbs, (uint64_t)toAbs, px, xs, ys);
+    for (double &x : xs) x -= mHistOffset;                  // 다시 라이브 좌표로(이음매 없음)
+    mInHistoryRender = true;
+    if (!mHistActive) {                                     // 첫 스크롤 순간: 라이브 마커/트리거 제거(이력엔 없음)
+        mScopePlot->clearItems();
+        mScopePlot->graph(1)->data()->clear();
+        mHistActive = true;
+    }
+    mScopePlot->graph(0)->setData(xs, ys, true);
+    mScopePlot->yAxis->rescale();                           // y만 자동 맞춤(x는 사용자 유지)
+    mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+    mInHistoryRender = false;
+}
+
 void TabRateScope::onResetSession()
 {
+    // 정지 상태였다면 라이브로 원복(축 상호작용·라벨 복구). 전역 버튼 원복은 MainWindow 담당.
+    mPaused = false;
+    mHistActive = false;
+    mScopePlot->xAxis->setTickLabels(false);
+    mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
+    mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
+    mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+
     mGraphTicks = 0; mLastA = 0.0; mHaveLastA = false; mDecimCount = 0;
 
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();

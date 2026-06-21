@@ -50,12 +50,18 @@ public:
     //  소유권은 호출 측(보통 MainWindow)이 가진다. (OCP: 방송 로직 수정 없이 확장)
     void addWaveSink(WaveSink *sink);
 
+    // [8분 스크롤백] 전역 정지 — 켜면 모든 탭 방송을 멈춰 전체 동결(이력 버퍼는 계속 채움).
+    //  Rate/Scope 의 Pause 버튼이 MainWindow 경유로 토글한다.
+    void setPaused(bool p) { mPaused = p; }
+    bool isPaused() const  { return mPaused; }
+
     int count() const { return mTabs.size(); }
 
 private:
     QTabWidget         *mHost = nullptr;
     QVector<TabView *>  mTabs;
     QVector<WaveSink *> mWaveSinks;   // broadcastWave 시 함께 통지(소유 안 함)
+    bool                mPaused = false;
 };
 
 #endif // TABMANAGER_H

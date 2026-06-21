@@ -16,6 +16,7 @@ QT_END_NAMESPACE
 
 class TabManager;   // [탭 모듈] 디스플레이 탭 등록·갱신 브로드캐스트 (tabs/TabManager.h)
 class TabRateScope; // Rate/Scope 탭 — ScopePlot afterReplot 신호를 CaptureController perf 로 연결
+class QPushButton;  // 전역 Pause/Resume(탭바 코너위젯)
 
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
@@ -50,6 +51,7 @@ private:
     Ui::MainWindow *ui;
     TabManager     *mTabManager = nullptr;   // [탭 모듈] 디스플레이 탭을 등록·갱신(QA-MOD-01)
     TabRateScope   *mRateScope  = nullptr;    // Rate/Scope 탭(perf afterReplot → 컨트롤러 배선용)
+    QPushButton    *mPauseBtn   = nullptr;    // 전역 Pause/Resume(탭바 코너 — 모든 탭에 표시)
     WaveLodHistory  mWaveHistory;             // 8분 엔벨로프 이력(중앙 1개) — TabManager 방송에 청취자로 등록
     void   RegisterDisplayTabs(void);        // [탭 모듈] 신규 탭 모듈들을 생성·등록
     void   PublishMeasurementToTabs(void);   // [탭 모듈] 현재 측정값을 스냅샷으로 탭에 게시

@@ -3,6 +3,7 @@
 #include "./ui_MainWindow.h"
 #include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices)
 #include <QAudioDevice>
+#include <QPushButton>     // 전역 Pause/Resume(탭바 코너위젯)
 #include "WaveHeader.h"
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
@@ -179,6 +180,7 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->addWaveSink(&mWaveHistory);
     // Rate/Scope 를 첫 탭으로(기본 표시) — ScopePlot 이 기본으로 paint 되어 perf(disp_paint 등) 측정 유지.
     mRateScope = new TabRateScope(this);
+    mRateScope->setHistory(&mWaveHistory);                      // [8분 스크롤백] 정지 중 렌더 원본 주입
     mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
@@ -193,6 +195,21 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(new TabWaveformCompare(this));     // FR-WCD
     mTabManager->registerTab(new TabSyncSweepScope(this));      // FR-SMS
     mTabManager->registerTab(new TabFilterViews(this));         // FR-SFM(F0~F3)
+
+    // [8분 스크롤백] 전역 Pause/Resume — 탭바 코너에 두어 어느 탭에서나 보인다.
+    //  정지 → TabManager 전 탭 동결(방송 중단, 이력 버퍼는 계속) + Rate/Scope 스크롤백 진입.
+    mPauseBtn = new QPushButton(QStringLiteral("⏸ Pause"), this);
+    mPauseBtn->setCheckable(true);
+    ui->GraphicsTabWidget->setCornerWidget(mPauseBtn, Qt::TopRightCorner);
+    connect(mPauseBtn, &QPushButton::toggled, this, [this](bool p) {
+        if (p && !mWaveHistory.hasData()) {                     // 아직 이력 없으면 정지 무시(버튼 원복)
+            mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false); mPauseBtn->blockSignals(false);
+            return;
+        }
+        mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
+        if (mTabManager) mTabManager->setPaused(p);
+        if (mRateScope)  mRateScope->setPaused(p);
+    });
 }
 
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
@@ -421,6 +438,10 @@ void MainWindow::Reset(void)
     // 세션 리셋: 탭 비움(broadcastReset) + 측정엔진 리셋(EventsReset → readout).
     //  검출기 생성·파이프라인 상태(mInputAbsSample·FPS) 리셋은 CaptureController::startX 가 담당.
     if (mTabManager) mTabManager->broadcastReset();
+    if (mPauseBtn && mPauseBtn->isChecked()) {   // 새 세션 = 정지 해제(전역 버튼 원복)
+        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
+        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
+    }
     EventsReset();
 }
 
