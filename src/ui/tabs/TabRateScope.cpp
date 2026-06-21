@@ -13,6 +13,7 @@
 // 측정 상수.
 static constexpr int    GRAPH_HISTORY_IN_SECONDS = 10;
 static constexpr double ERROR_RATE_Y_SCALE       = 10.0;
+static constexpr double kScopeWindowBaseSec      = 1.0;   // Scope Scale=1 → 1000 ms 창
 static constexpr int    kEventA = 1;   // unlock
 static constexpr int    kEventC = 2;   // drop/lock
 
@@ -21,6 +22,25 @@ static double amplitudeOf(double liftAngle, double t1Sec, double bph)
 {
     return liftAngle / std::sin((2.0 * M_PI * t1Sec) / (7200.0 / bph));
 }
+
+// ScopePlot/RatePlot 공통 X축: 100 ms 간격 고정 눈금 + 초(s) 라벨.
+class ScopeSecTicker : public QCPAxisTickerFixed {
+public:
+    ScopeSecTicker()
+    {
+        setTickStep(0.1);
+        setScaleStrategy(QCPAxisTickerFixed::ssNone);
+        setTickOrigin(0.0);
+    }
+protected:
+    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
+    {
+        Q_UNUSED(locale);
+        Q_UNUSED(formatChar);
+        Q_UNUSED(precision);
+        return QStringLiteral("%1s").arg(tick, 0, 'f', 1);
+    }
+};
 
 TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
 {
@@ -32,7 +52,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     auto *scaleLabel = new QLabel(QStringLiteral("Scope Scale"), this);
     QFont lf = scaleLabel->font(); lf.setBold(true); scaleLabel->setFont(lf);
     mScopeScale = new QSpinBox(this);
-    mScopeScale->setMinimum(1); mScopeScale->setMaximum(8); mScopeScale->setValue(2);
+    mScopeScale->setMinimum(1); mScopeScale->setMaximum(8); mScopeScale->setValue(1);
     ctlRow->addWidget(scaleLabel);
     ctlRow->addWidget(mScopeScale);
     ctlRow->addStretch(1);
@@ -78,6 +98,11 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         emit seekRequested(seekSample);
     });
 
+    connect(mScopeScale, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int) {
+        syncScopeXAxis(sampleToTime(mGraphTicks));
+        mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+    });
+
 #if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
     //  계측 OFF 면 매 replot 마다의 시그널 방출 자체를 제거.
@@ -99,9 +124,17 @@ void TabRateScope::setupPlots()
     mScopePlot->legend->setSelectedFont(legendFont);
     mScopePlot->legend->setSelectableParts(QCPLegend::spItems);
     mScopePlot->yAxis->setLabel("Amplitude");
-    mScopePlot->xAxis->setLabel("Time");
+    mScopePlot->xAxis->setLabel(QStringLiteral("time (s)"));
+    mScopePlot->xAxis->setTicker(QSharedPointer<ScopeSecTicker>::create());
+    QFont scopeTickFont = mScopePlot->xAxis->tickLabelFont();
+    scopeTickFont.setPointSize(10);
+    mScopePlot->xAxis->setTickLabelFont(scopeTickFont);
+    QFont scopeLabelFont = mScopePlot->xAxis->labelFont();
+    scopeLabelFont.setPointSize(10);
+    mScopePlot->xAxis->setLabelFont(scopeLabelFont);
     mScopePlot->yAxis->setRange(0, 0.1);
-    mScopePlot->xAxis->setTickLabels(false);
+    mScopePlot->xAxis->setTickLabels(true);
+    mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec);
     mScopePlot->clearGraphs();
     mScopePlot->addGraph();
     pen.setWidth(1); pen.setColor(Qt::blue);
@@ -127,9 +160,8 @@ void TabRateScope::setupPlots()
     mRatePlot->legend->setSelectableParts(QCPLegend::spItems);
     mRatePlot->yAxis->setLabel("Rate Error (milliseconds)");
     mRatePlot->yAxis->setTickLabels(true);
-    mRatePlot->xAxis->setLabel("Time");
+    applyFixedRateXAxis();
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    mRatePlot->xAxis->setTickLabels(false);
     mRatePlot->clearGraphs();
     mRatePlot->addGraph();
     mRatePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
@@ -163,7 +195,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     }
     mRatePlot->graph(0)->setData(tx, ty);
     mRatePlot->graph(1)->setData(ox, oy);
-    if (snap.rateMaxPoints > 0) mRatePlot->xAxis->setRange(0, snap.rateMaxPoints);
+    if (snap.sampleRateHz > 0) mSampleRateHz = snap.sampleRateHz;
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -183,13 +215,14 @@ void TabRateScope::onWave(const WaveBlock &wave)
     // 고샘플레이트(예: 384kHz)에서 스코프 점이 레이트×시간으로 폭증(384만 점) → QCustomPlot 렌더가 멈춘다.
     //  검출은 풀 레이트 그대로(정확도 보존)이고, '그리기'만 줄인다:
     //  min/max 데시메이션 — decim 샘플 구간마다 최저·최고점 2개만 찍어 점 수는 줄이되 '피크'는 보존한다.
-    //  x(키)는 실제 샘플 인덱스라 A/C 마커 정렬도 유지. 48k(decim=1)는 샘플마다 1점(원동작 동일).
+    //  x(키)는 세션 기준 초 단위 시각이라 A/C 마커 정렬도 유지. 48k(decim=1)는 샘플마다 1점(원동작 동일).
     const int decim = qMax(1, mSampleRateHz / 48000);   // 48k→1, 96k→2, 192k→4, 384k→8
     if (wave.env) {
         if (decim == 1) {
             for (int i = 0; i < wave.n; ++i) {
-                mScopePlot->graph(0)->addData((double)mGraphTicks, wave.env[i]);
-                mScopePlot->graph(1)->addData((double)mGraphTicks, threshold);
+                const double t = sampleToTime(mGraphTicks);
+                mScopePlot->graph(0)->addData(t, wave.env[i]);
+                mScopePlot->graph(1)->addData(t, threshold);
                 mGraphTicks++;
             }
         } else {
@@ -204,29 +237,29 @@ void TabRateScope::onWave(const WaveBlock &wave)
                 if (++mDecimCount >= decim) {
                     // 구간의 최저·최고를 x(시간) 순서로 2점 추가 → 피크 보존.
                     if (mDecimMinTick <= mDecimMaxTick) {
-                        mScopePlot->graph(0)->addData((double)mDecimMinTick, mDecimMin);
-                        mScopePlot->graph(0)->addData((double)mDecimMaxTick, mDecimMax);
+                        mScopePlot->graph(0)->addData(sampleToTime(mDecimMinTick), mDecimMin);
+                        mScopePlot->graph(0)->addData(sampleToTime(mDecimMaxTick), mDecimMax);
                     } else {
-                        mScopePlot->graph(0)->addData((double)mDecimMaxTick, mDecimMax);
-                        mScopePlot->graph(0)->addData((double)mDecimMinTick, mDecimMin);
+                        mScopePlot->graph(0)->addData(sampleToTime(mDecimMaxTick), mDecimMax);
+                        mScopePlot->graph(0)->addData(sampleToTime(mDecimMinTick), mDecimMin);
                     }
-                    mScopePlot->graph(1)->addData((double)(mGraphTicks - 1), threshold);
+                    mScopePlot->graph(1)->addData(sampleToTime(mGraphTicks - 1), threshold);
                     mDecimCount = 0;
                 }
             }
         }
     }
 
-    const double inwardLen = 500.0 * (mSampleRateHz / 48000.0);
+    const double inwardLenSec = (500.0 * (mSampleRateHz / 48000.0)) / mSampleRateHz;
     for (int i = 0; i < wave.numEvents; ++i) {
         const WaveEvent &e = wave.events[i];
-        const double val = (double)e.markSample;   // 표시 해상 위치(A=검출, C=onset/peak)
+        const double val = sampleToTime(e.markSample);   // 표시 해상 위치(A=검출, C=onset/peak)
         if (e.type == kEventA) {
             addVerticalMarker(val, e.peak, Qt::green);
             if (mHaveLastA) {
                 double delta = val - mLastA;
                 addHorizontalMarkerOutward(mLastA, val, e.peak / 2.0, Qt::black);
-                QString text = QString(" %1 ms ").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 2);
+                QString text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 2);
                 addText(mLastA + (delta / 2.0), e.peak / 2.0, text, Qt::black, Qt::AlignHCenter | Qt::AlignTop);
             }
             mLastA = val; mHaveLastA = true;
@@ -234,22 +267,22 @@ void TabRateScope::onWave(const WaveBlock &wave)
             double delta = val - mLastA;
             QString text;
             if (wave.synced) {
-                int Amp = qRound(amplitudeOf(mLiftAngle, delta / mSampleRateHz, wave.bph));
+                int Amp = qRound(amplitudeOf(mLiftAngle, delta, wave.bph));
                 if (Amp < 360)
-                    text = QString(" %1 ms\n%2°").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 1).arg(Amp);
+                    text = QString(" %1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp);
                 else
-                    text = QString(" %1 ms ").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 1);
+                    text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 1);
             } else {
-                text = QString(" %1 ms ").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 1);
+                text = QString(" %1 ms ").arg(delta * 1000.0, 0, 'f', 1);
             }
             addVerticalMarker(val, e.peak, Qt::red);
-            addHorizontalMarkerInward(mLastA, val, inwardLen, e.peak, Qt::black);
-            addText(val + inwardLen, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+            addHorizontalMarkerInward(mLastA, val, inwardLenSec, e.peak, Qt::black);
+            addText(val + inwardLenSec, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
         }
     }
 
     purgeHistory();
-    mScopePlot->xAxis->setRange((double)mGraphTicks, (double)mSampleRateHz / mScopeScale->value(), Qt::AlignRight);
+    syncScopeXAxis(sampleToTime(mGraphTicks));
     mScopePlot->yAxis->rescale();
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
@@ -403,11 +436,13 @@ void TabRateScope::onResetSession()
 
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();
     mScopePlot->clearItems();
+    mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec / mScopeScale->value());
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
     if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
+    applyFixedRateXAxis();
     mRatePlot->replot();
 }
 
@@ -481,20 +516,47 @@ void TabRateScope::removeMarkersAndText(double rangeMin, double rangeMax)
 
 void TabRateScope::purgeHistory()
 {
-    // 보관 한도를 '점 수'가 아니라 '키 폭(=샘플 인덱스 폭 = 표시 시간)'으로 판단한다.
+    // 보관 한도를 '점 수'가 아니라 '키 폭(=표시 시간, 초)'으로 판단한다.
     //  데시메이션과 무관하게 항상 최근 GRAPH_HISTORY_IN_SECONDS 초만 유지 → 고레이트에서도 점 수가 바운드.
-    //  (48k/decim=1 에서는 키 폭≈점 수라 기존 동작과 동일.)
-    const double historyKeys = (double)GRAPH_HISTORY_IN_SECONDS * mSampleRateHz;
+    const double historySec = (double)GRAPH_HISTORY_IN_SECONDS;
     for (int i = 0; i < mScopePlot->graphCount(); ++i) {
         bool foundRange;
         QCPRange keyRange = mScopePlot->graph(i)->getKeyRange(foundRange, QCP::sdBoth);
         if (!foundRange) continue;
-        double NumKeys = keyRange.upper - keyRange.lower;
-        if (NumKeys > historyKeys) {
-            double RemoveStart = keyRange.lower;
-            double RemoveEnd   = keyRange.lower + (NumKeys - historyKeys / 2.0);
-            removeMarkersAndText(RemoveStart, RemoveEnd);
-            mScopePlot->graph(i)->data()->remove(RemoveStart, RemoveEnd);
+        const double spanSec = keyRange.upper - keyRange.lower;
+        if (spanSec > historySec) {
+            const double removeStart = keyRange.lower;
+            const double removeEnd   = keyRange.lower + (spanSec - historySec / 2.0);
+            removeMarkersAndText(removeStart, removeEnd);
+            mScopePlot->graph(i)->data()->remove(removeStart, removeEnd);
         }
     }
+}
+
+double TabRateScope::sampleToTime(uint64_t sample) const
+{
+    return sample / (double)mSampleRateHz;
+}
+
+void TabRateScope::applyFixedRateXAxis()
+{
+    mRatePlot->xAxis->setLabel(QStringLiteral("time (s)"));
+    mRatePlot->xAxis->setTicker(QSharedPointer<ScopeSecTicker>::create());
+    QFont tickFont = mRatePlot->xAxis->tickLabelFont();
+    tickFont.setPointSize(10);
+    mRatePlot->xAxis->setTickLabelFont(tickFont);
+    QFont labelFont = mRatePlot->xAxis->labelFont();
+    labelFont.setPointSize(10);
+    mRatePlot->xAxis->setLabelFont(labelFont);
+    mRatePlot->xAxis->setTickLabels(true);
+    mRatePlot->xAxis->setRange(0.0, kScopeWindowBaseSec);
+}
+
+void TabRateScope::syncScopeXAxis(double timeEndSec)
+{
+    const double windowSec = kScopeWindowBaseSec / mScopeScale->value();
+    if (timeEndSec <= windowSec)
+        mScopePlot->xAxis->setRange(0.0, windowSec);
+    else
+        mScopePlot->xAxis->setRange(timeEndSec, windowSec, Qt::AlignRight);
 }

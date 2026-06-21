@@ -77,14 +77,15 @@ void MeasurementEngine::reset()
 }
 
 void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec,
-                                       double value, int maxS, int& index)
+                                       double xValue, double yValue, int maxS, int& index)
 {
     if (yvec.size() < maxS) {
-        yvec.append(value);   // Growing
-        xvec.append(index);   // Never Changes once added
+        xvec.append(xValue);
+        yvec.append(yValue);
         index = (index + 1) % maxS;
     } else {
-        yvec[index] = value;  // Overwriting
+        xvec[index] = xValue;
+        yvec[index] = yValue;
         index = (index + 1) % maxS;
     }
 }
@@ -146,11 +147,13 @@ MeasurementEngine::computeRateError(double A_EventTime, bool haveValidBPH, doubl
         double WrappedRateError = wrapInToRange(InstTimingErrorMs, -ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
         if (TicOrToc == TIC) {
             mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xTic, mRate.yTic, WrappedRateError, mRate.MaxTicTocDataPoints, mRate.xTicIndex);
+            addOrOverwrite(mRate.xTic, mRate.yTic, TimeMeasured, WrappedRateError,
+                           mRate.MaxTicTocDataPoints, mRate.xTicIndex);
             upd = TicUpdated;
         } else {
             mRate.RlsTocRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xToc, mRate.yToc, WrappedRateError, mRate.MaxTicTocDataPoints, mRate.xTocIndex);
+            addOrOverwrite(mRate.xToc, mRate.yToc, TimeMeasured, WrappedRateError,
+                           mRate.MaxTicTocDataPoints, mRate.xTocIndex);
             upd = TocUpdated;
         }
 

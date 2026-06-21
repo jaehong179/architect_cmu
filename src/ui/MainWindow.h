@@ -15,6 +15,9 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+class QLabel;
+class QPushButton;
+class QStackedWidget;
 class TabManager;   // [탭 모듈] 디스플레이 탭 등록·갱신 브로드캐스트 (tabs/TabManager.h)
 class TabRateScope; // Rate/Scope 탭 — ScopePlot afterReplot 신호를 CaptureController perf 로 연결
 class QPushButton;  // 전역 Pause/Resume(탭바 코너위젯)
@@ -82,12 +85,29 @@ private:
     void   LiveStart(void);
     void   PlaybackStart(void);
     void   SimStart(void);
+    enum ModeStackPage {
+        PAGE_LIVE = 0,
+        PAGE_PLAYBACK = 1,
+        PAGE_SIM = 2
+    };
+    int    CurrentMode(void) const;
+    void   BuildControlPanelModeStack(void);
+    void   ApplyModeUiState(void);
+    void   SyncDetectorBphToSimBph(void);
+    bool   ChoosePlaybackFile(void);
+    bool   SetPlaybackFile(const QString &fileName);
+    void   UpdatePlaybackFileUi(void);
 
 
     WavStreamWriter           *mWavWriter= nullptr;
     MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산
     CaptureController         *mCapture= nullptr;  // 오디오 소스(스레드·워커·버퍼) 오케스트레이션
     EventHandler              *mEventHandler= nullptr;  // 워치독 이벤트 → 알림 표시(severity 별)
+    QStackedWidget            *mModeStackedWidget = nullptr;
+    QPushButton               *mPlaybackBrowseButton = nullptr;
+    QLabel                    *mPlaybackSelectedFileLabel = nullptr;
+    QLabel                    *mPlaybackSampleRateLabel = nullptr;
+    QLabel                    *mSimDetectorBphHintLabel = nullptr;
     int                        mAvalableRates[5];
     int                        mNumberofRates;
     double                     mLiftAngle;
@@ -96,6 +116,8 @@ private:
     int                        mCurrentSamplesPerSecond;
     int                        mRateBeforePlaybackOrSim;
     QString                    mDeviceNameBeforePlaybackOrSim;
+    QString                    mPlaybackFileName;
+    int                        mPlaybackFileSampleRate = 0;
     // [PERF 계측 · §A-3] UI 이벤트 루프 응답성은 UiResponsivenessSampler 가 자체 타이머로 담당.
     //  (파이프라인 perf: cap2proc·proc2disp·e2e·disp_paint·fps·GT 정확도는 CaptureController 로 이동)
 };
