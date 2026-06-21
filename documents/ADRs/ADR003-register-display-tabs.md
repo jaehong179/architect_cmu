@@ -13,7 +13,7 @@ Adding a new tab therefore means: implement the new tab against the common inter
 
 ***Rationale***
 
-Without a registration point, each new tab tends to require edits scattered across the GUI layout code, sibling tab files, and sometimes the DSP modules — the "module change explosion" captured in RISK-06. By routing every tab through a uniform registerTab() interface on a Tab Manager, the dependency direction is inverted: the Tab Manager depends on the abstract tab interface, not on concrete tabs, and tabs depend on the interface, not on each other. This isolates change to the new tab plus a single registration line, which is exactly what QAS-08 requires (no edits to core DSP or existing tabs, zero regressions). The pattern also keeps MainWindow thin — it only wires up the manager and the list of tabs to register.
+Without a registration point, each new tab tends to require edits scattered across the GUI layout code, sibling tab files, and sometimes the DSP modules — the "module change explosion" captured in [RISK-06](../06-risk-management.md#risk-06). By routing every tab through a uniform registerTab() interface on a Tab Manager, the dependency direction is inverted: the Tab Manager depends on the abstract tab interface, not on concrete tabs, and tabs depend on the interface, not on each other. This isolates change to the new tab plus a single registration line, which is exactly what [QAS-08](../04-quality-attribute-requirements.md#qas-08-new-tab-extensibility) requires (no edits to core DSP or existing tabs, zero regressions). The pattern also keeps MainWindow thin — it only wires up the manager and the list of tabs to register.
 
 ***Status***
 
@@ -23,13 +23,11 @@ Accepted
 
 Positive
 
-- Satisfies QAS-08: a new tab is added with one registerTab() call and no changes to core DSP modules or existing tab source files, so regressions stay at zero.
-- Directly mitigates RISK-06 (module change explosion) by confining change to a single integration point.
+- Satisfies [QAS-08](../04-quality-attribute-requirements.md#qas-08-new-tab-extensibility): a new tab is added with one registerTab() call and no changes to core DSP modules or existing tab source files, so regressions stay at zero.
+- Directly mitigates [RISK-06](../06-risk-management.md#risk-06) (module change explosion) by confining change to a single integration point.
 - Tabs are decoupled from each other and from DSP, which improves testability and parallel development.
 - MainWindow stays simple — it only constructs the Tab Manager and registers tabs.
 
 Negative / costs
 
-- Introduces an abstraction layer (the common tab interface + Tab Manager) that every tab must conform to, which is slight up-front overhead.
-- All tabs must fit the shared interface; a tab with very different needs may require extending the interface (a controlled change to the manager rather than to other tabs).
-- The registration list in RegisterDisplayTabs() still grows by one line per tab (intended and minimal).
+- Time is needed to migrate the existing code to the newly decided structure.
