@@ -1,4 +1,4 @@
-# Limit AI (TinyML) to camera-based watch-position reading
+# Limit AI (TinyML) to camera-based watch-position detection
 
 We decided to keep the core acoustic measurement path rule/signal-processing based and to apply TinyML only to external-camera-based watch measurement-position (orientation) reading, in order to preserve measurement trustworthiness and explainability while still adding AI value where deterministic methods fall short.
 
