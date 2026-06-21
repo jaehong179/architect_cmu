@@ -64,7 +64,7 @@ https://miro.com/app/board/uXjVHFAyRbM=/?moveToWidget=3458764676043638482&cot=14
 - N/A
 
 ## Related ADRs
-- N/A
+[ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
 - TBD

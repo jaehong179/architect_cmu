@@ -36,7 +36,7 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Links and references
 
-QAS-02 · RISK-02
+QAS-02 · [RISK-02](../06-risk-management.md#risk-02)
 
 ## Results and recommendations
 

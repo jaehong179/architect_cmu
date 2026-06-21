@@ -34,7 +34,7 @@
 
 ## Links and references
 
-QAS-04 · RISK-18
+QAS-04 · [RISK-18](../06-risk-management.md#risk-18)
 
 ## Results and recommendations
 

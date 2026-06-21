@@ -44,7 +44,7 @@ Investigate the USB communication protocol of the connected Timegrapher hardware
 
 ## Links and references
 
-RISK-15
+[RISK-15](../06-risk-management.md#risk-15)
 
 ## Results and recommendations
 
@@ -56,6 +56,6 @@ RISK-15
 
 - Conclusion: The watch microphone hardware does not transmit watch position data over the USB connection.
 
-- Since automated position detection via hardware is confirmed to be unsupported, we must activate the fallback plan for RISK-18.
+- Since automated position detection via hardware is confirmed to be unsupported, we must activate the fallback plan for [RISK-18](../06-risk-management.md#risk-18).
 
 - Update the software architecture and UI/UX design to implement a manual position selection feature via the GUI, allowing users to specify the position (e.g., Dial Up, Crown Left) before initiating the measurement.

@@ -40,7 +40,7 @@
 
 ## Links and references
 
-- FR-AI-1, RISK-09, RISK-11
+- FR-AI-1, [RISK-09](../06-risk-management.md#risk-09), [RISK-11](../06-risk-management.md#risk-11)
 
 ## Results and recommendations
 
@@ -50,6 +50,6 @@
 
 - The 2ms inference time is well within the real-time processing budget.
 
-- This confirms that real-time TinyML inference on the Raspberry Pi is highly viable, effectively mitigating RISK-09.
+- This confirms that real-time TinyML inference on the Raspberry Pi is highly viable, effectively mitigating [RISK-09](../06-risk-management.md#risk-09).
 
-- Furthermore, successfully building and deploying this model validates the team's acquired proficiency in TinyML workflows, successfully mitigating RISK-11
+- Furthermore, successfully building and deploying this model validates the team's acquired proficiency in TinyML workflows, successfully mitigating [RISK-11](../06-risk-management.md#risk-11)

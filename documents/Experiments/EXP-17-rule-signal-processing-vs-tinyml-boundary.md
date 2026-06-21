@@ -1,4 +1,4 @@
-# EXP-17 / Experiment for [RISK-05][RISK-09][FR-AI]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → ADR-01
+# EXP-17 / Experiment for [[RISK-05](../06-risk-management.md#risk-05)][[RISK-09](../06-risk-management.md#risk-09)][FR-AI]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → ADR-01
 
 ## Objective
 
@@ -38,7 +38,7 @@
 
 ## Links and references
 
-ADR-01 (responsibility-boundary decision); RISK-05, RISK-09; FR-AI/FR-POS; external camera; follow-up EXP-18; EXP-12.
+ADR-01 (responsibility-boundary decision); [RISK-05](../06-risk-management.md#risk-05), [RISK-09](../06-risk-management.md#risk-09); FR-AI/FR-POS; external camera; follow-up EXP-18; EXP-12.
 
 ## Results and recommendations
 

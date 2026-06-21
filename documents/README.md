@@ -26,5 +26,8 @@ Status: **In Progress**
 8. [Architecture Overview](08-architecture-overview.md)
    - 8.1 Design Approach (ADD)
    - 8.2 Module View
-9. [ADRS](09-adrs.md)
-10. [References](10-references.md)
+9. ADRs
+   - [ADR-001: Limit AI (TinyML) to camera-based watch-position detection](/ADRs/ADR001-watch-position-detection-solution.md)
+   - [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](/ADRs/ADR002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
+   - [ADR-003: Retain the bounded fixed ring buffer and add overwrite detection](/ADRs/ADR003-Retain the bounded fixed ring buffer and add overwrite detection.md)
+11. [References](10-references.md)

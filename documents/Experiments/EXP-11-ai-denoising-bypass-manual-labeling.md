@@ -42,7 +42,7 @@
 
 ## Links and references
 
-FR-AI-1 · RISK-05
+FR-AI-1 · [RISK-05](../06-risk-management.md#risk-05)
 
 ## Results and recommendations
 

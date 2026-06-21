@@ -28,7 +28,7 @@
 
 - Other display modes: verify the current position shows correctly (e.g., 9H) and is hidden under low confidence/unavailability.
 
-- Verify Pi inference latency is acceptable (RISK-09).
+- Verify Pi inference latency is acceptable ([RISK-09](../06-risk-management.md#risk-09)).
 
 ## Duration
 
@@ -36,7 +36,7 @@
 
 ## Links and references
 
-QAS-06; RISK-20; ADR-01; follow-up to EXP-17, EXP-12.
+QAS-06; [RISK-20](../06-risk-management.md#risk-20); ADR-01; follow-up to EXP-17, EXP-12.
 
 ## Results and recommendations
 

@@ -1,4 +1,4 @@
-#ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection#
+# ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection
 
 We decided to adopt a timeout-based watchdog on audio-block arrival, combined with the device error/state callback as a fast-path, to guarantee a user-facing "microphone disconnected" notification within 1 s, and to reject the circuit breaker for this requirement.
 

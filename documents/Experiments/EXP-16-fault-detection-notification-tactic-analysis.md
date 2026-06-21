@@ -1,4 +1,4 @@
-# EXP-16 / Experiment for [RISK-19][QAS-07][QAS-11]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → ADR-02
+# EXP-16 / Experiment for [[RISK-19](../06-risk-management.md#risk-19)][QAS-07][QAS-11]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → ADR-02
 
 ## Objective
 
@@ -34,7 +34,7 @@
 
 ## Links and references
 
-ADR-02 (fault-detection & notification tactic); RISK-19; QAS-07, QAS-11; EXP-14 (current behavior) as input.
+ADR-02 (fault-detection & notification tactic); [RISK-19](../06-risk-management.md#risk-19); QAS-07, QAS-11; EXP-14 (current behavior) as input.
 
 ## Results and recommendations
 
