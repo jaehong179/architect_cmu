@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QMouseEvent>   // [③] 클릭 소스
 #include <cmath>
 
 void TabLongTermPerformance::Lane::add(double x, double v)
@@ -76,7 +77,44 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
     lay->addWidget(mRate.plot, 1);
     lay->addWidget(mAmp.plot, 1);
     lay->addWidget(mBe.plot, 1);
+
+    // [③] 클릭 소스: 세 레인 어디를 클릭하든 그 시각(절대 샘플)을 방출 + 커서 표시.
+    QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
+    for (int i = 0; i < 3; ++i) {
+        mCursors[i] = new QCPItemStraightLine(plots[i]);
+        mCursors[i]->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
+        mCursors[i]->setVisible(false);
+        QCustomPlot *pl = plots[i];
+        connect(pl, &QCustomPlot::mousePress, this, [this, pl](QMouseEvent *e) {
+            if (mXtoSample.isEmpty()) return;
+            const double x = pl->xAxis->pixelToCoord(e->position().x());
+            showCursor(x); emit seekRequested(sampleAtX(x));
+        });
+    }
+
     onResetSession();
+}
+
+double TabLongTermPerformance::sampleAtX(double xSeconds) const
+{
+    if (mXtoSample.isEmpty()) return 0.0;
+    double best = mXtoSample.first().second, bestDx = qAbs(mXtoSample.first().first - xSeconds);
+    for (const auto &p : mXtoSample) {
+        const double dx = qAbs(p.first - xSeconds);
+        if (dx < bestDx) { bestDx = dx; best = p.second; }
+    }
+    return best;
+}
+
+void TabLongTermPerformance::showCursor(double xSeconds)
+{
+    QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
+    for (int i = 0; i < 3; ++i) {
+        if (!mCursors[i]) continue;
+        mCursors[i]->point1->setCoords(xSeconds, 0); mCursors[i]->point2->setCoords(xSeconds, 1);
+        mCursors[i]->setVisible(true);
+        if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
+    }
 }
 
 void TabLongTermPerformance::redrawLane(Lane &L, const QString &unit)
@@ -113,6 +151,8 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
     const double x = (s.timeMs - mT0) / 1000.0;
     mCurX = x;
+    mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
+    while (!mXtoSample.isEmpty() && mXtoSample.first().first < mCurX - kWindowSec) mXtoSample.removeFirst();
 
     // 데시메이션: 경과(분) 증가 → 점 추가 간격 K 증가(장시간 가독성/효율).
     const long K = 1 + (long)(x / 60.0);
@@ -133,12 +173,14 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
 
 void TabLongTermPerformance::onShown()
 {
+    applyView();   // 숨은 동안/정지 중 미적용된 축(x 8분 창 + y 스케일)을 적용해 제대로 보이게.
     for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) if (p) p->replot();
 }
 
 void TabLongTermPerformance::onResetSession()
 {
     mHaveT0 = false; mTick = 0; mCurX = 0.0;
+    mXtoSample.clear();
     for (Lane *L : {&mRate, &mAmp, &mBe}) {
         L->sum=0; L->sumSq=0; L->min=0; L->max=0; L->n=0; L->have=false; L->xFirst=L->xLast=0;
         if (L->plot) { L->plot->graph(0)->data()->clear(); L->plot->graph(1)->data()->clear(); }

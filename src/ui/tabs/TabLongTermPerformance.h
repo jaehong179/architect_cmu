@@ -5,6 +5,7 @@
 //  X축은 8분 폭으로 고정, 8분 경과 후에는 최근 8분만 보이도록 흘러간다(슬라이딩).
 //  각 레인 우측 상단에 최대/최소/표준편차 수치를 고정 표시.
 #include "TabView.h"
+#include <QVector>
 class QCustomPlot;
 class ReadoutBar;
 class QCPItemRect;
@@ -19,9 +20,15 @@ public:
     QString tabTitle() const override { return QStringLiteral("Long-Term Performance Graph"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+signals:
+    void seekRequested(double absSample);   // [③] 정지 중 클릭 → 그 시점(스코프 탭 점프)
 protected:
     void onShown() override;
 private:
+    double sampleAtX(double xSeconds) const;     // 클릭 x(초) → 가장 가까운 점의 절대 샘플
+    void   showCursor(double xSeconds);          // 세 레인에 클릭 커서선
+    QVector<QPair<double,double>> mXtoSample;    // (x초, totalSamples)
+    QCPItemStraightLine *mCursors[3] = {nullptr, nullptr, nullptr};
     struct Lane { QCustomPlot *plot=nullptr; QCPItemRect *band=nullptr; QCPItemText *stats=nullptr;
                   double sum=0,sumSq=0,min=0,max=0,xFirst=0,xLast=0; long n=0; bool have=false;
                   void add(double x,double v); double avg() const { return n?sum/n:0; }

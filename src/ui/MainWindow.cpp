@@ -4,6 +4,9 @@
 #include <QMediaDevices>   // 오디오 입력 장치 열거(LoadAudioDevices)
 #include <QAudioDevice>
 #include <QPushButton>     // 전역 Pause/Resume(탭바 코너위젯)
+#include <QLabel>          // 전역 seek 위치 라벨
+#include <QHBoxLayout>     // 코너 위젯(라벨+버튼) 레이아웃
+#include <QWidget>
 #include "WaveHeader.h"
 #include "WavFileReader.h"   // WAV 헤더 파싱(파일 I/O 분리)
 #include "PerfInstrumentation.h"   // [PERF 계측] 지연/처리량/자원 측정 (docs/PERF_VERIFICATION_GUIDE.md)
@@ -185,14 +188,29 @@ void MainWindow::RegisterDisplayTabs(void)
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
     auto *traceTab = new TabTraceDisplay(this);                 // FR-TD
-    // [③] 정지 중 Trace 트렌드 클릭 → 그 시점을 모든 스코프 탭에 전파(Rate/Scope 점프).
+    // [③] 정지 중 Trace 트렌드 클릭 → 그 시점을 모든 스코프 탭에 전파(Rate/Scope 점프) + 코너 라벨 갱신.
     connect(traceTab, &TabTraceDisplay::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(traceTab, &TabTraceDisplay::seekRequested, this, [this](double absSample) {
+        if (!mSeekLabel) return;
+        const int sr = mWaveHistory.sampleRate();
+        const double t = sr > 0 ? absSample / (double)sr : 0.0;
+        mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
+    });
     mTabManager->registerTab(traceTab);
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
     mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS
     mTabManager->registerTab(new TabBeatErrorTrace(this));      // FR-BED
-    mTabManager->registerTab(new TabLongTermPerformance(this)); // FR-LTP
+    auto *ltpTab = new TabLongTermPerformance(this);           // FR-LTP
+    // [③] Long-Term 트렌드(8분 시간축) 클릭 → 그 시점을 스코프 탭에 전파 + 코너 라벨 갱신.
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, [this](double absSample) {
+        if (!mSeekLabel) return;
+        const int sr = mWaveHistory.sampleRate();
+        const double t = sr > 0 ? absSample / (double)sr : 0.0;
+        mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
+    });
+    mTabManager->registerTab(ltpTab);
     auto *escTab = new TabEscapementAnalyzer(this);             // FR-EAM
     escTab->setHistory(&mWaveHistory);                          // [③] seek replay 원본 주입
     mTabManager->registerTab(escTab);
@@ -207,17 +225,23 @@ void MainWindow::RegisterDisplayTabs(void)
     filterTab->setHistory(&mWaveHistory);
     mTabManager->registerTab(filterTab);
 
-    // [8분 스크롤백] 전역 Pause/Resume — 탭바 코너에 두어 어느 탭에서나 보인다.
+    // [8분 스크롤백] 전역 Pause/Resume + seek 위치 라벨 — 탭바 코너에 두어 어느 탭에서나 보인다.
     //  정지 → TabManager 전 탭 동결(방송 중단, 이력 버퍼는 계속) + Rate/Scope 스크롤백 진입.
+    auto *corner = new QWidget(this);
+    auto *cl = new QHBoxLayout(corner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
+    mSeekLabel = new QLabel(this);                          // 현재 보는 시점(t/샘플) — 모든 탭 공통
+    mSeekLabel->setStyleSheet(QStringLiteral("color:#960096; font-weight:bold;"));
     mPauseBtn = new QPushButton(QStringLiteral("⏸ Pause"), this);
     mPauseBtn->setCheckable(true);
-    ui->GraphicsTabWidget->setCornerWidget(mPauseBtn, Qt::TopRightCorner);
+    cl->addWidget(mSeekLabel); cl->addWidget(mPauseBtn);
+    ui->GraphicsTabWidget->setCornerWidget(corner, Qt::TopRightCorner);
     connect(mPauseBtn, &QPushButton::toggled, this, [this](bool p) {
         if (p && !mWaveHistory.hasData()) {                     // 아직 이력 없으면 정지 무시(버튼 원복)
             mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false); mPauseBtn->blockSignals(false);
             return;
         }
         mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
+        if (!p && mSeekLabel) mSeekLabel->clear();             // 라이브 복귀 시 표시 지움
         if (mTabManager) mTabManager->setPaused(p);
         if (mRateScope)  mRateScope->setPaused(p);
     });
