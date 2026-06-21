@@ -10,7 +10,6 @@
 #include <QVector>
 class QCustomPlot;
 class QLabel;
-class ReadoutBar;
 class WaveLodHistory;   // [③] 8분 이력(중앙) — seek replay
 
 class TabWaveformCompare : public TabView
@@ -36,7 +35,6 @@ private:
     void drawPeriod();                                  // 하단: 한 박자 전체 파형
     void drawPaperstrip();                              // 좌측: tic/tac 점
 
-    ReadoutBar  *mBar    = nullptr;
     QCustomPlot *mPaper  = nullptr;   // 좌측 paperstrip
     QCustomPlot *mTic    = nullptr;   // tic 평균파형
     QCustomPlot *mToc    = nullptr;   // toc 평균파형

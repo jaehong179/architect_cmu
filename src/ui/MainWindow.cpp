@@ -27,6 +27,8 @@
 #include "tabs/TabWaveformCompare.h"
 #include "tabs/TabSyncSweepScope.h"
 #include "tabs/TabFilterViews.h"
+#include "tabs/ReadoutBar.h"
+
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -130,7 +132,15 @@ MainWindow::MainWindow(QWidget *parent)
     ui->StopPushButton->setEnabled(false);
     ui->LiftAngleSpinBox->setFocusPolicy(Qt::NoFocus);
 
-    ui->Results->setAlignment(Qt::AlignHCenter);
+    // Hide legacy Results label and setup styled ReadoutBar
+    ui->Results->hide();
+    mReadoutBar = new ReadoutBar(ui->CentralWidget);
+    mReadoutBar->setGeometry(250, 0, 1020, 50);
+    mReadoutBar->show();
+
+    // Reposition GraphicsTabWidget to make room for ReadoutBar
+    ui->GraphicsTabWidget->setGeometry(250, 53, 1025, 661);
+
     ui->LiftAngleSpinBox->setValue(mLiftAngle);
 
     LoadBPH();
@@ -516,6 +526,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.rateTicX = mEngine.ticX().constData(); snap.rateTicY = mEngine.ticY().constData(); snap.rateTicN = mEngine.ticX().size();
     snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
     snap.rateMaxPoints = mEngine.maxDataPoints();
+    if (mReadoutBar) mReadoutBar->update(snap);
     mTabManager->broadcastMeasurement(snap);
 }
 

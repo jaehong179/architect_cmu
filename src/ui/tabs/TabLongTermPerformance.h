@@ -7,7 +7,6 @@
 #include "TabView.h"
 #include <QVector>
 class QCustomPlot;
-class ReadoutBar;
 class QCPItemRect;
 class QCPItemStraightLine;
 class QCPItemText;
@@ -36,7 +35,6 @@ private:
                   double sigma() const; };
     void redrawLane(Lane &L, const QString &unit);
     void applyView();                       // 8분 고정 + 8분 경과 후 슬라이딩, 세로 스케일 갱신
-    ReadoutBar *mBar = nullptr;
     Lane mRate, mAmp, mBe;
     double mT0=0.0; bool mHaveT0=false; long mTick=0; double mCurX=0.0;
     static constexpr double kWindowSec = 480.0;   // X축 고정 폭(8분)
