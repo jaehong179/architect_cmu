@@ -229,7 +229,7 @@ Importance: High Difficulty: Medium
 
 - [EXP-06](07-experiments.md#exp-06-experiment-for-qas-07-fault-handling-feedback-verification) (Usability·feedback)
 
-<a id="qas-08"></a>QAS-08 / New Tab Extensibility
+### QAS-08 / New Tab Extensibility
 
 #### Modifiability → Extensibility
 
