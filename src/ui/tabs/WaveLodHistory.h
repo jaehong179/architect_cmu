@@ -43,10 +43,43 @@ public:
             configure(w.sampleRateHz, mHistorySeconds);
         if (w.env && w.n > 0)
             push(w.env, w.n, w.startSample);
+        // [A안] raw PCM 도 8분 보관(LOD 없이 풀해상도 링) — seek replay 시 WaveBlock 완전 복원용.
+        //  raw 는 작은 윈도우(비트 단위)만 조회하므로 데시메이션 불필요.
+        if (w.raw && w.rawN > 0 && mRawPcm.size() == (int)mCap)
+            for (int i = 0; i < w.rawN; ++i)
+                mRawPcm[(int)((w.rawStart + (uint64_t)i) % mCap)] = w.raw[i];
+        // 블록 스칼라 보관(복원 시 사용).
+        if (w.bph > 0) mLastBph = w.bph;
+        mLastSynced = w.synced;
+        mLastOnset  = w.onsetThreshold;
         // [③] A/C 이벤트도 보관 — 스크롤/seek 시 마커·ms 라벨 복원용(엔벨로프와 동일 절대좌표).
         for (int i = 0; i < w.numEvents; ++i) mEvents.push_back(w.events[i]);
         const uint64_t oldest = oldestAbs();
         while (!mEvents.isEmpty() && mEvents.first().markSample + 1 <= oldest) mEvents.removeFirst();
+    }
+
+    // [A안/replay] 임의 구간 [from, from+count) 를 WaveBlock 으로 복원(env+raw+events+스칼라).
+    //  반환 WaveBlock 의 포인터는 인자 rb 의 벡터를 가리키므로, 호출자가 rb 를 살아있게 유지해야 한다.
+    struct ReconBlock {
+        QVector<float>     env, raw;
+        QVector<WaveEvent> events;
+        WaveBlock          block;
+    };
+    void reconstruct(uint64_t from, int count, ReconBlock &rb) const
+    {
+        if (count < 0) count = 0;
+        rb.env.resize(count);
+        rb.raw.resize(count);
+        for (int i = 0; i < count; ++i) {
+            float v = 0.0f; rawAt(from + (uint64_t)i, v);     rb.env[i] = v;   // 엔벨로프(Level0)
+            float r = 0.0f; rawPcmAt(from + (uint64_t)i, r);  rb.raw[i] = r;   // raw PCM
+        }
+        rb.events = eventsInRange(from, from + (uint64_t)count);
+        WaveBlock &b = rb.block;
+        b.env = rb.env.constData(); b.n = count; b.startSample = from;
+        b.raw = rb.raw.constData(); b.rawN = count; b.rawStart = from;
+        b.events = rb.events.constData(); b.numEvents = rb.events.size();
+        b.sampleRateHz = mSampleRate; b.bph = mLastBph; b.synced = mLastSynced; b.onsetThreshold = mLastOnset;
     }
 
     // [from,to) 절대 인덱스 구간의 A/C 이벤트(markSample 기준).
@@ -75,6 +108,8 @@ public:
         mCap = cap;
         mRaw.resize((int)mCap);
         mRaw.fill(0.0f);
+        mRawPcm.resize((int)mCap);     // [A안] raw PCM 풀해상도 링
+        mRawPcm.fill(0.0f);
         mEnd = 0; mHave = false;
 
         // LOD 단계 구축: bucketSize 가 LOD_FACTOR 배씩 커지며, 버킷 수가 너무
@@ -99,6 +134,7 @@ public:
     void clear()
     {
         mRaw.fill(0.0f);
+        mRawPcm.fill(0.0f);
         mEnd = 0; mHave = false;
         for (Level &L : mLevels) { L.started = false; L.mn.fill(0.0f); L.mx.fill(0.0f); }
         mEvents.clear();
@@ -168,11 +204,19 @@ private:
         bool           started;
     };
 
-    // 절대 인덱스 a 의 raw 값(보관 범위 밖이면 false).
+    // 절대 인덱스 a 의 엔벨로프(Level0) 값(보관 범위 밖이면 false).
     inline bool rawAt(uint64_t a, float &out) const
     {
         if (!mHave || a >= mEnd || a + mCap < mEnd) return false;
         out = mRaw[(int)(a % mCap)];
+        return true;
+    }
+
+    // 절대 인덱스 a 의 raw PCM 값(보관 범위 밖이면 false).
+    inline bool rawPcmAt(uint64_t a, float &out) const
+    {
+        if (!mHave || a >= mEnd || a + mCap < mEnd || mRawPcm.size() != (int)mCap) return false;
+        out = mRawPcm[(int)(a % mCap)];
         return true;
     }
 
@@ -246,6 +290,10 @@ private:
     double         mHistorySeconds = 480.0;   // 보관 길이(초) — 재구성 시 유지
     QVector<Level> mLevels;         // Level 1..n (거친 단계들)
     QVector<WaveEvent> mEvents;     // [③] A/C 이벤트(마커 복원용, 8분 보관 — 희소)
+    QVector<float> mRawPcm;         // [A안] raw PCM Level0 링(LOD 없음 — seek 윈도우만 조회)
+    int            mLastBph = 0;    // 복원용 블록 스칼라(최근값)
+    bool           mLastSynced = false;
+    float          mLastOnset = 0.0f;
 };
 
 #endif // WAVELODHISTORY_H
