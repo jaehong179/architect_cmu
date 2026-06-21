@@ -206,7 +206,7 @@ flowchart LR
 flowchart LR
     CC[CaptureController] -- broadcastWave --> TM{{TabManager}}
     TM -- "onWave (시각)" --> TABS[13 TabView]
-    TM -- "onWave (비시각, WaveSink)" --> HIST[("WaveLodHistory<br/>8분 이력: 엔벨로프 + raw + A/C 이벤트<br/>+ min/max LOD 피라미드")]
+    TM -- "onWave (비시각, WaveSink)" --> HIST[("WaveLodHistory ~210 MB<br/>8분 이력: 엔벨로프 L0 ~92 + raw ~92<br/>+ A/C 이벤트 + min/max LOD ~26")]
     PB["정지(Pause)"] -- "SharedAudio.Paused (atomic)" --> WK[소스 워커 정지]
     SRC["클릭 소스: Rate/Scope 상단 · Trace ·<br/>Long-Term · BeatError · BeatNoise 스트립"] -- "seekRequested(절대샘플)" --> TM
     TM -- "broadcastSeek (정지 중에만)" --> TGT["대상 스코프 탭"]

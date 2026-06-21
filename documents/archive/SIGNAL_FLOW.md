@@ -189,7 +189,8 @@ flowchart TD
 
 1. **중앙 이력(WaveLodHistory)** — `TabView` 가 아니라 좁은 `WaveSink`(onWave 1개)로 등록된
    비시각 구독자. 정지와 무관하게 엔벨로프·원신호·A/C 이벤트를 **절대 샘플 좌표**로 8분 누적하고,
-   빠른 줌아웃을 위해 min/max **LOD 피라미드**를 같이 만든다. (메모리: raw 8분 ≈ 92 MB @48 kHz)
+   빠른 줌아웃을 위해 min/max **LOD 피라미드**를 같이 만든다.
+   (메모리: 엔벨로프 L0 ~92 + raw ~92 + LOD ~26 ≈ **210 MB** @48 kHz — raw 무손실 보관, A안)
 2. **전체 정지(full-stop)** — 정지하면 `SharedAudio.Paused` 로 **소스 워커 자체를 멈춘다**.
    playback/sim 은 위치를 보존하고 live 는 캡처분을 버린다. 시간·인덱스가 안 흘러 **resume 시
    정확히 이어진다**(비트 번호·트렌드에 갭 없음 = "비디오 일시정지").
