@@ -94,6 +94,7 @@ private:
     void   BuildControlPanelModeStack(void);
     void   ApplyModeUiState(void);
     void   SyncDetectorBphToSimBph(void);
+    void   UpdateSimSampleRatesUi(void);
     bool   ChoosePlaybackFile(void);
     bool   SetPlaybackFile(const QString &fileName);
     void   UpdatePlaybackFileUi(void);
@@ -106,8 +107,9 @@ private:
     QStackedWidget            *mModeStackedWidget = nullptr;
     QPushButton               *mPlaybackBrowseButton = nullptr;
     QLabel                    *mPlaybackSelectedFileLabel = nullptr;
-    QLabel                    *mPlaybackSampleRateLabel = nullptr;
     QLabel                    *mSimDetectorBphHintLabel = nullptr;
+    QLabel                    *mSimSampleRateLabel = nullptr;
+    QComboBox                 *mSimSampleRatesComboBox = nullptr;
     int                        mAvalableRates[5];
     int                        mNumberofRates;
     double                     mLiftAngle;
@@ -117,7 +119,7 @@ private:
     int                        mRateBeforePlaybackOrSim;
     QString                    mDeviceNameBeforePlaybackOrSim;
     QString                    mPlaybackFileName;
-    int                        mPlaybackFileSampleRate = 0;
+    int                        mLastMode = -1;
     // [PERF 계측 · §A-3] UI 이벤트 루프 응답성은 UiResponsivenessSampler 가 자체 타이머로 담당.
     //  (파이프라인 perf: cap2proc·proc2disp·e2e·disp_paint·fps·GT 정확도는 CaptureController 로 이동)
 };

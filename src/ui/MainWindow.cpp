@@ -38,6 +38,7 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QDebug>
 #include <QtMath>
@@ -280,14 +281,14 @@ void MainWindow::BuildControlPanelModeStack(void)
     ui->RunParamLabel->setText(tr("Mode / Source"));
     ui->ModeLabel->setGeometry(10, 27, 91, 22);
     ui->ModeComboBox->setGeometry(100, 27, 131, 22);
-    ui->AveragingPeriodLabel->setGeometry(10, 183, 141, 22);
-    ui->AveragingPeriodComboBox->setGeometry(160, 183, 71, 22);
-    ui->StartPushButton->setGeometry(10, 214, 61, 21);
-    ui->StopPushButton->setGeometry(170, 214, 61, 21);
+    ui->AveragingPeriodLabel->setGeometry(10, 203, 141, 22);
+    ui->AveragingPeriodComboBox->setGeometry(160, 203, 71, 22);
+    ui->StartPushButton->setGeometry(10, 226, 61, 21);
+    ui->StopPushButton->setGeometry(170, 226, 61, 21);
 
     mModeStackedWidget = new QStackedWidget(ui->RunFrame);
     mModeStackedWidget->setObjectName(QStringLiteral("ModeStackedWidget"));
-    mModeStackedWidget->setGeometry(0, 55, 242, 125);
+    mModeStackedWidget->setGeometry(0, 55, 242, 145);
 
     QWidget *livePage = new QWidget(mModeStackedWidget);
     livePage->setObjectName(QStringLiteral("page_live"));
@@ -314,30 +315,36 @@ void MainWindow::BuildControlPanelModeStack(void)
     mPlaybackSelectedFileLabel = new QLabel(tr("No WAV selected"), playbackPage);
     mPlaybackSelectedFileLabel->setGeometry(10, 32, 221, 22);
     mPlaybackSelectedFileLabel->setWordWrap(false);
-    mPlaybackSampleRateLabel = new QLabel(tr("Sample Rate: -"), playbackPage);
-    mPlaybackSampleRateLabel->setGeometry(10, 62, 221, 22);
     QLabel *playbackHintLabel = new QLabel(tr("Start uses the selected file."), playbackPage);
-    playbackHintLabel->setGeometry(10, 90, 221, 22);
+    playbackHintLabel->setGeometry(10, 62, 221, 22);
 
     ui->SimBphLabel->setParent(simPage);
     ui->SimBphLabel->setText(tr("Sim BPH"));
     ui->SimBphLabel->setGeometry(10, 0, 91, 22);
     ui->SimBPHComboBox->setParent(simPage);
     ui->SimBPHComboBox->setGeometry(119, 0, 111, 22);
+    mSimSampleRateLabel = new QLabel(tr("Sample Rate"), simPage);
+    mSimSampleRateLabel->setGeometry(10, 24, 91, 22);
+    QFont simSampleRateFont = mSimSampleRateLabel->font();
+    simSampleRateFont.setBold(true);
+    mSimSampleRateLabel->setFont(simSampleRateFont);
+    mSimSampleRatesComboBox = new QComboBox(simPage);
+    mSimSampleRatesComboBox->setGeometry(119, 24, 111, 22);
+    mSimSampleRatesComboBox->setFont(ui->SampleRatesComboBox->font());
     ui->SimErrorRateLabel->setParent(simPage);
-    ui->SimErrorRateLabel->setGeometry(10, 28, 91, 22);
+    ui->SimErrorRateLabel->setGeometry(10, 48, 91, 22);
     ui->SimErrorRateSpinBox->setParent(simPage);
-    ui->SimErrorRateSpinBox->setGeometry(119, 28, 111, 22);
+    ui->SimErrorRateSpinBox->setGeometry(119, 48, 111, 22);
     ui->SimAmpLabel->setParent(simPage);
-    ui->SimAmpLabel->setGeometry(10, 56, 91, 22);
+    ui->SimAmpLabel->setGeometry(10, 72, 91, 22);
     ui->SimAmplitudeSpinBox->setParent(simPage);
-    ui->SimAmplitudeSpinBox->setGeometry(119, 56, 111, 22);
+    ui->SimAmplitudeSpinBox->setGeometry(119, 72, 111, 22);
     ui->SimBeatErrorLabel->setParent(simPage);
-    ui->SimBeatErrorLabel->setGeometry(10, 84, 91, 22);
+    ui->SimBeatErrorLabel->setGeometry(10, 96, 91, 22);
     ui->SimBeatErrorSpinBox->setParent(simPage);
-    ui->SimBeatErrorSpinBox->setGeometry(119, 84, 111, 22);
+    ui->SimBeatErrorSpinBox->setGeometry(119, 96, 111, 22);
     ui->RealisticCheckBox->setParent(simPage);
-    ui->RealisticCheckBox->setGeometry(10, 108, 91, 16);
+    ui->RealisticCheckBox->setGeometry(10, 118, 91, 16);
 
     mModeStackedWidget->addWidget(livePage);
     mModeStackedWidget->addWidget(playbackPage);
@@ -360,6 +367,12 @@ void MainWindow::BuildControlPanelModeStack(void)
     connect(mPlaybackBrowseButton, &QPushButton::clicked, this, [this]() { ChoosePlaybackFile(); });
     connect(ui->SimBPHComboBox, qOverload<int>(&QComboBox::currentIndexChanged),
             this, [this](int) { SyncDetectorBphToSimBph(); });
+    connect(mSimSampleRatesComboBox, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, [this](int index) {
+                if (index >= 0 && index < ui->SampleRatesComboBox->count()) {
+                    ui->SampleRatesComboBox->setCurrentIndex(index);
+                }
+            });
 }
 
 void MainWindow::ApplyModeUiState(void)
@@ -389,27 +402,47 @@ void MainWindow::ApplyModeUiState(void)
     const bool playbackMode = (mode == PLAYBACK);
     const bool simMode = (mode == SIM);
 
+    if (!simMode && mLastMode == SIM && ui->BPHComboBox->count() > 0) {
+        ui->BPHComboBox->setCurrentIndex(0); // Auto BPH is the default outside Sim mode.
+    }
+
     ui->InputDeviceComboBox->setEnabled(canEdit && liveMode);
     ui->RefreshPushButton->setEnabled(canEdit && liveMode);
     ui->MicrophoneHorizontalSlider->setEnabled(canEdit && liveMode);
     ui->SampleRatesComboBox->setEnabled(canEdit && !playbackMode);
 
     if (mPlaybackBrowseButton) mPlaybackBrowseButton->setEnabled(canEdit && playbackMode);
+    if (mSimSampleRatesComboBox) mSimSampleRatesComboBox->setEnabled(canEdit && simMode);
 
     ui->WatchBphLabel->setVisible(!simMode);
     ui->BPHComboBox->setVisible(!simMode);
     if (mSimDetectorBphHintLabel) mSimDetectorBphHintLabel->setVisible(simMode);
+    mLastMode = mode;
 }
 
 void MainWindow::SyncDetectorBphToSimBph(void)
 {
     if (!ui->SimBPHComboBox || !ui->BPHComboBox) return;
+    if (CurrentMode() != SIM) return;
 
     const int simBph = ui->SimBPHComboBox->currentData().toInt();
     const int detectorIndex = ui->BPHComboBox->findData(simBph);
     if (detectorIndex >= 0 && ui->BPHComboBox->currentIndex() != detectorIndex) {
         ui->BPHComboBox->setCurrentIndex(detectorIndex);
     }
+}
+
+void MainWindow::UpdateSimSampleRatesUi(void)
+{
+    if (!mSimSampleRatesComboBox) return;
+
+    const QSignalBlocker blocker(mSimSampleRatesComboBox);
+    mSimSampleRatesComboBox->clear();
+    for (int i = 0; i < ui->SampleRatesComboBox->count(); ++i) {
+        mSimSampleRatesComboBox->addItem(ui->SampleRatesComboBox->itemText(i),
+                                         ui->SampleRatesComboBox->itemData(i));
+    }
+    mSimSampleRatesComboBox->setCurrentIndex(ui->SampleRatesComboBox->currentIndex());
 }
 
 bool MainWindow::ChoosePlaybackFile(void)
@@ -439,7 +472,6 @@ bool MainWindow::SetPlaybackFile(const QString &fileName)
     }
 
     mPlaybackFileName = fileName;
-    mPlaybackFileSampleRate = (int)info.header.sampleRate;
     mCurrentDir = QFileInfo(fileName).dir();
     UpdatePlaybackFileUi();
     statusBar()->showMessage(tr("Playback file selected: %1").arg(QFileInfo(fileName).fileName()));
@@ -448,17 +480,15 @@ bool MainWindow::SetPlaybackFile(const QString &fileName)
 
 void MainWindow::UpdatePlaybackFileUi(void)
 {
-    if (!mPlaybackSelectedFileLabel || !mPlaybackSampleRateLabel) return;
+    if (!mPlaybackSelectedFileLabel) return;
 
     if (mPlaybackFileName.isEmpty()) {
         mPlaybackSelectedFileLabel->setText(tr("No WAV selected"));
-        mPlaybackSampleRateLabel->setText(tr("Sample Rate: -"));
         return;
     }
 
     mPlaybackSelectedFileLabel->setText(QFileInfo(mPlaybackFileName).fileName());
     mPlaybackSelectedFileLabel->setToolTip(QDir::toNativeSeparators(mPlaybackFileName));
-    mPlaybackSampleRateLabel->setText(tr("Sample Rate: %1 Hz").arg(mPlaybackFileSampleRate));
 }
 
 // [탭 모듈] 현재 측정값을 읽기 전용 스냅샷으로 묶어 모든 탭에 게시. 탭은 코어 내부가 아니라
@@ -810,6 +840,7 @@ void MainWindow::PopulateSampleRates(QComboBox *comboBox, const QAudioDevice &de
     }
     comboBox->setCurrentIndex(-1);
     comboBox->setCurrentIndex(0);
+    if (comboBox == ui->SampleRatesComboBox) UpdateSimSampleRatesUi();
 }
 
 bool   MainWindow::SetAudioRate(int Rate)
@@ -858,6 +889,7 @@ void   MainWindow::SetGuiRunMode(void)
     ui->UseConsetCheckBox->setEnabled(false);
     ui->HighLineEdit->setEnabled(false);
     if (mPlaybackBrowseButton) mPlaybackBrowseButton->setEnabled(false);
+    if (mSimSampleRatesComboBox) mSimSampleRatesComboBox->setEnabled(false);
 }
 
 void   MainWindow::SetGuiStopMode(void)
@@ -933,7 +965,7 @@ void   MainWindow::SimStart(void)
     SimConfigParams p;
     p.realistic          = ui->RealisticCheckBox->isChecked();
     p.bph                = ui->SimBPHComboBox->currentData().toInt();
-    p.sampleRateHz       = mAvalableRates[ui->SampleRatesComboBox->currentIndex()];
+    p.sampleRateHz       = mCurrentSamplesPerSecond;
     p.beatErrorMs        = ui->SimBeatErrorSpinBox->value();
     p.watchAmplitudeDeg  = ui->SimAmplitudeSpinBox->value();
     p.liftAngleDeg       = ui->LiftAngleSpinBox->value();
@@ -1098,6 +1130,10 @@ void MainWindow::on_SampleRatesComboBox_currentIndexChanged(int index)
     if (index<0 ) return;
     if ((index+1)> mNumberofRates)  return;
     mCurrentSamplesPerSecond=mAvalableRates[index];
+    if (mSimSampleRatesComboBox && mSimSampleRatesComboBox->currentIndex() != index) {
+        const QSignalBlocker blocker(mSimSampleRatesComboBox);
+        mSimSampleRatesComboBox->setCurrentIndex(index);
+    }
     qInfo()<< "Sample Rate is "<<mCurrentSamplesPerSecond<<" Index "<<index;
 }
 /************************************************************************************/
