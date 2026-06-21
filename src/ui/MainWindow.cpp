@@ -184,7 +184,10 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(mRateScope);                       // rate 시계열 + 실시간 스코프
     //  ScopePlot afterReplot → CaptureController::onScopeReplotted 연결은 생성자(mCapture 생성 후)에서.
     mTabManager->registerTab(new TabSoundPrint(this));          // 폴딩 사운드 이미지
-    mTabManager->registerTab(new TabTraceDisplay(this));        // FR-TD
+    auto *traceTab = new TabTraceDisplay(this);                 // FR-TD
+    // [③] 정지 중 Trace 트렌드 클릭 → 그 시점을 모든 스코프 탭에 전파(Rate/Scope 점프).
+    connect(traceTab, &TabTraceDisplay::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    mTabManager->registerTab(traceTab);
     mTabManager->registerTab(new TabVarioStability(this));      // FR-RAS
     mTabManager->registerTab(new TabSequenceDisplay(this));     // FR-MPS
     mTabManager->registerTab(new TabBeatNoiseScope(this));      // FR-BNS

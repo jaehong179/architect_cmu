@@ -144,6 +144,11 @@ void TabRateScope::onWave(const WaveBlock &wave)
     // [8분 스크롤백] 정지 중엔 라이브 갱신 중단. (이력은 중앙 버퍼가 WaveSink 로 계속 누적 → 데이터 손실 없음.)
     if (mPaused) return;
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
+    mLastBph = wave.bph;                 // 이력 마커 진폭 계산용
+
+    // 엔벨로프 x = 절대 샘플 인덱스(블록 시작값). A/C 마커도 절대 markSample 을 쓰므로 항상 정렬.
+    //  (자유증가 카운터를 쓰면 resume·드롭 시 마커와 어긋남 → startSample 로 고정.)
+    mGraphTicks = wave.startSample;
 
     const double threshold = wave.onsetThreshold;
     // 고샘플레이트(예: 384kHz)에서 스코프 점이 레이트×시간으로 폭증(384만 점) → QCustomPlot 렌더가 멈춘다.
@@ -237,7 +242,7 @@ void TabRateScope::setPaused(bool paused)
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 가로(시간) 전용 드래그/줌
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal);
         mScopePlot->xAxis->setLabel(QStringLiteral("PAUSED — drag/zoom to scroll back up to 8 min"));
-        mScopePlot->replot(QCustomPlot::rpQueuedReplot);      // 라벨만 갱신(데이터·범위 그대로 = 동결)
+        renderHistoryWindow();   // 현재 창을 이력에서 렌더(엔벨로프+마커) → 동결 화면에 측정 결과 유지
     } else {
         // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
         mHistActive = false;
@@ -268,15 +273,64 @@ void TabRateScope::renderHistoryWindow()
     mHistory->queryWindow((uint64_t)fromAbs, (uint64_t)toAbs, px, xs, ys);
     for (double &x : xs) x -= mHistOffset;                  // 다시 라이브 좌표로(이음매 없음)
     mInHistoryRender = true;
-    if (!mHistActive) {                                     // 첫 스크롤 순간: 라이브 마커/트리거 제거(이력엔 없음)
-        mScopePlot->clearItems();
-        mScopePlot->graph(1)->data()->clear();
-        mHistActive = true;
-    }
+    mHistActive = true;
+    mScopePlot->clearItems();                               // 매 렌더 마커 갱신
+    mScopePlot->graph(1)->data()->clear();                  // 트리거선(이력 미저장)
     mScopePlot->graph(0)->setData(xs, ys, true);
+    drawHistoryMarkers((uint64_t)fromAbs, (uint64_t)toAbs); // A/C 마커 + ms/진폭 라벨 복원
     mScopePlot->yAxis->rescale();                           // y만 자동 맞춤(x는 사용자 유지)
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     mInHistoryRender = false;
+}
+
+// 이력 이벤트로 마커 복원 — 라이브 onWave 와 동일: A→A 비트간격(ms) + A→C 진폭(ms/°).
+void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
+{
+    if (!mHistory) return;
+    const QVector<WaveEvent> evs = mHistory->eventsInRange(fromAbs, toAbs);
+    const double inwardLen = 500.0 * (mSampleRateHz / 48000.0);
+    double lastA = 0.0; bool haveA = false;
+    for (const WaveEvent &e : evs) {
+        const double x = (double)e.markSample - mHistOffset;       // 라이브 좌표
+        if (e.type == kEventA) {
+            addVerticalMarker(x, e.peak, Qt::green);
+            if (haveA) {                                           // A→A 비트-투-비트 간격(예: 125 ms)
+                const double delta = x - lastA;
+                addHorizontalMarkerOutward(lastA, x, e.peak / 2.0, Qt::black);
+                addText(lastA + delta / 2.0, e.peak / 2.0,
+                        QString(" %1 ms ").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 2),
+                        Qt::black, Qt::AlignHCenter | Qt::AlignTop);
+            }
+            lastA = x; haveA = true;
+        } else if (e.type == kEventC) {                            // A→C 진폭(6.9 ms / 303°)
+            const double delta = x - lastA;
+            QString text;
+            if (mLastBph > 0 && haveA) {
+                const int Amp = qRound(amplitudeOf(mLiftAngle, delta / mSampleRateHz, mLastBph));
+                text = (Amp < 360) ? QString(" %1 ms\n%2°").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1).arg(Amp)
+                                   : QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+            } else {
+                text = QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+            }
+            addVerticalMarker(x, e.peak, Qt::red);
+            if (haveA) addHorizontalMarkerInward(lastA, x, inwardLen, e.peak, Qt::black);
+            addText(x + inwardLen, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+        }
+    }
+}
+
+// [③] 트렌드에서 선택한 절대 샘플 시점으로 스코프를 이동(정지 중에만). 현재 줌 폭은 유지.
+void TabRateScope::onSeek(double absSample)
+{
+    if (!mPaused || !mHistory || !mHistory->hasData()) return;
+    const double center = absSample - mHistOffset;     // 이력 절대 인덱스 → 라이브(mGraphTicks) 좌표
+    const QCPRange r = mScopePlot->xAxis->range();
+    double w = r.size();                               // 현재 보이는 폭 유지
+    if (w <= 0.0) w = (double)mSampleRateHz;           // 안전값(~1초)
+    mInHistoryRender = true;                            // setRange 가 rangeChanged 재귀 트리거하지 않도록
+    mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
+    mInHistoryRender = false;
+    renderHistoryWindow();
 }
 
 void TabRateScope::onResetSession()

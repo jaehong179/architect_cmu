@@ -46,6 +46,9 @@ public:
     // 세션 리셋을 모든 탭에 전파.
     void broadcastReset();
 
+    // [③ 시점 동기화] 선택한 절대 샘플 인덱스를 모든 탭에 전파(정지 중 트렌드 클릭 → 스코프 점프).
+    void broadcastSeek(double absSample);
+
     // 비시각 청취자 등록 — 탭이 아닌 수집기(8분 이력 버퍼 등)가 엔벨로프 방송을 받도록.
     //  소유권은 호출 측(보통 MainWindow)이 가진다. (OCP: 방송 로직 수정 없이 확장)
     void addWaveSink(WaveSink *sink);

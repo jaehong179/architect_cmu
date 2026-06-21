@@ -50,6 +50,13 @@ void TabManager::addWaveSink(WaveSink *sink)
     if (sink) mWaveSinks.push_back(sink);
 }
 
+void TabManager::broadcastSeek(double absSample)
+{
+    // 정지와 무관하게 전파(정지 중에만 스코프가 반응). 트렌드 탭 클릭 → 모든 스코프 탭 점프.
+    for (TabView *t : mTabs)
+        if (t) t->onSeek(absSample);
+}
+
 void TabManager::broadcastReset()
 {
     mPaused = false;   // 새 세션 시작 = 정지 해제(전역).

@@ -43,6 +43,19 @@ public:
             configure(w.sampleRateHz, mHistorySeconds);
         if (w.env && w.n > 0)
             push(w.env, w.n, w.startSample);
+        // [③] A/C 이벤트도 보관 — 스크롤/seek 시 마커·ms 라벨 복원용(엔벨로프와 동일 절대좌표).
+        for (int i = 0; i < w.numEvents; ++i) mEvents.push_back(w.events[i]);
+        const uint64_t oldest = oldestAbs();
+        while (!mEvents.isEmpty() && mEvents.first().markSample + 1 <= oldest) mEvents.removeFirst();
+    }
+
+    // [from,to) 절대 인덱스 구간의 A/C 이벤트(markSample 기준).
+    QVector<WaveEvent> eventsInRange(uint64_t from, uint64_t to) const
+    {
+        QVector<WaveEvent> r;
+        for (const WaveEvent &e : mEvents)
+            if (e.markSample >= from && e.markSample < to) r.push_back(e);
+        return r;
     }
 
     // bucketSize 가 단계마다 곱해지는 비율. 8 → 단계: 8,64,512,4096,32768,262144...
@@ -88,6 +101,7 @@ public:
         mRaw.fill(0.0f);
         mEnd = 0; mHave = false;
         for (Level &L : mLevels) { L.started = false; L.mn.fill(0.0f); L.mx.fill(0.0f); }
+        mEvents.clear();
     }
 
     int      sampleRate() const { return mSampleRate; }
@@ -231,6 +245,7 @@ private:
     int            mSampleRate = 0;
     double         mHistorySeconds = 480.0;   // 보관 길이(초) — 재구성 시 유지
     QVector<Level> mLevels;         // Level 1..n (거친 단계들)
+    QVector<WaveEvent> mEvents;     // [③] A/C 이벤트(마커 복원용, 8분 보관 — 희소)
 };
 
 #endif // WAVELODHISTORY_H

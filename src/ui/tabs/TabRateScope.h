@@ -22,6 +22,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    void onSeek(double absSample) override;   // [③] 정지 중 트렌드 클릭 → 그 시점으로 스코프 이동
 
     // 8분 이력 버퍼 주입(MainWindow 소유). pause 중 이 버퍼를 queryWindow 로 그린다.
     void setHistory(WaveLodHistory *h) { mHistory = h; }
@@ -33,6 +34,7 @@ signals:
 private:
     void setupPlots();
     void renderHistoryWindow();         // 현재 보이는 시간창을 이력에서 잘라 그림(줌/팬 시 재호출)
+    void drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs);   // 이력 이벤트로 A/C 마커·ms 복원
     void addVerticalMarker(double x, double height, const QColor &color);
     void addText(double x, double height, const QString &text, const QColor &color, Qt::Alignment alignment);
     void addHorizontalMarkerInward(double xLeft, double xRight, double length, double height, const QColor &color);
@@ -52,6 +54,7 @@ private:
     double       mLastA = 0.0; bool mHaveLastA = false;
     int          mSampleRateHz = 48000;
     int          mLiftAngle = 52;        // C 마커 진폭 라벨용(onMeasurement 에서 갱신)
+    int          mLastBph = 0;           // 이력 마커 진폭 계산용(onWave 에서 갱신)
     // min/max 데시메이션 누적 상태(고레이트 스코프: 점 수↓ + 피크 보존). 구간을 onWave 경계 넘어 누적.
     int          mDecimCount = 0;
     float        mDecimMin = 0.0f, mDecimMax = 0.0f;
