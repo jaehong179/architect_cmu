@@ -4,7 +4,7 @@ The scope is the static code structure of the TimeGrapher application.
 The diagram shows six top-level packages and their `«uses»` dependencies.
 
 Key pattern applied:
-- **Layered** — dependencies flow top-down (ui → engine → core, ui → audio → core). No upward or circular dependencies are permitted. `perf` is a cross-cutting exception, referenced by all layers via compile-time macros.
+- **Layered** — dependencies flow top-down (ui → engine → core, ui → audio → core). No upward or circular dependencies are permitted. watchdog is a cross-cutting exception, referenced by all layers for system health monitoring.
   
 ![Package Diagram](../images/TimeGrapherModuleView.jpg)
 
