@@ -16,7 +16,7 @@ Status: **In Progress**
 6. [Risk Management](#6-risk-management)
 7. [Experiments](#7-experiments)
 8. [Architecture Overview](#8-architecture-overview)
-9. [ADRs](#9-adrs)
+9. [Architecture Decision Records](#9-architecture-decision-records)
 10. [References](#10-references)
 
 # **1. Overview**
@@ -755,7 +755,7 @@ This section documents the technical experiments (Agile spikes) used to evaluate
 - [AV-005: Register Tab Diagram](ArchitectureViews/AV-005-RegiseterTab-Diagram.md)
 - [AV-006: Deployment View](ArchitectureViews/AV-006-Deployment-view.md)
 
-# 9. ADRs
+# 9. Architecture Decision Records
 
 - [ADR-001: Limit AI (TinyML) to camera-based watch-position detection](ADRs/ADR-001-watch-position-detection-solution.md)
 - [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
