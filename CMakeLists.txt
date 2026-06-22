@@ -25,6 +25,9 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets)
 
+# [vision · TinyML] Watch-position 추론 기능
+option(ENABLE_VISION "Build vision (TinyML watch-position) inference feature" ON)
+
 #DP REMOVED NOT NEED IN THIS VERSION
 #IF(WIN32)
 #add_library(fftw SHARED IMPORTED)
@@ -196,6 +199,88 @@ target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/u
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [vision · TinyML] Watch-position 추론 — TFLite C API 런타임 동적 로드.
+#   - Windows : prebuilt tensorflowlite_c.dll 자동 다운로드(공개된 ValYouW/tflite-dist package)
+#   - Linux/RPi5 : TensorFlow 소스(핀 v2.18.0)에서 libtensorflowlite_c.so 빌드(FetchContent)
+#   - 클래스 라벨은 VisionConfig.h 에 직접 정의 / model.tflite → .qrc 임베드 (런타임 외부파일 0)
+#   thirdparty 코드는 수정하지 않으며, 모두 자동 취득되어 clean 환경에서 빌드된다.
+# ─────────────────────────────────────────────────────────────────────────
+if(ENABLE_VISION)
+    include(FetchContent)
+    set(_TFLITE_VERSION "2.18.0")
+
+    # ── 설정값 → VisionConfig.h 생성 (클래스 라벨은 헤더에 직접 정의됨) ──
+    set(VISION_IMG_SIZE       192)
+    set(VISION_CROP_X1        448)
+    set(VISION_CROP_Y1        168)
+    set(VISION_CROP_X2        832)
+    set(VISION_CROP_Y2        552)
+    set(VISION_CAM_WIDTH      1280)
+    set(VISION_CAM_HEIGHT     720)
+    set(VISION_CAMERA_ID      1)
+    set(VISION_CONF_THRESH    0.6)
+    set(VISION_NUM_THREADS    2)
+    set(VISION_CLAHE_CLIP     2.0)
+    set(VISION_CLAHE_TILES    8)
+    set(VISION_INTERVAL_MS    1000)
+    set(VISION_MODEL_RESOURCE ":/vision/model.tflite")
+
+    set(_vision_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vision")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vision/VisionConfig.h.in"
+        "${_vision_gen_dir}/VisionConfig.h"
+        @ONLY)
+
+    # ── TFLite C 라이브러리/헤더 확보 (플랫폼 분기) ──
+    if(WIN32)
+        FetchContent_Declare(tflite_dist
+            URL      "https://github.com/ValYouW/tflite-dist/releases/download/v${_TFLITE_VERSION}/tflite-dist-${_TFLITE_VERSION}.zip"
+            URL_HASH SHA256=ae6530c64e4e161fc46c97e2d1d3beb0518d42ab230ac560721a2719c0f2a1cc
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+        FetchContent_MakeAvailable(tflite_dist)
+        set(VISION_TFLITE_INCLUDE_DIR "${tflite_dist_SOURCE_DIR}/include")
+        set(VISION_TFLITE_RUNTIME     "${tflite_dist_SOURCE_DIR}/libs/windows_x86_64/tensorflowlite_c.dll")
+    else()
+        FetchContent_Declare(tensorflow
+            GIT_REPOSITORY https://github.com/tensorflow/tensorflow.git
+            GIT_TAG        "v${_TFLITE_VERSION}"
+            GIT_SHALLOW    TRUE)
+        FetchContent_GetProperties(tensorflow)
+        if(NOT tensorflow_POPULATED)
+            FetchContent_Populate(tensorflow)
+            add_subdirectory(
+                "${tensorflow_SOURCE_DIR}/tensorflow/lite/c"
+                "${CMAKE_CURRENT_BINARY_DIR}/tflite-c-build")
+        endif()
+        set(VISION_TFLITE_INCLUDE_DIR "${tensorflow_SOURCE_DIR}")
+        set(VISION_TFLITE_RUNTIME     "$<TARGET_FILE:tensorflowlite_c>")
+        add_dependencies(TimeGrapher tensorflowlite_c)   # 빌드 의존성만(링크 X — 런타임 dlopen)
+    endif()
+
+    target_sources(TimeGrapher PRIVATE
+        src/vision/TfliteApi.h
+        src/vision/TfliteApi.cpp
+        src/vision/VisionPreprocess.h
+        src/vision/VisionPreprocess.cpp
+        src/vision/VisionWorker.h
+        src/vision/VisionWorker.cpp
+        src/vision/vision.qrc)
+    target_include_directories(TimeGrapher PRIVATE
+        "${_vision_gen_dir}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vision"
+        "${VISION_TFLITE_INCLUDE_DIR}")
+    target_compile_definitions(TimeGrapher PRIVATE ENABLE_VISION=1)
+    target_link_libraries(TimeGrapher PRIVATE ${CMAKE_DL_LIBS})
+
+    # 런타임 라이브러리를 실행파일 옆에 복사(dlopen 탐색 경로).
+    add_custom_command(TARGET TimeGrapher POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VISION_TFLITE_RUNTIME}" "$<TARGET_FILE_DIR:TimeGrapher>"
+        COMMENT "[vision] copy TFLite runtime next to executable")
+endif()
+
 IF(WIN32)
 #DP REMOVED NOT NEED IN THIS VERSION
 #target_link_libraries(TimeGrapher PRIVATE fftw)

@@ -15,6 +15,9 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <processthreadsapi.h>
+#if defined(QT_DEBUG)
+#include <cstdio>
+#endif
 #endif
 
 int main(int argc, char *argv[])
@@ -22,6 +25,18 @@ int main(int argc, char *argv[])
   int result;
 
 #ifdef Q_OS_WIN
+#if defined(QT_DEBUG)
+ // [vision/log] 이 앱은 GUI 서브시스템(WIN32_EXECUTABLE)으로 빌드되어 기본적으로 콘솔이
+ //  연결되지 않는다. Debug 빌드에서만, 터미널에서 실행한 경우 부모 콘솔에 붙여
+ //  qInfo/qWarning(추론 결과 포함)이 터미널에 보이도록 stdout/stderr 를 재지정한다.
+ //  콘솔 없이 실행되면 아무 일도 하지 않는다. (Release 빌드는 콘솔에 출력하지 않음)
+ if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+     FILE *fp = nullptr;
+     freopen_s(&fp, "CONOUT$", "w", stdout);
+     freopen_s(&fp, "CONOUT$", "w", stderr);
+ }
+#endif
+
  PROCESS_POWER_THROTTLING_STATE PowerThrottling = {0};
  PowerThrottling.Version = PROCESS_POWER_THROTTLING_CURRENT_VERSION;
  PowerThrottling.ControlMask = PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION;

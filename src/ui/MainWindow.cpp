@@ -40,6 +40,11 @@
 #include <QtMath>
 #include <QMessageBox>
 
+#ifdef ENABLE_VISION
+#include <QThread>
+#include "VisionWorker.h"          // [vision] 웹캠 1Hz watch-position 추론 워커
+#endif
+
 #define  LIVE     0
 #define  PLAYBACK 1
 #define  SIM      2
@@ -170,8 +175,18 @@ MainWindow::MainWindow(QWidget *parent)
     // 탭 ScopePlot 실제 paint 완료 → 컨트롤러 perf(disp_paint/e2e_full/paint_fps). 계측 OFF 면 배선 자체 제거.
     if (mRateScope) connect(mRateScope, &TabRateScope::scopeReplotted, mCapture, &CaptureController::onScopeReplotted);
 #endif
-}
 
+#ifdef ENABLE_VISION
+    // [vision] 웹캠 watch-position 추론을 전용 스레드에서 병렬 실행(초당 1회 → 결과 print).
+    //  기존 오디오 워커와 동일한 QObject+QThread 패턴. UI/측정 핫패스와 독립.
+    mVisionThread = new QThread(this);
+    mVisionWorker = new vision::VisionWorker();
+    mVisionWorker->moveToThread(mVisionThread);
+    connect(mVisionThread, &QThread::started,  mVisionWorker, &vision::VisionWorker::start);
+    connect(mVisionThread, &QThread::finished, mVisionWorker, &QObject::deleteLater);
+    mVisionThread->start();
+#endif
+}
 // [탭 모듈 · QA-MOD-01] 기존 2개 탭(RateTab/SoundTab, MainWindow.ui 정의)에 더해 신규 탭
 //  모듈을 TabManager 로 등록한다. 새 탭 추가 = TabView 상속 클래스 1개 + 아래 한 줄.
 //  ("Split module" / "Restrict dependencies" 택틱 — 코어/기존 탭 수정 불필요)
@@ -446,6 +461,15 @@ void MainWindow::DisplayResults(void)
 
 MainWindow::~MainWindow()
 {
+#ifdef ENABLE_VISION
+    if (mVisionThread) {
+        // 워커 stop() 을 워커 스레드에서 동기 실행 후 스레드 종료(카메라/타이머 정리).
+        if (mVisionWorker)
+            QMetaObject::invokeMethod(mVisionWorker, "stop", Qt::BlockingQueuedConnection);
+        mVisionThread->quit();
+        mVisionThread->wait();
+    }
+#endif
     delete ui;
 }
 

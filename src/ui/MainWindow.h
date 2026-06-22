@@ -19,6 +19,11 @@ class TabRateScope; // Rate/Scope 탭 — ScopePlot afterReplot 신호를 Captur
 class QPushButton;  // 전역 Pause/Resume(탭바 코너위젯)
 class QLabel;       // 전역 seek 위치 표시(코너)
 
+#ifdef ENABLE_VISION
+class QThread;                                  // [vision] 추론 워커 전용 스레드
+namespace vision { class VisionWorker; }        // [vision] 웹캠 1Hz watch-position 추론
+#endif
+
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
 
@@ -96,5 +101,9 @@ private:
     QString                    mDeviceNameBeforePlaybackOrSim;
     // [PERF 계측 · §A-3] UI 이벤트 루프 응답성은 UiResponsivenessSampler 가 자체 타이머로 담당.
     //  (파이프라인 perf: cap2proc·proc2disp·e2e·disp_paint·fps·GT 정확도는 CaptureController 로 이동)
+#ifdef ENABLE_VISION
+    QThread              *mVisionThread = nullptr;   // [vision] 추론 워커 스레드(병렬 실행)
+    vision::VisionWorker *mVisionWorker = nullptr;   // [vision] 웹캠 1Hz watch-position 추론
+#endif
 };
 #endif

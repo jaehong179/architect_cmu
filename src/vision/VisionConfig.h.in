@@ -1,0 +1,50 @@
+// VisionConfig.h — AUTO-GENERATED from src/vision/VisionConfig.h.in by CMake.
+//   DO NOT EDIT. Edit src/vision/VisionConfig.h.in and the CMake VISION_* vars instead.
+//   (클래스 라벨은 이 템플릿에 직접 정의된다 — 별도 json 파일 없이 관리한다.)
+#ifndef VISION_CONFIG_H
+#define VISION_CONFIG_H
+
+#include <array>
+#include <string_view>
+
+namespace vision {
+
+// ── 추론/전처리 설정 (inference_webcam.py 와 동일 값) ──────────────────────────
+inline constexpr int   kImgSize       = @VISION_IMG_SIZE@;     // 모델 입력 이미지 사이즈 (px)
+inline constexpr int   kCropX1        = @VISION_CROP_X1@;      // center-crop 좌상 X (kCamWidth 기준)
+inline constexpr int   kCropY1        = @VISION_CROP_Y1@;      // center-crop 좌상 Y (kCamHeight 기준)
+inline constexpr int   kCropX2        = @VISION_CROP_X2@;      // center-crop 우하 X
+inline constexpr int   kCropY2        = @VISION_CROP_Y2@;      // center-crop 우하 Y
+inline constexpr int   kCamWidth      = @VISION_CAM_WIDTH@;    // 크롭 좌표의 기준 프레임 폭
+inline constexpr int   kCamHeight     = @VISION_CAM_HEIGHT@;   // 크롭 좌표의 기준 프레임 높이
+inline constexpr int   kCameraId      = @VISION_CAMERA_ID@;    // USB Camera 인덱스
+inline constexpr float kConfThresh    = @VISION_CONF_THRESH@f; // 이 값 미만은 "uncertain"
+inline constexpr int   kNumThreads    = @VISION_NUM_THREADS@;  // TFLite 인터프리터 스레드 수
+inline constexpr double kClaheClip    = @VISION_CLAHE_CLIP@;   // CLAHE clipLimit
+inline constexpr int   kClaheTiles    = @VISION_CLAHE_TILES@;  // CLAHE tile grid (NxN)
+inline constexpr int   kInferIntervalMs = @VISION_INTERVAL_MS@; // 추론 주기(ms) — 1000=초당 1회
+
+// 모델은 .qrc 로 임베드된다(외부 파일 불필요).
+inline constexpr const char* kModelResource = "@VISION_MODEL_RESOURCE@";
+
+// ── 클래스 라벨 (인덱스 = 모델 출력 클래스 순서) ──────────────────────────────
+//   라벨을 추가/변경하려면 아래 배열만 수정하면 된다(kNumClasses 는 자동 추론).
+inline constexpr std::array<std::string_view, 12> kLabels = {{
+    "W_DU",
+    "W_DD",
+    "W_CD",
+    "W_CL",
+    "W_CR",
+    "W_CU",
+    "N_DU",
+    "N_DD",
+    "N_CD",
+    "N_CL",
+    "N_CR",
+    "N_CU",
+}};
+inline constexpr int kNumClasses = static_cast<int>(kLabels.size());
+
+} // namespace vision
+
+#endif // VISION_CONFIG_H
