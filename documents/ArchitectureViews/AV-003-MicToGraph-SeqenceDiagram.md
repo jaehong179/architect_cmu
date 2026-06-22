@@ -1,7 +1,7 @@
 # Live Microphone to Graph Behavior Diagram
 
 This diagram shows the process of displaying the audio signal captured from the microphone as a graph.
-Through this diagram, you can identify the parts needed to verify whether the process from audio signal to graph display satisfies the condition ([QAS-01](../04-quality-attribute-requirements.md#qas-01-real-time-streaming-throughput)) of completing within 125ms per T1~T3 cycle (based on 28800 BPH).
+Through this diagram, you can identify the parts needed to verify whether the process from audio signal to graph display satisfies the condition ([QAS-01](../README.md#qas-01-real-time-streaming-throughput)) of completing within 125ms per T1~T3 cycle (based on 28800 BPH).
 
 ![Diagram](../images/MicToGraph_CnCDiaggram.png)
 
@@ -22,12 +22,12 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 ## Behavior
 
 - A UML Sequence Diagram representing the call process from the audio signal to its display on the TimeGrapher's graph.
-- This diagram allows you to identify the components required for the EXP-02 experiment.
+- This diagram allows you to identify the components required for the [EXP-02](../Experiments/EXP-02-end-to-end-latency-measurement.md) experiment.
 
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-- [ADR-004: shared waveform history buffer](../ADRs/ADR004-shared-waveform-history-buffer.md)
+- [ADR-004: shared waveform history buffer](../ADRs/ADR-004-shared-waveform-history-buffer.md)
 
 ## Related Views
 - N/A

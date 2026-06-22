@@ -11,7 +11,7 @@ We use a timeout-based watchdog on audio-block arrival, plus the device error/st
 
 #### Rationale
 
-Only a watchdog bounds detection latency and detects missing data — exactly what "notify within 1 s" needs (EXP-16). The existing beat-level watchdog proves the pattern works here, so the change is low-risk. The device callback is fast but not reliable alone (some unplugs just go silent), so it is only a fast-path. The circuit breaker was rejected: it stops calling a failing dependency, which is not our problem.
+Only a watchdog bounds detection latency and detects missing data — exactly what "notify within 1 s" needs ([EXP-16](../Experiments/EXP-16-fault-detection-notification-tactic-analysis.md)). The existing beat-level watchdog proves the pattern works here, so the change is low-risk. The device callback is fast but not reliable alone (some unplugs just go silent), so it is only a fast-path. The circuit breaker was rejected: it stops calling a failing dependency, which is not our problem.
 
 #### Status
 

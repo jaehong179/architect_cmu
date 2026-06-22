@@ -11,7 +11,7 @@ We use a Tab Manager that registers each visualization tab through a uniform int
 
 ***Rationale***
 
-Without a registration point, each new tab needs edits scattered across the layout, sibling tabs, and sometimes DSP — the "module change explosion" of RISK-06. Routing every tab through registerTab() inverts the dependencies: the manager and the tabs depend on the interface, not on each other. This confines change to the new tab plus one line, exactly what QAS-08 requires.
+Without a registration point, each new tab needs edits scattered across the layout, sibling tabs, and sometimes DSP — the "module change explosion" of [RISK-06](../README.md#risk-06). Routing every tab through registerTab() inverts the dependencies: the manager and the tabs depend on the interface, not on each other. This confines change to the new tab plus one line, exactly what QAS-08 requires.
 
 ***Status***
 
@@ -22,7 +22,7 @@ Accepted
 Positive
 
 - Satisfies QAS-08: a new tab needs one registerTab() call and no DSP/existing-tab changes, so regressions stay at zero.
-- Mitigates RISK-06 by confining change to one integration point.
+- Mitigates [RISK-06](../README.md#risk-06) by confining change to one integration point.
 - Tabs are decoupled from each other and from DSP, improving testability and parallel work.
 
 Negative / costs

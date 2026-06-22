@@ -1,8 +1,8 @@
-# EXP-16 / Experiment for [[RISK-19](../06-risk-management.md#risk-19)][[QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback)][[QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification)]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → ADR-02
+# EXP-16 / Experiment for [[RISK-19](../README.md#risk-19)][[QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback)][[QAS-11](../README.md#qas-11-microphone-disconnect-user-notification)]: Fault-Detection & Notification Tactic Analysis (Static-Analysis Based) → [ADR-02](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Objective
 
-- Without implementing or measuring, statically analyze the available fault signals in the existing code and compare candidate tactics to produce the evidence for choosing a detection/notification tactic that guarantees a user-facing notification within the deadline ([QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification) ≤ 1 s) on microphone disconnect / signal loss. The final decision, rationale, and consequences are recorded in ADR-02.
+- Without implementing or measuring, statically analyze the available fault signals in the existing code and compare candidate tactics to produce the evidence for choosing a detection/notification tactic that guarantees a user-facing notification within the deadline ([QAS-11](../README.md#qas-11-microphone-disconnect-user-notification) ≤ 1 s) on microphone disconnect / signal loss. The final decision, rationale, and consequences are recorded in [ADR-02](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md).
 
 ## Status
 
@@ -10,11 +10,11 @@
 
 ## Expected outcomes
 
-- An inventory of currently available fault signals (callback halt, QAudioSource stateChanged (debug-print only), existing beat-level sync watchdog) with their meaning and latency; a comparison of candidate tactics (timeout/watchdog, device error/state callback, circuit breaker, polling) by what each guarantees; the tactic decision based on this analysis is recorded in ADR-02 (this experiment provides the evidence).
+- An inventory of currently available fault signals (callback halt, QAudioSource stateChanged (debug-print only), existing beat-level sync watchdog) with their meaning and latency; a comparison of candidate tactics (timeout/watchdog, device error/state callback, circuit breaker, polling) by what each guarantees; the tactic decision based on this analysis is recorded in [ADR-02](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md) (this experiment provides the evidence).
 
 ## Resources required
 
-- Access to the existing source (AudioWorker, Bph, Timegrapher); 1–2 person-days; an IDE. No measurement rigs or new implementation. Uses EXP-14's observations as input.
+- Access to the existing source (AudioWorker, Bph, Timegrapher); 1–2 person-days; an IDE. No measurement rigs or new implementation. Uses [EXP-14](EXP-14-microphone-disconnect-behavior.md)'s observations as input.
 
 ## Experiment description
 
@@ -26,7 +26,7 @@
 
 - Circuit-breaker applicability: reason that its purpose (trip after repeated call failures) differs from "notify within 1 s."
 
-- Hand the analysis to ADR-02 (the decision/rationale is finalized there).
+- Hand the analysis to [ADR-02](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md) (the decision/rationale is finalized there).
 
 ## Duration
 
@@ -34,7 +34,7 @@
 
 ## Links and references
 
-ADR-02 (fault-detection & notification tactic); [RISK-19](../06-risk-management.md#risk-19); [QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback), [QAS-11](../04-quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification); EXP-14 (current behavior) as input.
+[ADR-02](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md) (fault-detection & notification tactic); [RISK-19](../README.md#risk-19); [QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback), [QAS-11](../README.md#qas-11-microphone-disconnect-user-notification); [EXP-14](EXP-14-microphone-disconnect-behavior.md) (current behavior) as input.
 
 ## Results and recommendations
 

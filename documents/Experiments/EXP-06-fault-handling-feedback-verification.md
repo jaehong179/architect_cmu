@@ -1,4 +1,4 @@
-# EXP-06 / Experiment for [[QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback)]: Fault-handling & feedback verification
+# EXP-06 / Experiment for [[QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback)]: Fault-handling & feedback verification
 
 ## Objective
 
@@ -36,7 +36,7 @@ Verify the system detects faults (signal loss, missed beats, out-of-range values
 
 ## Links and references
 
-[QAS-07](../04-quality-attribute-requirements.md#qas-07-graceful-degradation-and-fault-feedback) · CON-OP-01
+[QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback) · CON-OP-01
 
 ## Results and recommendations
 

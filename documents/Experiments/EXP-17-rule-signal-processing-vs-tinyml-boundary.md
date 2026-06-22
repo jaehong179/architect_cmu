@@ -1,8 +1,8 @@
-# EXP-17 / Experiment for [[RISK-05](../06-risk-management.md#risk-05)][[RISK-09](../06-risk-management.md#risk-09)][FR-AI]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → ADR-01
+# EXP-17 / Experiment for [[RISK-05](../README.md#risk-05)][[RISK-09](../README.md#risk-09)][[FR-AI](../README.md#fr-ai-1)]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → [ADR-01](../ADRs/ADR-001-watch-position-detection-solution.md)
 
 ## Objective
 
-- Statically analyze the diagnosis sub-tasks to produce the evidence (task decomposition, tactic comparison) for the rule/signal-processing vs. TinyML boundary. The final decision, rationale, and consequences are recorded in ADR-01.
+- Statically analyze the diagnosis sub-tasks to produce the evidence (task decomposition, tactic comparison) for the rule/signal-processing vs. TinyML boundary. The final decision, rationale, and consequences are recorded in [ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md).
 
 ## Status
 
@@ -14,7 +14,7 @@
 
 - a per-task placement table (measurement-trust involvement, deterministic-algorithm sufficiency, ML data/sensor availability)
 
-- the design decision based on this analysis is recorded in ADR-01 (this experiment provides the evidence).
+- the design decision based on this analysis is recorded in [ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md) (this experiment provides the evidence).
 
 ## Resources required
 
@@ -30,7 +30,7 @@
 
 - Identify the task where ML adds value with realistic labeling.
 
-- Hand the analysis to ADR-01 (the decision/rationale is finalized there).
+- Hand the analysis to [ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md) (the decision/rationale is finalized there).
 
 ## Duration
 
@@ -38,7 +38,7 @@
 
 ## Links and references
 
-ADR-01 (responsibility-boundary decision); [RISK-05](../06-risk-management.md#risk-05), [RISK-09](../06-risk-management.md#risk-09); FR-AI/FR-POS; external camera; follow-up EXP-18; EXP-12.
+[ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md) (responsibility-boundary decision); [RISK-05](../README.md#risk-05), [RISK-09](../README.md#risk-09); [FR-AI](../README.md#fr-ai-1)/FR-POS; external camera; follow-up [EXP-18](EXP-18-camera-tinyml-9-position-accuracy.md); [EXP-12](EXP-12-usb-protocol-watch-position-detection.md).
 
 ## Results and recommendations
 

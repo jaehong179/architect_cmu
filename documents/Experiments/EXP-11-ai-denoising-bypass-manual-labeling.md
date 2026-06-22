@@ -1,4 +1,4 @@
-# EXP-11 / Experiment for [FR-AI-1]: AI-based Denoising Approach to Bypass Manual Labeling
+# EXP-11 / Experiment for [FR-AI-1](../README.md#fr-ai-1): AI-based Denoising Approach to Bypass Manual Labeling
 
 ## Objective
 
@@ -42,7 +42,7 @@
 
 ## Links and references
 
-FR-AI-1 · [RISK-05](../06-risk-management.md#risk-05)
+[FR-AI-1](../README.md#fr-ai-1) · [RISK-05](../README.md#risk-05)
 
 ## Results and recommendations
 

@@ -1,4 +1,4 @@
-# EXP-08 / Experiment for [[QAS-02](../04-quality-attribute-requirements.md#qas-02-end-to-end-latency)]: Measure current performance
+# EXP-08 / Experiment for [[QAS-02](../README.md#qas-02-end-to-end-latency)]: Measure current performance
 
 ## Objective
 
@@ -36,10 +36,10 @@ Measure the current system's end-to-end performance (latency, drops, bottleneck)
 
 ## Links and references
 
-[QAS-02](../04-quality-attribute-requirements.md#qas-02-end-to-end-latency)
+[QAS-02](../README.md#qas-02-end-to-end-latency)
 
 ## Results and recommendations
 
 - (06/05) Performance log (perf_log.csv) generation implemented — metrics at each point (capture → processing → display) are now recorded to the log.
 
-- This experiment is canceled. Because this experiment is almost similar as EXP-02
+- This experiment is canceled. Because this experiment is almost similar as [EXP-02](EXP-02-end-to-end-latency-measurement.md)

@@ -19,7 +19,7 @@ The Main UI is the central element that the user sees and interacts with. It coo
 The Camera is an external device connected to the Raspberry Pi. On request from the Main UI, it captures a frame of the watch in its current orientation and returns it. The camera is used only to read which position the watch is in; it has no role in the acoustic measurement. When the camera is unavailable (disconnected or the view is occluded), the system falls back to manual position selection.
 
 ### Classifier (TinyML)
-The Classifier is a lightweight on-device image classification model (TinyML). Given a camera frame, it infers which of the nine standard positions the watch is in and returns that position together with a confidence value. It performs only position reading — labeling which position a measurement belongs to — and never computes Rate/Beat-Error/Amplitude. The specific model is an implementation detail to be finalized and validated by experiment (EXP-18); the model is chosen to be small enough for real-time inference on the Raspberry Pi.
+The Classifier is a lightweight on-device image classification model (TinyML). Given a camera frame, it infers which of the nine standard positions the watch is in and returns that position together with a confidence value. It performs only position reading — labeling which position a measurement belongs to — and never computes Rate/Beat-Error/Amplitude. The specific model is an implementation detail to be finalized and validated by experiment ([EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md)); the model is chosen to be small enough for real-time inference on the Raspberry Pi.
 
 ### Measurement path (signal processing)
 The Measurement path is the deterministic, rule/signal-processing logic inside the Main UI that computes Rate, Beat Error, and Amplitude from the acoustic signal. It is explainable and verifiable, and it is the only source of measured values. It runs the same way regardless of whether the position came from the AI classifier or from manual selection, so the trustworthiness of the measurement does not depend on the AI.
@@ -39,7 +39,7 @@ Binding time: runtime, decided per measurement based on the classifier confidenc
 
 ##  Related ADRs
 
-[ADR-001: Limit AI (TinyML) to camera-based watch-position detection](../ADRs/ADR001-watch-position-detection-solution.md)
+[ADR-001: Limit AI (TinyML) to camera-based watch-position detection](../ADRs/ADR-001-watch-position-detection-solution.md)
 
 ##  Related views
 

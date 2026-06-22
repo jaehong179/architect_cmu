@@ -1,7 +1,7 @@
 # Register Tab Diagram
 
 This diagram shows the design that makes it easy to add graph tabs to TimeGrapher.
-It satisfies [QAS-08](../04-quality-attribute-requirements.md#qas-08), which specifies that code unrelated to the tab must not be modified when adding a graph tab.
+It satisfies [QAS-08](../README.md#qas-08-new-tab-extensibility), which specifies that code unrelated to the tab must not be modified when adding a graph tab.
 When a developer wants to add a new tab, they only need to implement a new class that inherits from the TabView class.
 
 ![Diagram](../images/classDiagram.jpg)
@@ -29,7 +29,7 @@ The diagram below shows the process of applying the observer pattern to register
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-[ADR-003: Register display tabs through a Tab Manager](../ADRs/ADR003-register-display-tabs.md)
+[ADR-003: Register display tabs through a Tab Manager](../ADRs/ADR-003-register-display-tabs.md)
 
 ## Related Views
 - N/A

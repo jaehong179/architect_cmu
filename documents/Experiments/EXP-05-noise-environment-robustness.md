@@ -1,4 +1,4 @@
-# EXP-05 / Experiment for [[QAS-05](../04-quality-attribute-requirements.md#qas-05-noise-environment-robustness)]: Noise-environment robustness
+# EXP-05 / Experiment for [[QAS-05](../README.md#qas-05-noise-environment-robustness)]: Noise-environment robustness
 
 ## Objective
 
@@ -34,7 +34,7 @@ Quantify measurement degradation when 60 dB SPL speech noise is injected alongsi
 
 ## Links and references
 
-[QAS-05](../04-quality-attribute-requirements.md#qas-05-noise-environment-robustness) · [RISK-04](../06-risk-management.md#risk-04) · FR-SPT-5
+[QAS-05](../README.md#qas-05-noise-environment-robustness) · [RISK-04](../README.md#risk-04) · [FR-SPT-5](../README.md#fr-spt-5)
 
 ## Results and recommendations
 

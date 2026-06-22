@@ -63,7 +63,7 @@ Key pattern applied:
 - N/A
 
 ## Related ADRs
-[ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
+[ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
 - TBD

@@ -1,4 +1,4 @@
-# EXP-01 / Experiment for [[QAS-01](../04-quality-attribute-requirements.md#qas-01-real-time-streaming-throughput)]: Multi-sample-rate capture stability
+# EXP-01 / Experiment for [[QAS-01](../README.md#qas-01-real-time-streaming-throughput)]: Multi-sample-rate capture stability
 
 ## Objective
 
@@ -40,7 +40,7 @@ Determine whether the Pi 5 can sustain continuous capture at 48k / 96k / 192k sp
 
 ## Links and references
 
-[QAS-01](../04-quality-attribute-requirements.md#qas-01-real-time-streaming-throughput) · [QAS-03](../04-quality-attribute-requirements.md#qas-03-long-run-resource-stability) · FR-CP-6 · CON-OP-01
+[QAS-01](../README.md#qas-01-real-time-streaming-throughput) · [QAS-03](../README.md#qas-03-long-run-resource-stability) · [FR-CP-6](../README.md#fr-cp-6) · CON-OP-01
 
 ## Results and recommendations
 
