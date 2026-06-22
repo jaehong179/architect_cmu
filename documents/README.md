@@ -1,10 +1,8 @@
 # LG 2026 SW Architecture Studio Project — Time Grapher Project (Team 1)
 
-**Milestone 2** — Project Plan · Requirements · Quality Attribute Scenarios
+*— In collaboration with Carnegie Mellon University —*
 
 Status: **In Progress**
-
-*— In collaboration with Carnegie Mellon University —*
 
 ## Table of Contents
 
@@ -725,6 +723,8 @@ Identified technical/non-technical risks with probability·impact (High-Medium-L
 This section documents the technical experiments (Agile spikes) used to evaluate and validate the quality-attribute requirements. Each experiment follows the standard technical-experiment template. Full details for each experiment are in [Experiments/](Experiments/).
 
 ## 7.1 Experiments Summary
+
+Ordered by "Status"
 
 | EXP | Title | Status | Duration |
 |-----|-------|--------|----------|
