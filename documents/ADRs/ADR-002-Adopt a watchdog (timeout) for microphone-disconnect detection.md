@@ -4,7 +4,7 @@ We use a timeout-based watchdog on audio-block arrival, plus the device error/st
 
 #### Decision
 
-- A watchdog tracks the time since the last audio block. If no block arrives within the deadline (≤ 1 s for QAS-11; this also satisfies QAS-07 ≤ 2 s), it declares a fault and the GUI shows a notification.
+- A watchdog tracks the time since the last audio block. If no block arrives within the deadline (≤ 1 s for [QAS-11](../README.md#qas-11-microphone-disconnect-user-notification); this also satisfies [QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback) ≤ 2 s), it declares a fault and the GUI shows a notification.
 - The device error/state callback (QAudioSource::error() / stateChanged) is wired as a fast-path for when the OS reports the failure directly.
 - This reuses the existing watchdog pattern (Bph silence timeout, Timegrapher sync-loss) at the stream level instead of the beat level — a small extension, not a new mechanism.
 - No separate heartbeat is added: the incoming audio block is itself the liveness signal, and the watchdog detects its absence.
@@ -23,7 +23,7 @@ Accepted
 
 **Positive**
 
-- Detects disconnect within 1 s, satisfying QAS-11 (and QAS-07).
+- Detects disconnect within 1 s, satisfying [QAS-11](../README.md#qas-11-microphone-disconnect-user-notification) (and [QAS-07](../README.md#qas-07-graceful-degradation-and-fault-feedback)).
 
 - Reuses a proven pattern → low risk, no new architecture.
 

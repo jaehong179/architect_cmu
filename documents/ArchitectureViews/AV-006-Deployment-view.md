@@ -7,8 +7,6 @@ TimeGrapher is a standalone desktop application with no network dependencies. Th
 
 ![Deployment View](../images/deploymentView.jpg)
 
-Notation: UML
-
 ## Element Catalog
 
 #### Windows PC x86-64
