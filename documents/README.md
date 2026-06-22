@@ -25,9 +25,7 @@ Status: **In Progress**
 
 ### **Purpose**
 
-This document is the deliverable of the Time Grapher Project for the LG 2026 SW Architecture Studio. It covers a five-week time-boxed project that extends the baseline Qt/C++ TimeGrapher GUI on the Raspberry Pi 5 to strengthen the acoustic diagnosis and visualization of a mechanical watch. This document includes (i) an Agile/Scrum-based project plan, (ii) 12display tabs, (iii) quality attribute scenarios, (iv) technical Test Experiments logically linked to each quality attribute, and (v) design constraints and risk assessment.
-
-Section 4 specifies the quality-attribute requirements as concrete quality-attribute scenarios using the standard six-part scenario format.
+This document is the deliverable of the Time Grapher Project for the LG 2026 SW Architecture Studio. It covers a five-week time-boxed project that extends the baseline Qt/C++ TimeGrapher GUI on the Raspberry Pi 5 to strengthen the acoustic diagnosis and visualization of a mechanical watch.
 
 ## **1.2 Objectives**
 
@@ -105,28 +103,32 @@ Architecture overview</p>
 <td>Week 3</td>
 <td>06/15-06/19</td>
 <td>Core build &amp; initial visualization — signal capture·detection·measurement·basic display</td>
-<td>Design-decision ADRs (EXP-15/16/17) / Revised Software Architecture Document / Live Mode operation · rate/BE/amp computation / Summary Bar / Vario·Sequence / Single-Beat Waveform / Scope/2·Beat Error / Long-Term Trace Display</td>
+<td>Design-decision ADRs (EXP-15/16/17) / Revised Software Architecture Document / Live Mode operation · rate/BE/amp computation / Summary Bar / Vario·Sequence / Single-Beat Waveform / Scope/2·Beat Error / Long-Term Trace Display<br />
+Waveform Compare<br />
+Sync Sweep<br />
+F0~F3 Filter
+</td>
 <td>MS-2 submission</td>
 </tr>
 <tr class="even">
 <td>Sprint 3</td>
 <td>Week 4</td>
 <td>06/22-06/26</td>
-<td>Visualization expansion and AI feature implementation</td>
-<td>Waveform Compare<br />
-Sync Sweep<br />
-F0~F3 Filter<br />
-TinyML signal quality improvement and anomaly detection</td>
+<td>Validation of graphs<br /> AI feature implementation</td>
+<td>
+Anomaly detection<br />
+TinyML for suggesting cause of error
+</td>
 <td>MS-3 preparation</td>
 </tr>
 <tr class="odd">
 <td>Sprint 4</td>
 <td>Week 5</td>
 <td>06/29-07/01</td>
-<td>Integration·demo preparation·document finalization</td>
-<td><p>End-to-end demo</p>
-<p>Presentation materials</p>
-<p>Lessons Learned</p></td>
+<td>Integration<br />demo preparation<br />document finalization</td>
+<td>End-to-end demo<br />
+Presentation materials<br />
+Lessons Learned<br /></td>
 <td>MS-3 submission</td>
 </tr>
 </tbody>
