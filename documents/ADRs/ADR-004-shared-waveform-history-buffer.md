@@ -9,6 +9,9 @@ We keep one central 8-minute history buffer, fed in parallel with live rendering
 * 8 minutes is derived from the measurement workflow: hairspring gravity stabilization (15 s) + escapement wheel full revolution (60 s) = 75 s per position × 6 standard positions = 450 s (7.5 min), rounded up to 480 s.
 * On pause, scroll-back/seek reads from the central buffer and each display draws it through its normal render path (replay), sharing one absolute time coordinate.
 * Adding the history is one new subscriber registration; core processing and existing displays are not modified.
+* Reference1: https://www.hswalsh.com/usercontent/doc/23981/Full%20Product%20Information%20HT77%20Witschi%20Chronoscope%20X1%20%28G3%29.pdf
+* Reference2: https://www.hswalsh.com/usercontent/doc/24265/Instructions%20For%20Witschi%20Watch%20Expert%20IV%20%284%29.pdf
+
 
 ***Rationale***
 
