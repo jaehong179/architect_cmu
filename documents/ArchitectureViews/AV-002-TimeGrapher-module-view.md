@@ -57,7 +57,7 @@ Key pattern applied:
 - Timegrapher C library that drives the signal detection pipeline, and BPH tracker for beat-rate estimation.
 
 #### watchdog
-- Cross-cutting system health monitoring. Detects thread hangs, audio stream stalls, and camera feed loss. Triggers recovery actions (e.g., restart worker, notify UI) when anomalies are detected (Availability: Fault detection).
+- Cross-cutting system health monitoring. Detects microphone disconnect and camera feed loss. Triggers recovery actions (e.g., notify UI) when anomalies are detected (Availability: Fault detection).
 
 ## Behavior
 - N/A
