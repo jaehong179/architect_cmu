@@ -20,7 +20,8 @@ TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>folded sound print · "
-        "horizontal=successive beats · vertical=phase within beat (top to bottom)</td></tr>"
+        "horizontal=successive beats · vertical=phase within beat (top to bottom) · "
+        "wheel=zoom · drag=pan (locks follow) · dbl-click=reset/follow live</td></tr>"
         "<tr><td valign='top'><b>Envelope&nbsp;:</b></td><td>"
         "<font color='#ff0000'><b>■ Rectified</b></font> folded |raw-DC| envelope (gamma), "
         "darker=louder · same path as Rate/Scope scope <i>Rectified</i></td></tr>"
@@ -103,5 +104,7 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
                 mRenderer.markCEventAbsoluteSampleIndex(e.markSample, qRgba(0, 0, 255, 255), kMarkerPixelSize);
         }
     }
+    if (mHasBph)
+        mImage->setLiveColumn(mRenderer.currentColumn());
     mImage->DrawImage();
 }
