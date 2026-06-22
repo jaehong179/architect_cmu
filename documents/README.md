@@ -118,7 +118,8 @@ F0~F3 Filter
 <td>
 Anomaly detection<br />
 TinyML for suggesting cause of error<br />
-TinyML for detecting position of watch
+TinyML for detecting position of watch<br />
+Usability Improvement
 </td>
 <td>MS-3 preparation</td>
 </tr>
