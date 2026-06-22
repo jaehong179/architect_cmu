@@ -36,7 +36,9 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Links and references
 
-[QAS-02](../README.md#qas-02-end-to-end-latency) · [RISK-02](../README.md#risk-02)
+- [QAS-02](../README.md#qas-02-end-to-end-latency)
+- [RISK-02](../README.md#risk-02)
+- [AV-003](../ArchitectureViews/AV-003-MicToGraph-SeqenceDiagram.md)
 
 ## Results and recommendations
 
