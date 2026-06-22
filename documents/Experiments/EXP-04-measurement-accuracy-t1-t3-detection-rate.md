@@ -6,7 +6,7 @@ Against Sim-mode ground truth, evaluate whether T1/T3 detection rate and Rate/Be
 
 ## Status
 
-- [**Planned** | In progress | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | **Canceled** | Concluded]
 
 ## Expected outcomes
 
@@ -38,4 +38,4 @@ Against Sim-mode ground truth, evaluate whether T1/T3 detection rate and Rate/Be
 
 ## Results and recommendations
 
-*(to be completed after the experiment)*
+This experiment was not conducted because its results do not determine the direction of the SW architecture.

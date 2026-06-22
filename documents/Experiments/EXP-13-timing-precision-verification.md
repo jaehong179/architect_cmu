@@ -6,7 +6,7 @@
 
 ## Status
 
-- [**Planned** | In progress | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | **Canceled** | Concluded]
 
 ## Expected outcomes
 
@@ -38,4 +38,4 @@
 
 ## Results and recommendations
 
-*(to be completed after the experiment)*
+This experiment was not conducted because its results do not determine the direction of the SW architecture.

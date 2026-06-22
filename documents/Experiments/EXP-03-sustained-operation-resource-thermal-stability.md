@@ -6,7 +6,7 @@ Profile memory growth, CPU thermal ceilings and GUI loop stability during 30 min
 
 ## Status
 
-- [**Planned** | In progress | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | **Canceled** | Concluded]
 
 ## Expected outcomes
 
@@ -40,4 +40,4 @@ Profile memory growth, CPU thermal ceilings and GUI loop stability during 30 min
 
 ## Results and recommendations
 
-*(to be completed after the experiment)*
+This experiment was not conducted because its results do not determine the direction of the SW architecture.

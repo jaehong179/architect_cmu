@@ -32,7 +32,7 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Duration
 
-06/15–06/19
+06/15–06/26
 
 ## Links and references
 
