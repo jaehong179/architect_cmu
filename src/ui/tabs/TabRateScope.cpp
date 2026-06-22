@@ -5,6 +5,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSpinBox>
+#include <QCheckBox>
 #include <QLabel>
 #include <QMouseEvent>   // [③] 상단 RatePlot 클릭
 #include <QtMath>
@@ -59,9 +60,11 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     mScopeScale->setMinimum(1); mScopeScale->setMaximum(8); mScopeScale->setValue(1);
     mWindowLabel = new QLabel(QStringLiteral("Window: 1.00 s"), this);
     mWindowLabel->setStyleSheet(QStringLiteral("color:#555; font-style:italic;"));
+    mScopeLogView = new QCheckBox(QStringLiteral("Log Scale (dB)"), this);
     ctlRow->addWidget(scaleLabel);
     ctlRow->addWidget(mScopeScale);
     ctlRow->addWidget(mWindowLabel);
+    ctlRow->addWidget(mScopeLogView);
     ctlRow->addStretch(1);
     // (정지/재생은 모든 탭에 보이는 전역 버튼 = QTabWidget 코너위젯이 담당. MainWindow 가 setPaused 호출.)
     lay->addLayout(ctlRow);
@@ -112,16 +115,41 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     });
 
+    connect(mScopeLogView, &QCheckBox::toggled, this, [this](bool checked) {
+        if (checked) {
+            mScopePlot->yAxis->setScaleType(QCPAxis::stLogarithmic);
+            mScopePlot->yAxis->setLabel(QStringLiteral("Amplitude (Log / dB)"));
+            QSharedPointer<QCPAxisTickerLog> ticker = QSharedPointer<QCPAxisTickerLog>::create();
+            mScopePlot->yAxis->setTicker(ticker);
+        } else {
+            mScopePlot->yAxis->setScaleType(QCPAxis::stLinear);
+            mScopePlot->yAxis->setLabel(QStringLiteral("Amplitude"));
+            QSharedPointer<QCPAxisTicker> ticker = QSharedPointer<QCPAxisTicker>::create();
+            mScopePlot->yAxis->setTicker(ticker);
+        }
+        // 즉시 Y축 범위를 업데이트합니다.
+        bool foundRange;
+        QCPRange valRange = mScopePlot->graph(0)->getValueRange(foundRange, QCP::sdBoth);
+        const double instMax = foundRange ? valRange.upper : 0.0;
+        const double ymax = smoothPeak(mScopePeakNorm, instMax);
+        if (checked) {
+            mScopePlot->yAxis->setRange(0.0001, qMax(0.001, ymax * 1.12));
+        } else {
+            mScopePlot->yAxis->setRange(0, ymax * 1.12);
+        }
+        mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+    });
+
     connect(mScopePlot->xAxis,
             static_cast<void (QCPAxis::*)(const QCPRange &)>(&QCPAxis::rangeChanged),
             this,
             [this](const QCPRange &range) { updateScopeXAxisTicks(range); });
 
-#if PERF_ENABLE
+    #if PERF_ENABLE
     // ScopePlot 의 실제 paint 완료 → perf 신호(MainWindow 가 disp_paint/e2e_full/paint_fps 기록).
     //  계측 OFF 면 매 replot 마다의 시그널 방출 자체를 제거.
     connect(mScopePlot, &QCustomPlot::afterReplot, this, &TabRateScope::scopeReplotted);
-#endif
+    #endif
 }
 
 // RatePlot/ScopePlot 그래프 설정.
@@ -232,7 +260,9 @@ void TabRateScope::onWave(const WaveBlock &wave)
     //  검출은 풀 레이트 그대로(정확도 보존)이고, '그리기'만 줄인다:
     //  min/max 데시메이션 — decim 샘플 구간마다 최저·최고점 2개만 찍어 점 수는 줄이되 '피크'는 보존한다.
     //  x(키)는 세션 기준 초 단위 시각이라 A/C 마커 정렬도 유지. 48k(decim=1)는 샘플마다 1점(원동작 동일).
-    const int decim = qMax(1, mSampleRateHz / 48000);   // 48k→1, 96k→2, 192k→4, 384k→8
+    // 성능 최적화: 48kHz에서도 최소 16배 데시메이션을 적용하여 실시간 데이터 포인트 누적을 제어하고 FPS 저하를 차단합니다.
+    // Peak-Hold 방식의 min/max 보존 드로잉이므로 해상도는 여전히 날카롭게 유지됩니다.
+    const int decim = qMax(16, (mSampleRateHz / 48000) * 16);   // 48k→16, 96k→32, 192k→64, 384k→128
     if (wave.env) {
         if (decim == 1) {
             for (int i = 0; i < wave.n; ++i) {
@@ -306,7 +336,11 @@ void TabRateScope::onWave(const WaveBlock &wave)
     QCPRange valRange = mScopePlot->graph(0)->getValueRange(foundRange, QCP::sdBoth);
     const double instMax = foundRange ? valRange.upper : 0.0;
     const double ymax = smoothPeak(mScopePeakNorm, instMax);
-    mScopePlot->yAxis->setRange(0, ymax * 1.12);
+    if (mScopeLogView && mScopeLogView->isChecked()) {
+        mScopePlot->yAxis->setRange(0.0001, qMax(0.001, ymax * 1.12));
+    } else {
+        mScopePlot->yAxis->setRange(0, ymax * 1.12);
+    }
 
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
@@ -462,7 +496,11 @@ void TabRateScope::onResetSession()
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();
     mScopePlot->clearItems();
     mScopePlot->xAxis->setRange(0.0, kScopeWindowBaseSec / mScopeScale->value());
-    mScopePlot->yAxis->setRange(0, 0.1);
+    if (mScopeLogView && mScopeLogView->isChecked()) {
+        mScopePlot->yAxis->setRange(0.0001, 0.1);
+    } else {
+        mScopePlot->yAxis->setRange(0, 0.1);
+    }
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();

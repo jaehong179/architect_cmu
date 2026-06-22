@@ -5,7 +5,15 @@
 //  영역에 맞춰 스케일링해 그린다. 위젯 resize 가 캔버스를 재생성하지 않으므로
 //  (1) 렌더러가 캐싱한 포인터가 무효화되지 않고(use-after-free 방지),
 //  (2) 탭 전환 시 누적 이미지가 보존되어 warmup/anchor 재시작·앞부분 손실이 없다.
+//  마우스 휠=확대/축소, 드래그=팬, 더블클릭=전체 보기 리셋.
+//  렌더러 live 컬럼을 받으면(측정 중) 자동으로 갱신 위치를 따라간다(수동 팬 전까지).
+#include <QPointF>
+#include <QRectF>
 #include <QWidget>
+
+class QMouseEvent;
+class QPaintEvent;
+class QWheelEvent;
 
 class SoundImageWidget : public QWidget
 {
@@ -15,10 +23,39 @@ public:
     ~SoundImageWidget() override;                    // 캔버스(image) 해제 — 위젯 파괴 시 누수 방지
     void     CreateImage(int width, int height);   // 고정 크기 캔버스 생성(위젯 크기와 무관). 1회 호출.
     void     DrawImage(void);                       // 재그리기 요청(update)
+    void     setLiveColumn(int column);             // 현재 기록 중인 컬럼(렌더러 write head)
     QImage  *GetImage(void);                         // 렌더러가 그릴 대상 캔버스
     void     paintEvent(QPaintEvent *event) override;
+    void     wheelEvent(QWheelEvent *event) override;
+    void     mousePressEvent(QMouseEvent *event) override;
+    void     mouseMoveEvent(QMouseEvent *event) override;
+    void     mouseReleaseEvent(QMouseEvent *event) override;
+    void     mouseDoubleClickEvent(QMouseEvent *event) override;
 private:
+    struct Viewport {
+        QRectF destRect;
+        QRectF sourceRect;
+        double displayScale = 1.0;
+    };
+
+    Viewport computeViewport() const;
+    QPointF  widgetToImage(const QPointF &widgetPos, const Viewport &vp) const;
+    void     clampOffset();
+    void     followLiveColumn();
+    void     resetView();
+
     QImage  *image = nullptr;
+    double   mViewScale  = 1.0;   // 1.0 = 전체 fit, >1 = 확대
+    QPointF  mViewOffset;           // 이미지 좌표(픽셀) 뷰 좌상단
+    int      mLiveColumn = -1;      // 렌더러 write head (-1 = 미전달)
+    bool     mUserViewLocked = false; // 수동 팬 이후 live 자동 추적 중단
+    bool     mPanning    = false;
+    QPointF  mPanStartWidget;
+    QPointF  mPanStartOffset;
+
+    static constexpr double kMinViewScale = 1.0;
+    static constexpr double kMaxViewScale = 20.0;
+    static constexpr double kWheelFactor    = 1.15;
 };
 
 #endif // SOUNDIMAGEWIDGET_H

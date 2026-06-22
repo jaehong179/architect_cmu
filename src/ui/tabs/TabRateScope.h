@@ -15,6 +15,7 @@ class QLabel;
 class QCPItemStraightLine;
 class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
 class QCPRange;
+class QCheckBox;
 
 class TabRateScope : public TabView
 {
@@ -54,6 +55,7 @@ private:
     QCustomPlot *mRatePlot   = nullptr;
     QCustomPlot *mScopePlot  = nullptr;
     QSpinBox    *mScopeScale = nullptr;
+    QCheckBox   *mScopeLogView = nullptr;
     QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
     int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
     uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)
