@@ -117,7 +117,8 @@ F0~F3 Filter
 <td>Validation of graphs<br /> AI feature implementation</td>
 <td>
 Anomaly detection<br />
-TinyML for suggesting cause of error
+TinyML for suggesting cause of error<br />
+TinyML for detecting position of watch
 </td>
 <td>MS-3 preparation</td>
 </tr>
