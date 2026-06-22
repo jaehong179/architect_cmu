@@ -1,16 +1,16 @@
-# EXP-15 / Experiment for [[RISK-01](../README.md#risk-01)][[QAS-01](../README.md#qas-01-real-time-streaming-throughput)][[QAS-03](../README.md#qas-03-long-run-resource-stability)]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based) → ADR-03
+# EXP-15 / Experiment for [[RISK-01](../README.md#risk-01)][[QAS-01](../README.md#qas-01-real-time-streaming-throughput)][[QAS-03](../README.md#qas-03-long-run-resource-stability)]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based)
 
 ## Objective
 
-- Without writing or measuring new code, statically analyze the current capture/buffer code and compare known buffer tactics to produce the evidence for a buffer/memory-management design that satisfies both zero data loss and the memory bound — in particular, reason about whether a fixed-size ring buffer is compatible with zero-loss. The final decision, rationale, and consequences are recorded in ADR-03.
+- Without writing or measuring new code, statically analyze the current capture/buffer code and compare known buffer tactics to produce the evidence for a buffer/memory-management design that satisfies both zero data loss and the memory bound — in particular, reason about whether a fixed-size ring buffer is compatible with zero-loss.
 
 ## Status
 
-- [Planned | In progress | Suspended | Canceled | **Concluded**]
+- [Planned | In progress | Suspended | **Canceled** | Concluded]
 
 ## Expected outcomes
 
-- Documentation of the current buffer structure (sizes, overwrite/drop policy, producer/consumer relation, where loss can occur); a trade-off table of candidate tactics (fixed ring / back-pressure fixed / adaptive-growable) across loss, latency, memory, complexity; analysis of contradictions/risks under the 192k · 30-min · 12-tab workload; the design decision based on this analysis is recorded in ADR-03 (this experiment provides the evidence).
+- Documentation of the current buffer structure (sizes, overwrite/drop policy, producer/consumer relation, where loss can occur); a trade-off table of candidate tactics (fixed ring / back-pressure fixed / adaptive-growable) across loss, latency, memory, complexity; analysis of contradictions/risks under the 192k · 30-min · 12-tab workload;
 
 ## Resources required
 
@@ -26,23 +26,14 @@
 
 - Under 192k sps · 30 min · 12-tab cycling, reason about each tactic's memory ceiling and zero-loss guarantee.
 
-- **Hand the analysis to ADR-03** (the decision/rationale is finalized there).
-
 ## Duration
 
 06/15-06/16
 
 ## Links and references
 
-ADR-003 (buffer/memory-management tactic) · [QAS-01](../README.md#qas-01-real-time-streaming-throughput) · [QAS-03](../README.md#qas-03-long-run-resource-stability) · [RISK-01](../README.md#risk-01) · [EXP-03](EXP-03-sustained-operation-resource-thermal-stability.md)
+[QAS-01](../README.md#qas-01-real-time-streaming-throughput) · [QAS-03](../README.md#qas-03-long-run-resource-stability) · [RISK-01](../README.md#risk-01) · [EXP-03](EXP-03-sustained-operation-resource-thermal-stability.md)
 
 ## Results and recommendations
 
-Current buffer structure (static analysis): a single fixed-size 30-second ring buffer (SECONDS_OF_BUFFER 30; ~22 MB @192k); the producer (AudioWorker) overwrites the oldest samples on wrap without checking the consumer (no back-pressure); the consumer (main thread) reads TotalSamplesWritten − LastTotal with no lap/overwrite guard. There is no loss/drop instrumentation of any kind: the only output on wrap is a qInfo("MasterAudioData Samples Rollover") debug print that fires on every normal wrap, so it does not indicate data loss. If the consumer lags beyond the 30 s margin, the ring is overwritten and the loss is completely silent and unmeasured.
-
-| Tactic | Zero-loss | Memory bound | Live-capture viable | Complexity |
-|---|---|---|---|---|
-| Fixed ring, overwrite-oldest (current) | Only within the 30 s consumer-lag margin; silent loss if exceeded | Yes (bounded, ~22 MB @192k) | Yes | Low |
-| Fixed ring + lap/overwrite detection | Same margin, but loss becomes observable (detected) | Yes | Yes | Low |
-| Back-pressure (producer waits when full) | Zero-loss between producer and consumer, but not end-to-end for live capture — the loss moves to the ALSA device (xrun) (general property of real-time capture; not present in the current code) | Yes | No (a live microphone cannot be paused) | Medium |
-| Adaptive / growable buffer | Zero-loss until memory is exhausted (hypothetical candidate not in the code; general reasoning) | No — unbounded growth, OOM risk on the Pi | Yes | Medium |
+This experiment was not conducted because its results do not determine the direction of the SW architecture.
