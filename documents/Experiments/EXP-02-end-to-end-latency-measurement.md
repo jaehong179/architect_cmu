@@ -1,4 +1,4 @@
-# EXP-02 / Experiment for [[QAS-02](../README.md#qas-02-end-to-end-latency)]: End-to-end latency measurement
+# EXP-02 / Experiment for [[QAS-02](../Requirements/quality-attribute-requirements.md#qas-02-end-to-end-latency)]: End-to-end latency measurement
 
 ## Objective
 
@@ -36,7 +36,7 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Links and references
 
-- [QAS-02](../README.md#qas-02-end-to-end-latency)
+- [QAS-02](../Requirements/quality-attribute-requirements.md#qas-02--end-to-end-latency)
 - [RISK-02](../README.md#risk-02)
 - [AV-003](../ArchitectureViews/AV-003-MicToGraph-SeqenceDiagram.md)
 

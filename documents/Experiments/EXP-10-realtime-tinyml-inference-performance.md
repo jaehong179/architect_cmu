@@ -1,4 +1,4 @@
-# EXP-10 / Experiment for [FR-AI-1](../README.md#fr-ai-1): Real-time TinyML Inference Performance on Raspberry Pi
+# EXP-10 / Experiment for [FR-AI-1](../Requirements/functional-requirements.md#fr-ai-1): Real-time TinyML Inference Performance on Raspberry Pi
 
 ## Objective
 
@@ -40,7 +40,7 @@
 
 ## Links and references
 
-- [FR-AI-1](../README.md#fr-ai-1), [RISK-09](../README.md#risk-09), [RISK-11](../README.md#risk-11)
+- [FR-AI-1](../Requirements/functional-requirements.md#fr-ai-1), [RISK-09](../README.md#risk-09), [RISK-11](../README.md#risk-11)
 
 ## Results and recommendations
 

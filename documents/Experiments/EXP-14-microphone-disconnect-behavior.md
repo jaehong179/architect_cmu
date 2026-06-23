@@ -1,4 +1,4 @@
-# EXP-14 / Experiment for [[RISK-19](../README.md#risk-19)][[QAS-11](../README.md#qas-11-microphone-disconnect-user-notification)]: Characterize current behavior on microphone (USB) disconnect
+# EXP-14 / Experiment for [[RISK-19](../README.md#risk-19)][[QAS-11](../Requirements/quality-attribute-requirements.md#qas-11-microphone-disconnect-user-notification)]: Characterize current behavior on microphone (USB) disconnect
 
 ## Objective
 
@@ -10,7 +10,7 @@
 
 ## Expected outcomes
 
-- A documented current-state behavior for each disconnect case: (a) how the GUI reacts (freezes, keeps last value, shows nothing, or errors), (b) measured time until any visible change, and (d) whether capture/measurement auto-recovers on reconnect. This becomes the baseline and the detection-signal basis for [QAS-11](../README.md#qas-11-microphone-disconnect-user-notification) / [EXP-06](EXP-06-fault-handling-feedback-verification.md).
+- A documented current-state behavior for each disconnect case: (a) how the GUI reacts (freezes, keeps last value, shows nothing, or errors), (b) measured time until any visible change, and (d) whether capture/measurement auto-recovers on reconnect. This becomes the baseline and the detection-signal basis for [QAS-11](../Requirements/quality-attribute-requirements.md#qas-11--microphone-disconnect-user-notification) / [EXP-06](EXP-06-fault-handling-feedback-verification.md).
 
 ## Resources required
 
@@ -30,7 +30,7 @@
 
 ## Links and references
 
-[QAS-01](../README.md#qas-01-real-time-streaming-throughput) · [RISK-19](../README.md#risk-19) · [EXP-06](EXP-06-fault-handling-feedback-verification.md)
+[QAS-01](../Requirements/quality-attribute-requirements.md#qas-01--real-time-streaming-throughput) · [RISK-19](../README.md#risk-19) · [EXP-06](EXP-06-fault-handling-feedback-verification.md)
 
 ## Results and recommendations
 

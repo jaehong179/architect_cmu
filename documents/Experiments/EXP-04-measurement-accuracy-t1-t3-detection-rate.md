@@ -34,7 +34,7 @@ Against Sim-mode ground truth, evaluate whether T1/T3 detection rate and Rate/Be
 
 ## Links and references
 
-[RISK-17](../README.md#risk-17) · [FR-MSB-1](../README.md#fr-msb-1) · [FR-CP-4](../README.md#fr-cp-4) · CON-RF-02
+[RISK-17](../README.md#risk-17) · [FR-MSB-1](../Requirements/functional-requirements.md#fr-msb-1) · [FR-CP-4](../Requirements/functional-requirements.md#fr-cp-4) · CON-RF-02
 
 ## Results and recommendations
 

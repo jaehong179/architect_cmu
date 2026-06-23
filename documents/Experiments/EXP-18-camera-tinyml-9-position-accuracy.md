@@ -36,7 +36,7 @@
 
 ## Links and references
 
-[QAS-06](../README.md#qas-06); [RISK-20](../README.md#risk-20); [ADR-01](../ADRs/ADR-001-watch-position-detection-solution.md); follow-up to [EXP-17](EXP-17-rule-signal-processing-vs-tinyml-boundary.md), [EXP-12](EXP-12-usb-protocol-watch-position-detection.md).
+[QAS-06](../Requirements/quality-attribute-requirements.md#qas-06--position-detection-safe-fallback) ; [RISK-20](../README.md#risk-20); [ADR-01](../ADRs/ADR-001-watch-position-detection-solution.md); follow-up to [EXP-17](EXP-17-rule-signal-processing-vs-tinyml-boundary.md), [EXP-12](EXP-12-usb-protocol-watch-position-detection.md).
 
 ## Results and recommendations
 

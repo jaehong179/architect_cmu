@@ -1,4 +1,4 @@
-# EXP-13 / Experiment for [[QAS-04](../README.md#qas-04-measurement-timing-precision-preservation)]: Timing-Precision Verification (Using Existing E-2 Instrumentation)
+# EXP-13 / Experiment for [[QAS-04](../Requirements/quality-attribute-requirements.md#qas-04-measurement-timing-precision-preservation)]: Timing-Precision Verification (Using Existing E-2 Instrumentation)
 
 ## Objective
 
@@ -34,7 +34,7 @@
 
 ## Links and references
 
-[QAS-04](../README.md#qas-04-measurement-timing-precision-preservation) · [RISK-18](../README.md#risk-18)
+[QAS-04](../Requirements/quality-attribute-requirements.md#qas-04--measurement-timing-precision-preservation) · [RISK-18](../README.md#risk-18)
 
 ## Results and recommendations
 

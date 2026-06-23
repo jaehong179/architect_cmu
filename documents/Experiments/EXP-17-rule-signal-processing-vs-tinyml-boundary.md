@@ -1,4 +1,4 @@
-# EXP-17 / Experiment for [[RISK-05](../README.md#risk-05)][[RISK-09](../README.md#risk-09)][[FR-AI](../README.md#fr-ai-1)]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → [ADR-01](../ADRs/ADR-001-watch-position-detection-solution.md)
+# EXP-17 / Experiment for [[RISK-05](../README.md#risk-05)][[RISK-09](../README.md#risk-09)][[FR-AI](../Requirements/functional-requirements.md#fr-ai-1)]: Rule/Signal-Processing vs. TinyML Responsibility-Boundary Analysis (Static-Analysis Based) → [ADR-01](../ADRs/ADR-001-watch-position-detection-solution.md)
 
 ## Objective
 
@@ -38,7 +38,7 @@
 
 ## Links and references
 
-[ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md) (responsibility-boundary decision); [RISK-05](../README.md#risk-05), [RISK-09](../README.md#risk-09); [FR-AI](../README.md#fr-ai-1)/FR-POS; external camera; follow-up [EXP-18](EXP-18-camera-tinyml-9-position-accuracy.md); [EXP-12](EXP-12-usb-protocol-watch-position-detection.md).
+[ADR-001](../ADRs/ADR-001-watch-position-detection-solution.md) (responsibility-boundary decision); [RISK-05](../README.md#risk-05), [RISK-09](../README.md#risk-09); [FR-AI](../Requirements/functional-requirements.md#fr-ai-1)/FR-POS; external camera; follow-up [EXP-18](EXP-18-camera-tinyml-9-position-accuracy.md); [EXP-12](EXP-12-usb-protocol-watch-position-detection.md).
 
 ## Results and recommendations
 

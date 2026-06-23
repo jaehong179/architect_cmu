@@ -1,4 +1,4 @@
-# EXP-15 / Experiment for [[RISK-01](../README.md#risk-01)][[QAS-01](../README.md#qas-01-real-time-streaming-throughput)][[QAS-03](../README.md#qas-03-long-run-resource-stability)]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based)
+# EXP-15 / Experiment for [[RISK-01](../README.md#risk-01)][[QAS-01](../Requirements/quality-attribute-requirements.md#qas-01--real-time-streaming-throughput)][[QAS-03](../Requirements/quality-attribute-requirements.md#qas-03--long-run-resource-stability)]: Buffer/Memory-Management Tactic Analysis (Static-Analysis Based)
 
 ## Objective
 
@@ -32,7 +32,7 @@
 
 ## Links and references
 
-[QAS-01](../README.md#qas-01-real-time-streaming-throughput) · [QAS-03](../README.md#qas-03-long-run-resource-stability) · [RISK-01](../README.md#risk-01) · [EXP-03](EXP-03-sustained-operation-resource-thermal-stability.md)
+[QAS-01](../Requirements/quality-attribute-requirements.md#qas-01--real-time-streaming-throughput) · [QAS-03](../Requirements/quality-attribute-requirements.md#qas-03--long-run-resource-stability) · [RISK-01](../README.md#risk-01) · [EXP-03](EXP-03-sustained-operation-resource-thermal-stability.md)
 
 ## Results and recommendations
 

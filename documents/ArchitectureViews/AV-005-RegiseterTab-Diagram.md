@@ -1,7 +1,7 @@
 # Register Tab Diagram
 
 This diagram shows the design that makes it easy to add graph tabs to TimeGrapher.
-It satisfies [QAS-08](../README.md#qas-08--new-tab-extensibility), which specifies that code unrelated to the tab must not be modified when adding a graph tab.
+It satisfies [QAS-08](../Requirements/quality-attribute-requirements.md#qas-08--new-tab-extensibility), which specifies that code unrelated to the tab must not be modified when adding a graph tab.
 When a developer wants to add a new tab, they only need to implement a new class that inherits from the TabView class.
 
 ![Diagram](../images/classDiagram.jpg)
