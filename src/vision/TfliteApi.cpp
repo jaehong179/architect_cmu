@@ -1,6 +1,7 @@
 // TfliteApi.cpp — TFLite C API 동적 로더 구현.
 #include "TfliteApi.h"
 
+#include <cmath>
 #include <cstdint>
 
 // ── 최소 C API 타입 선언 ──────────────────────────────────────────────────────
@@ -13,6 +14,9 @@ typedef struct TfLiteInterpreterOptions TfLiteInterpreterOptions;
 typedef struct TfLiteInterpreter        TfLiteInterpreter;
 typedef struct TfLiteTensor             TfLiteTensor;
 typedef enum { kTfLiteOk = 0 }          TfLiteStatus;
+// 양자화 파라미터(스칼라 affine): real = (q - zero_point) * scale.
+//   실제 TFLite ABI 와 동일한 {float, int32} 레이아웃이라 값 반환이 ABI 안전하다.
+typedef struct TfLiteQuantizationParams { float scale; int32_t zero_point; } TfLiteQuantizationParams;
 }
 
 #if defined(_WIN32)
@@ -60,6 +64,23 @@ using PFN_Invoke               = TfLiteStatus (*)(TfLiteInterpreter *);
 using PFN_GetOutputTensor      = const TfLiteTensor *(*)(const TfLiteInterpreter *, int32_t);
 using PFN_CopyToBuffer         = TfLiteStatus (*)(const TfLiteTensor *, void *, size_t);
 using PFN_TensorByteSize       = size_t (*)(const TfLiteTensor *);
+using PFN_TensorType           = int (*)(const TfLiteTensor *);                       // TfLiteType
+using PFN_TensorQuantParams    = TfLiteQuantizationParams (*)(const TfLiteTensor *);  // scale/zero_point
+
+// TfLiteType enum 값(c_api_types.h). 여기선 필요한 것만 상수로 둔다(헤더 의존 회피).
+constexpr int kTfLiteFloat32 = 1;
+constexpr int kTfLiteUInt8   = 3;
+constexpr int kTfLiteInt8    = 9;
+
+// 텐서 타입별 원소 바이트 크기(원소 수 환산용).
+inline int typeElemSize(int t)
+{
+    switch (t) {
+        case kTfLiteInt8:
+        case kTfLiteUInt8:   return 1;
+        default:             return 4;   // float32 등
+    }
+}
 
 } // namespace
 
@@ -81,9 +102,14 @@ struct TfliteApi::Impl
     PFN_GetOutputTensor      getOutputTensor      = nullptr;
     PFN_CopyToBuffer         copyToBuffer         = nullptr;
     PFN_TensorByteSize       tensorByteSize       = nullptr;
+    PFN_TensorType           tensorType           = nullptr;
+    PFN_TensorQuantParams    tensorQuantParams    = nullptr;
 
     TfLiteModel       *model       = nullptr;
     TfLiteInterpreter *interpreter = nullptr;
+
+    std::vector<uint8_t> inBuf;    // int8/uint8 입력 양자화 임시 버퍼(재사용)
+    std::vector<uint8_t> outBuf;   // int8/uint8 출력 원본 임시 버퍼(재사용)
 
     ~Impl()
     {
@@ -121,6 +147,8 @@ bool TfliteApi::loadLibrary(const std::string &libraryName)
         { reinterpret_cast<void **>(&d->getOutputTensor),      "TfLiteInterpreterGetOutputTensor" },
         { reinterpret_cast<void **>(&d->copyToBuffer),         "TfLiteTensorCopyToBuffer" },
         { reinterpret_cast<void **>(&d->tensorByteSize),       "TfLiteTensorByteSize" },
+        { reinterpret_cast<void **>(&d->tensorType),           "TfLiteTensorType" },
+        { reinterpret_cast<void **>(&d->tensorQuantParams),    "TfLiteTensorQuantizationParams" },
     };
     for (const Bind &b : binds) {
         *b.slot = symLib(d->lib, b.name);
@@ -175,7 +203,7 @@ int TfliteApi::inputElementCount() const
     if (!d->interpreter) return -1;
     const TfLiteTensor *t = d->getInputTensor(d->interpreter, 0);
     if (!t) return -1;
-    return static_cast<int>(d->tensorByteSize(t) / sizeof(float));
+    return static_cast<int>(d->tensorByteSize(t) / typeElemSize(d->tensorType(t)));
 }
 
 int TfliteApi::outputElementCount() const
@@ -183,7 +211,7 @@ int TfliteApi::outputElementCount() const
     if (!d->interpreter) return -1;
     const TfLiteTensor *t = d->getOutputTensor(d->interpreter, 0);
     if (!t) return -1;
-    return static_cast<int>(d->tensorByteSize(t) / sizeof(float));
+    return static_cast<int>(d->tensorByteSize(t) / typeElemSize(d->tensorType(t)));
 }
 
 bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<float> &output)
@@ -197,10 +225,44 @@ bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<f
         mError = "No input tensor";
         return false;
     }
-    if (d->copyFromBuffer(in, input, inputCount * sizeof(float)) != kTfLiteOk) {
-        mError = "TfLiteTensorCopyFromBuffer failed (size mismatch?)";
+
+    // ── 입력 주입(타입별) ─────────────────────────────────────────────────
+    //   float32 모델: float 버퍼를 그대로 복사.
+    //   int8/uint8 모델(완전 정수 양자화): q = round(real/scale) + zero_point 로 양자화 후 복사.
+    const int inType = d->tensorType(in);
+    if (inType == kTfLiteFloat32) {
+        if (d->copyFromBuffer(in, input, inputCount * sizeof(float)) != kTfLiteOk) {
+            mError = "TfLiteTensorCopyFromBuffer failed (size mismatch?)";
+            return false;
+        }
+    } else if (inType == kTfLiteInt8 || inType == kTfLiteUInt8) {
+        const TfLiteQuantizationParams q = d->tensorQuantParams(in);
+        const float scale = (q.scale != 0.0f) ? q.scale : 1.0f;
+        d->inBuf.resize(inputCount);
+        if (inType == kTfLiteInt8) {
+            auto *dst = reinterpret_cast<int8_t *>(d->inBuf.data());
+            for (std::size_t i = 0; i < inputCount; ++i) {
+                long v = std::lround(input[i] / scale) + q.zero_point;
+                v = (v < -128) ? -128 : (v > 127 ? 127 : v);
+                dst[i] = static_cast<int8_t>(v);
+            }
+        } else {
+            auto *dst = reinterpret_cast<uint8_t *>(d->inBuf.data());
+            for (std::size_t i = 0; i < inputCount; ++i) {
+                long v = std::lround(input[i] / scale) + q.zero_point;
+                v = (v < 0) ? 0 : (v > 255 ? 255 : v);
+                dst[i] = static_cast<uint8_t>(v);
+            }
+        }
+        if (d->copyFromBuffer(in, d->inBuf.data(), inputCount) != kTfLiteOk) {
+            mError = "TfLiteTensorCopyFromBuffer failed (quantized input)";
+            return false;
+        }
+    } else {
+        mError = "Unsupported input tensor type";
         return false;
     }
+
     if (d->invoke(d->interpreter) != kTfLiteOk) {
         mError = "TfLiteInterpreterInvoke failed";
         return false;
@@ -210,10 +272,38 @@ bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<f
         mError = "No output tensor";
         return false;
     }
-    const std::size_t outCount = d->tensorByteSize(out) / sizeof(float);
-    output.resize(outCount);
-    if (d->copyToBuffer(out, output.data(), outCount * sizeof(float)) != kTfLiteOk) {
-        mError = "TfLiteTensorCopyToBuffer failed";
+
+    // ── 출력 읽기(타입별) ─────────────────────────────────────────────────
+    //   int8/uint8 모델: real = (q - zero_point) * scale 로 역양자화해 float 확률로 복원.
+    const int outType = d->tensorType(out);
+    const std::size_t outBytes = d->tensorByteSize(out);
+    if (outType == kTfLiteFloat32) {
+        const std::size_t outCount = outBytes / sizeof(float);
+        output.resize(outCount);
+        if (d->copyToBuffer(out, output.data(), outCount * sizeof(float)) != kTfLiteOk) {
+            mError = "TfLiteTensorCopyToBuffer failed";
+            return false;
+        }
+    } else if (outType == kTfLiteInt8 || outType == kTfLiteUInt8) {
+        const std::size_t outCount = outBytes;   // 1 byte/elem
+        d->outBuf.resize(outCount);
+        if (d->copyToBuffer(out, d->outBuf.data(), outCount) != kTfLiteOk) {
+            mError = "TfLiteTensorCopyToBuffer failed (quantized output)";
+            return false;
+        }
+        const TfLiteQuantizationParams q = d->tensorQuantParams(out);
+        output.resize(outCount);
+        if (outType == kTfLiteInt8) {
+            const auto *src = reinterpret_cast<const int8_t *>(d->outBuf.data());
+            for (std::size_t i = 0; i < outCount; ++i)
+                output[i] = (static_cast<int>(src[i]) - q.zero_point) * q.scale;
+        } else {
+            const auto *src = reinterpret_cast<const uint8_t *>(d->outBuf.data());
+            for (std::size_t i = 0; i < outCount; ++i)
+                output[i] = (static_cast<int>(src[i]) - q.zero_point) * q.scale;
+        }
+    } else {
+        mError = "Unsupported output tensor type";
         return false;
     }
     return true;

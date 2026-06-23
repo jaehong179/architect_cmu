@@ -52,7 +52,8 @@ void VisionWorker::start()
         return;
     }
     qInfo() << "[vision] model ready. input elems:" << mTflite->inputElementCount()
-            << "output elems:" << mTflite->outputElementCount();
+            << "output elems:" << mTflite->outputElementCount()
+            << "| build model:" << (kUseInt8Model ? "int8(quantized)" : "fp32");
 
     // ── 카메라 선택/오픈 ──────────────────────────────────────────────────────
     const QList<QCameraDevice> cams = QMediaDevices::videoInputs();

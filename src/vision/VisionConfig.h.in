@@ -27,6 +27,10 @@ inline constexpr int   kInferIntervalMs = @VISION_INTERVAL_MS@; // 추론 주기
 // 모델은 .qrc 로 임베드된다(외부 파일 불필요).
 inline constexpr const char* kModelResource = "@VISION_MODEL_RESOURCE@";
 
+// 빌드 시 선택된 모델 종류(CMake VISION_USE_INT8). true=int8 양자화 / false=fp32.
+//   추론 자체는 TfliteApi 가 텐서 타입으로 자동 판별하므로 이 값은 로그/표시용 참고치다.
+inline constexpr bool kUseInt8Model = @VISION_USE_INT8_CPP@;
+
 // ── 클래스 라벨 (인덱스 = 모델 출력 클래스 순서) ──────────────────────────────
 //   라벨을 추가/변경하려면 아래 배열만 수정하면 된다(kNumClasses 는 자동 추론).
 inline constexpr std::array<std::string_view, 12> kLabels = {{

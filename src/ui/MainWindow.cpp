@@ -184,6 +184,19 @@ MainWindow::MainWindow(QWidget *parent)
     mVisionWorker->moveToThread(mVisionThread);
     connect(mVisionThread, &QThread::started,  mVisionWorker, &vision::VisionWorker::start);
     connect(mVisionThread, &QThread::finished, mVisionWorker, &QObject::deleteLater);
+
+    // [vision · UI] release 빌드에서 시계 방향을 눈으로 바로 확인하기 위한 최소 표시.
+    //  상태바 우측에 permanent QLabel 하나만 추가(캡처 statusMessage 영역과 겹치지 않음).
+    //  결과 시그널(resultReady)은 워커 스레드 → 큐 연결로 메인 스레드에서 안전하게 갱신.
+    auto *visionLabel = new QLabel(QStringLiteral("watch: --"), this);
+    statusBar()->addPermanentWidget(visionLabel);
+    connect(mVisionWorker, &vision::VisionWorker::resultReady, this,
+            [visionLabel](const QString &label, float conf) {
+                visionLabel->setText(QStringLiteral("watch: %1 (%2%)")
+                                         .arg(label)
+                                         .arg(QString::number(conf * 100.0f, 'f', 0)));
+            });
+
     mVisionThread->start();
 #endif
 }
