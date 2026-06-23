@@ -388,14 +388,14 @@ void TabRateScope::renderHistoryWindow()
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
     const QCPRange r = mScopePlot->xAxis->range();          // 라이브(mGraphTicks) 좌표
-    double fromAbs = r.lower + mHistOffset;                  // → 이력 절대 인덱스
-    double toAbs   = r.upper + mHistOffset;
+    double fromAbs = r.lower * sr + mHistOffset;            // → 이력 절대 인덱스
+    double toAbs   = r.upper * sr + mHistOffset;
     if (fromAbs < 0.0) fromAbs = 0.0;
     if (toAbs <= fromAbs) return;
     const int px = qMax(64, mScopePlot->axisRect()->width());   // 화면 픽셀폭 = 목표 점 수
     QVector<double> xs, ys;
     mHistory->queryWindow((uint64_t)fromAbs, (uint64_t)toAbs, px, xs, ys);
-    for (double &x : xs) x -= mHistOffset;                  // 다시 라이브 좌표로(이음매 없음)
+    for (double &x : xs) x = (x - mHistOffset) / sr;        // 다시 라이브 좌표로(초 단위)
     mInHistoryRender = true;
     mHistActive = true;
     mScopePlot->clearItems();                               // 매 렌더 마커 갱신
@@ -412,18 +412,18 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
 {
     if (!mHistory) return;
     const QVector<WaveEvent> evs = mHistory->eventsInRange(fromAbs, toAbs);
-    const double inwardLen = 500.0 * (mSampleRateHz / 48000.0);
+    const double inwardLenSec = (500.0 * (mSampleRateHz / 48000.0)) / mSampleRateHz;
     double lastA = 0.0; bool haveA = false;
     for (const WaveEvent &e : evs) {
-        const double x = (double)e.markSample - mHistOffset;       // 라이브 좌표
+        const double x = ((double)e.markSample - mHistOffset) / mSampleRateHz;       // 라이브 좌표(초)
         if (e.type == kEventA) {
             addVerticalMarker(x, e.peak, Theme::kMarkerA, true);
             if (haveA) {                                           // A→A 비트-투-비트 간격(예: 125 ms)
                 const double delta = x - lastA;
-                addHorizontalMarkerOutward(lastA, x, e.peak / 2.0, Qt::black);
+                addHorizontalMarkerOutward(lastA, x, e.peak / 2.0, Theme::kBracket);
                 addText(lastA + delta / 2.0, e.peak / 2.0,
-                        QString(" %1 ms ").arg(delta * 1000.0 / mSampleRateHz, 0, 'f', 2),
-                        Qt::black, Qt::AlignHCenter | Qt::AlignTop);
+                        QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1),
+                        Theme::kBracket, Qt::AlignHCenter | Qt::AlignTop);
             }
             lastA = x; haveA = true;
         } else if (e.type == kEventC) {                            // A→C 진폭(6.9 ms / 303°)
@@ -432,14 +432,14 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
                 const double delta = x - lastA;
                 QString text;
                 if (mLastBph > 0) {
-                    const int Amp = qRound(amplitudeOf(mLiftAngle, delta / mSampleRateHz, mLastBph));
-                    text = (Amp < 360) ? QString(" %1 ms\n%2°").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1).arg(Amp)
-                                       : QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+                    const int Amp = qRound(amplitudeOf(mLiftAngle, delta, mLastBph));
+                    text = (Amp < 360) ? QString("%1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp)
+                                       : QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
                 } else {
-                    text = QString(" %1 ms ").arg(delta*1000.0/mSampleRateHz, 0, 'f', 1);
+                    text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
                 }
-                addHorizontalMarkerInward(lastA, x, inwardLen, e.peak, Qt::black);
-                addText(x + inwardLen, e.peak, text, Qt::black, Qt::AlignLeft | Qt::AlignTop);
+                addHorizontalMarkerInward(lastA, x, inwardLenSec, e.peak, Theme::kBracket);
+                addText(x + inwardLenSec, e.peak, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
             }
         }
     }
@@ -449,10 +449,10 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
 void TabRateScope::onSeek(double absSample)
 {
     if (!mPaused || !mHistory || !mHistory->hasData()) return;
-    const double center = absSample - mHistOffset;     // 이력 절대 인덱스 → 라이브(mGraphTicks) 좌표
+    const double center = (absSample - mHistOffset) / mSampleRateHz;     // 이력 절대 인덱스 → 라이브(초) 좌표
     const QCPRange r = mScopePlot->xAxis->range();
     double w = r.size();                               // 현재 보이는 폭 유지
-    if (w <= 0.0) w = (double)mSampleRateHz;           // 안전값(~1초)
+    if (w <= 0.0) w = 1.0;                             // 안전값(~1초)
     mInHistoryRender = true;                            // setRange 가 rangeChanged 재귀 트리거하지 않도록
     mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
     mInHistoryRender = false;
@@ -485,7 +485,7 @@ void TabRateScope::onResetSession()
     // 정지 상태였다면 라이브로 원복(축 상호작용·라벨 복구). 전역 버튼 원복은 MainWindow 담당.
     mPaused = false;
     mHistActive = false;
-    mScopePlot->xAxis->setTickLabels(false);
+    mScopePlot->xAxis->setTickLabels(true);
     mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
     mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
     mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);

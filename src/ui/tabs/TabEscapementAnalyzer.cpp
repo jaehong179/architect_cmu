@@ -93,6 +93,8 @@ void TabEscapementAnalyzer::onSeek(double absSample)
     const uint64_t from = ((uint64_t)absSample > half) ? (uint64_t)absSample - half : 0;
     WaveLodHistory::ReconBlock rb;
     mHistory->reconstruct(from, win, rb);
+    mBuf.clear();
+    mRawBuf.clear();
     mBuf.push(rb.block);                                        // 엔벨로프 + 이벤트
     if (rb.block.raw && rb.block.rawN > 0) {                    // 원신호 → mRawBuf
         WaveBlock raw;
