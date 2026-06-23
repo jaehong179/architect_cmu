@@ -145,6 +145,8 @@ void TabWaveformCompare::onSeek(double absSample)
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
     if (!mConfigured) { mBuf.configure(sr * 2); mRawBuf.configure(sr * 2); mConfigured = true; }
+    mBuf.clear();
+    mRawBuf.clear();
     WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, sr * 2);
     render();
 }

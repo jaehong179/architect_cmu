@@ -131,6 +131,7 @@ void TabBeatNoiseScope::onSeek(double absSample)
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
     if (!mConfigured) { mBuf.configure((int)(sr * 0.8)); mWin = (int)(0.020 * sr); mConfigured = true; }
+    mBuf.clear();
     WaveLodHistory::replayInto(*mHistory, mBuf, nullptr, absSample, (int)(sr * 0.8));
     mSelectedStrip = -1;       // 스트립 선택 해제 → Scope1 이 mBuf 최신(=seek 비트)을 표시
     mShowScope2 = false;       // Scope1 모드로

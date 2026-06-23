@@ -121,6 +121,8 @@ void TabFilterViews::onSeek(double absSample)
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
     if (!mConfigured) { mBuf.configure((int)(sr * 1.6)); mRawBuf.configure((int)(sr * 1.6)); mConfigured = true; }
+    mBuf.clear();
+    mRawBuf.clear();
     WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, (int)(sr * 1.6));
     render();
 }
