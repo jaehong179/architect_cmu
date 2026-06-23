@@ -13,10 +13,15 @@
 #include "SharedAudio.h"
 #include "WatchSynthStream.h"
 #include "Timegrapher.h"
+#include "WatchdogState.h"     // 워치독 공유 상태(원자적 publish 대상)
+#include "WatchdogClock.h"     // 단조 시계(wdNowMs) — setPaused 등 인라인에서 사용
+#include "WatchdogEvent.h"     // watchdogEvent 시그널 인자 타입
 class TAudioWorker;
 class TPlaybackWorker;
 class TSimWorker;
 class QThread;
+class WatchdogWorker;
+class DevicePresenceMonitor;
 class MeasurementEngine;
 class TabManager;
 class WavStreamWriter;
@@ -45,7 +50,15 @@ public:
     void setUseConset(bool v) { mUseConset = v; }
     // [전체 정지] 소스 워커를 멈춰 시간/위치가 안 흐르게 한다(playback/sim=위치 보존, live=캡처 폐기).
     //  resume 시 정확히 이어져 비트 번호·트렌드에 갭이 없다. 데이터 흐름 자체가 멎으므로 탭·이력도 자연 동결.
-    void setPaused(bool p) { if (mRawAudio) mRawAudio->Paused.store(p, std::memory_order_relaxed); }
+    void setPaused(bool p) {
+        if (mRawAudio) mRawAudio->Paused.store(p, std::memory_order_relaxed);
+        mWatchdogState.paused.store(p, std::memory_order_relaxed);
+        if (!p) {                                    // resume: 정지 동안 안 흐른 시간으로 타임아웃 오탐 방지
+            const double now = wdNowMs();
+            mWatchdogState.lastBlockMs.store(now, std::memory_order_relaxed);
+            mWatchdogState.lastBeatMs.store(now,  std::memory_order_relaxed);
+        }
+    }
     void setInputVolume(float vol) { emit localSetAudioInputVolume(vol); }
     void setWavWriter(WavStreamWriter *w) { mWavWriter = w; }   // 녹음 대상(소유 안 함)
 
@@ -56,6 +69,7 @@ public slots:
 
 signals:
     void statusMessage(const QString &msg);     // → MainWindow 상태바(FPS/정지 메시지)
+    void watchdogEvent(const WatchdogEvent &ev);// → EventHandler(알림). 워치독 스레드에서 큐드 전달
     void measurementReady();                    // → MainWindow DisplayResults(readout + 탭 게시)
     void playbackDoneReadingFile();
     void simDone();
@@ -92,6 +106,15 @@ private:
     QThread *mAudioThread = nullptr;     TAudioWorker    *mAudioWorker    = nullptr;
     QThread *mPlaybackThread = nullptr;  TPlaybackWorker *mPlaybackWorker = nullptr;
     QThread *mSimThread = nullptr;       TSimWorker      *mSimWorker      = nullptr;
+
+    // ── 워치독(cross-cutting, 항상 가동) + 장치 열거 감시 ──
+    //  상태 기반: 비측정/비Live 면 Check 들이 no-op. 세션 시작/정지는 mWatchdogState 갱신으로만 표현.
+    WatchdogState          mWatchdogState;
+    QThread               *mWatchdogThread = nullptr;
+    WatchdogWorker        *mWatchdogWorker = nullptr;
+    DevicePresenceMonitor *mPresence       = nullptr;   // 메인 스레드, this 가 부모
+    void startWatchdog();   // 생성자에서 1회 — 스레드/워커/Check/감시 구성·기동
+    void publishSessionStart(CaptureMode mode, int sampleRate);  // start* 공통 상태 publish
 
     // ── 검출기(Timegrapher) ──
     tg_config_t   mTgCfg;

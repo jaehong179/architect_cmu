@@ -160,6 +160,9 @@ MainWindow::MainWindow(QWidget *parent)
     mCapture = new CaptureController(&mEngine, mTabManager, this);
     connect(mCapture, &CaptureController::statusMessage,  this, [this](const QString &m){ statusBar()->showMessage(m); });
     connect(mCapture, &CaptureController::measurementReady, this, &MainWindow::DisplayResults);
+    // [워치독] 이벤트 → EventHandler(severity 별 상태바/모달). 워커 스레드에서 큐드 전달.
+    mEventHandler = new EventHandler(this, this);
+    connect(mCapture, &CaptureController::watchdogEvent, mEventHandler, &EventHandler::onEvent);
     connect(mCapture, &CaptureController::playbackDoneReadingFile, this, &MainWindow::HandlePlaybackDoneReadingFile);
     connect(mCapture, &CaptureController::simDone,                 this, &MainWindow::HandleSimDone);
     // UseConset 체크박스는 런타임 토글 → 컨트롤러에 반영

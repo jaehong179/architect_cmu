@@ -7,18 +7,62 @@
 #include "TabManager.h"
 #include "MeasurementModel.h"
 #include "PerfInstrumentation.h"
+#include "WatchdogWorker.h"
+#include "DevicePresenceMonitor.h"
+#include "AudioDeviceTimeoutCheck.h"
+#include "NoSignalTimeoutCheck.h"
 #include <QThread>
 #include <QVarLengthArray>
 #include <QString>
 #include <cstring>
 #include <cstdlib>
 #include <stdexcept>
+#include <memory>
 
 // 검출기 1회 처리 슬라이스 크기. SAMPLE_SIZE 는 SharedAudio.h.
 static constexpr unsigned DETECTOR_NUMBER_OF_SAMPLES = 4096u;
 
 CaptureController::CaptureController(MeasurementEngine *engine, TabManager *tabs, QObject *parent)
-    : QObject(parent), mEngine(engine), mTabs(tabs) {}
+    : QObject(parent), mEngine(engine), mTabs(tabs)
+{
+    qRegisterMetaType<WatchdogEvent>("WatchdogEvent");   // 워커→메인 큐드 시그널 전달용
+    mPresence = new DevicePresenceMonitor(&mWatchdogState, this);  // ② 메인 스레드, this 부모
+    startWatchdog();
+}
+
+// ── 워치독: 생성자에서 1회 기동, 컨트롤러 수명 내내 가동(cross-cutting). 비측정 시 Check 들이 no-op. ──
+void CaptureController::startWatchdog()
+{
+    mWatchdogThread = new QThread();
+    mWatchdogWorker = new WatchdogWorker(&mWatchdogState, /*tickMs=*/500);
+    // 체크 등록 = 단일 OCP 지점. 새 이벤트는 여기 한 줄 + Check 구현으로 추가.
+    mWatchdogWorker->addCheck(std::make_unique<AudioDeviceTimeoutCheck>());
+    mWatchdogWorker->addCheck(std::make_unique<NoSignalTimeoutCheck>());
+    mWatchdogWorker->moveToThread(mWatchdogThread);
+    connect(mWatchdogThread, &QThread::started,  mWatchdogWorker, &WatchdogWorker::start);
+    connect(mWatchdogWorker, &WatchdogWorker::eventRaised, this, &CaptureController::watchdogEvent);  // 시그널 릴레이
+    connect(mWatchdogThread, &QThread::finished, mWatchdogWorker, &QObject::deleteLater);
+    connect(mWatchdogThread, &QThread::finished, mWatchdogThread, &QObject::deleteLater);
+    { QThread *th = mWatchdogThread; WatchdogWorker *wk = mWatchdogWorker;
+      connect(mWatchdogThread, &QThread::finished, this, [this, th, wk]{
+          if (mWatchdogThread == th) mWatchdogThread = nullptr;
+          if (mWatchdogWorker == wk) mWatchdogWorker = nullptr; }); }
+    mWatchdogThread->start(QThread::NormalPriority);
+}
+
+// ── start* 공통: 세션 시작 상태를 워치독에 publish (타임아웃 기준점을 지금으로 초기화). ──
+void CaptureController::publishSessionStart(CaptureMode mode, int sampleRate)
+{
+    const double now = wdNowMs();
+    mWatchdogState.mode.store(static_cast<int>(mode), std::memory_order_relaxed);
+    mWatchdogState.sampleRateHz.store(sampleRate, std::memory_order_relaxed);
+    mWatchdogState.sessionStartMs.store(now, std::memory_order_relaxed);
+    mWatchdogState.lastBlockMs.store(now, std::memory_order_relaxed);
+    mWatchdogState.lastBeatMs.store(now, std::memory_order_relaxed);
+    mWatchdogState.paused.store(false, std::memory_order_relaxed);
+    mWatchdogState.deviceAlive.store(true, std::memory_order_relaxed);
+    mWatchdogState.measuring.store(true, std::memory_order_relaxed);
+}
 
 CaptureController::~CaptureController()
 {
@@ -34,6 +78,7 @@ CaptureController::~CaptureController()
     joinWorker(mAudioThread,    mAudioWorker);
     joinWorker(mPlaybackThread, mPlaybackWorker);
     joinWorker(mSimThread,      mSimWorker);
+    joinWorker(mWatchdogThread, mWatchdogWorker);   // 워치독 스레드도 join(mWatchdogState 보다 먼저 정지)
 
     deleteDetectors();
     if (mRawAudio) {
@@ -113,6 +158,8 @@ void CaptureController::startLive(const QAudioDevice &device, int sampleRate, fl
           if (mAudioWorker == wk) mAudioWorker = nullptr; }); }
     mAudioThread->start(QThread::TimeCriticalPriority);
     emit localStartAudio(device, sampleRate, micVol);
+    publishSessionStart(CaptureMode::Live, sampleRate);
+    if (mPresence) mPresence->setActiveDevice(device.id());   // ② 이 장치의 분리를 추적
 }
 
 void CaptureController::startPlayback(const QString &fileName, int sampleRate)
@@ -136,6 +183,8 @@ void CaptureController::startPlayback(const QString &fileName, int sampleRate)
           if (mPlaybackWorker == wk) mPlaybackWorker = nullptr; }); }
     mPlaybackThread->start(QThread::TimeCriticalPriority);
     emit localStartPlayback(fileName);
+    publishSessionStart(CaptureMode::Playback, sampleRate);
+    if (mPresence) mPresence->clearActiveDevice();   // 장치 분리 감시는 Live 전용
 }
 
 void CaptureController::startSim(const WatchSynthStreamConfig &cfg, int sampleRate)
@@ -160,11 +209,30 @@ void CaptureController::startSim(const WatchSynthStreamConfig &cfg, int sampleRa
           if (mSimWorker == wk) mSimWorker = nullptr; }); }
     mSimThread->start(QThread::TimeCriticalPriority);
     emit localStartSim(cfg);
+    publishSessionStart(CaptureMode::Sim, sampleRate);
+    if (mPresence) mPresence->clearActiveDevice();   // 장치 분리 감시는 Live 전용
 }
 
-void CaptureController::stopLive()     { emit localStopAudio(); }
-void CaptureController::stopPlayback() { if (mPlaybackThread) mPlaybackThread->requestInterruption(); }
-void CaptureController::stopSim()      { if (mSimThread) mSimThread->requestInterruption(); }
+// stop*: 워치독 비활성(measuring=false, mode=None) — Check 들이 즉시 no-op.
+void CaptureController::stopLive()
+{
+    mWatchdogState.measuring.store(false, std::memory_order_relaxed);
+    mWatchdogState.mode.store(static_cast<int>(CaptureMode::None), std::memory_order_relaxed);
+    if (mPresence) mPresence->clearActiveDevice();
+    emit localStopAudio();
+}
+void CaptureController::stopPlayback()
+{
+    mWatchdogState.measuring.store(false, std::memory_order_relaxed);
+    mWatchdogState.mode.store(static_cast<int>(CaptureMode::None), std::memory_order_relaxed);
+    if (mPlaybackThread) mPlaybackThread->requestInterruption();
+}
+void CaptureController::stopSim()
+{
+    mWatchdogState.measuring.store(false, std::memory_order_relaxed);
+    mWatchdogState.mode.store(static_cast<int>(CaptureMode::None), std::memory_order_relaxed);
+    if (mSimThread) mSimThread->requestInterruption();
+}
 
 // ── 워커 블록 수신 — 메인 스레드 ──
 void CaptureController::handleInputData(TMasterAudioDataRaw *p)
@@ -188,6 +256,10 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
 #endif
     p->Mutex.unlock();
 
+    // [워치독] 블록 도착 = 장치 liveness. 단조 시계로 publish(타임아웃/장치 무응답 판정 기준점).
+    mWatchdogState.lastBlockMs.store(wdNowMs(), std::memory_order_relaxed);
+    mWatchdogState.totalSamples.store(mLocalTotalSamplesWritten, std::memory_order_relaxed);
+
     processSamples(p);
 
     if ((mBackgroundLastFPS != p->FPS) || (mBackgroundLastSPS != p->SPS) || (mBackgroundLastSPF != p->SPF) ||
@@ -205,11 +277,15 @@ void CaptureController::handleInputData(TMasterAudioDataRaw *p)
 // ── A/C 이벤트 → 측정 엔진 ──
 void CaptureController::aEvent(double t, bool haveValidBph, double bph)
 {
+    // [워치독] A 이벤트 = 시계 신호 검출됨 → liveness 갱신(NoSignalTimeoutCheck 의 기준점).
+    mWatchdogState.lastBeatMs.store(wdNowMs(), std::memory_order_relaxed);
     mEngine->onAEvent(t, haveValidBph, bph);
 }
 
 void CaptureController::cEvent(double t, bool haveValidBph, double bph)
 {
+    // [워치독] C 이벤트도 시계 신호 검출 → liveness 갱신(A/C 어느 쪽이든 신호 있음으로 간주).
+    mWatchdogState.lastBeatMs.store(wdNowMs(), std::memory_order_relaxed);
     mEngine->onCEvent(t, haveValidBph, bph);
 
 #if PERF_ENABLE

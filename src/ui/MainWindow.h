@@ -6,6 +6,7 @@
 #include "WavStreamWriter.h"      // mWavWriter (녹음 대상)
 #include "MeasurementEngine.h"    // mEngine (측정 계산)
 #include "CaptureController.h"    // mCapture (오디오 소스/파이프라인) — tg_*·TMasterAudioDataRaw 도 여기서 전이 제공
+#include "EventHandler.h"         // mEventHandler (워치독 이벤트 → 사용자 알림)
 #include "SimConfigBuilder.h"     // SimStart 의 합성 설정 조립(WatchSynthStreamConfig 포함)
 #include "WaveLodHistory.h"       // 8분 엔벨로프 이력 버퍼(중앙 1개, pause/스크롤백용)
 
@@ -86,6 +87,7 @@ private:
     WavStreamWriter           *mWavWriter= nullptr;
     MeasurementEngine          mEngine;   // rate/beat/amplitude 측정 계산
     CaptureController         *mCapture= nullptr;  // 오디오 소스(스레드·워커·버퍼) 오케스트레이션
+    EventHandler              *mEventHandler= nullptr;  // 워치독 이벤트 → 알림 표시(severity 별)
     int                        mAvalableRates[5];
     int                        mNumberofRates;
     double                     mLiftAngle;

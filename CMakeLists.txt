@@ -95,6 +95,23 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/engine/CaptureController.cpp
         src/engine/SimConfigBuilder.h
         src/engine/SimConfigBuilder.cpp
+        # [engine/watchdog · QA-US-01] cross-cutting 워치독 + 이벤트/알림 (SOLID, 확장형)
+        src/engine/watchdog/WatchdogEvent.h
+        src/engine/watchdog/IEventSink.h
+        src/engine/watchdog/IWatchdogCheck.h
+        src/engine/watchdog/WatchdogContext.h
+        src/engine/watchdog/WatchdogState.h
+        src/engine/watchdog/WatchdogClock.h
+        src/engine/watchdog/WatchdogWorker.h
+        src/engine/watchdog/WatchdogWorker.cpp
+        src/engine/watchdog/DevicePresenceMonitor.h
+        src/engine/watchdog/DevicePresenceMonitor.cpp
+        src/engine/watchdog/EventHandler.h
+        src/engine/watchdog/EventHandler.cpp
+        src/engine/watchdog/checks/AudioDeviceTimeoutCheck.h
+        src/engine/watchdog/checks/AudioDeviceTimeoutCheck.cpp
+        src/engine/watchdog/checks/NoSignalTimeoutCheck.h
+        src/engine/watchdog/checks/NoSignalTimeoutCheck.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h
@@ -188,6 +205,8 @@ target_include_directories(TimeGrapher PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
     ${CMAKE_CURRENT_SOURCE_DIR}/src/perf
     ${CMAKE_CURRENT_SOURCE_DIR}/src/engine
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/engine/watchdog
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/engine/watchdog/checks
 )
 
 # [ui 모듈] MainWindow 헤더 탐색 경로 ("MainWindow.h" + "tabs/..." 접두사 include 해결)
