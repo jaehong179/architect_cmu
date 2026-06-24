@@ -38,6 +38,13 @@ set(PROJECT_SOURCES
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
         src/ui/MainWindow.ui
+        src/ui/PositionNames.h
+        src/ui/PositionTimingModel.h
+        src/ui/PositionTimingModel.cpp
+        src/ui/PositionSequenceController.h
+        src/ui/PositionSequenceController.cpp
+        src/ui/PositionChangeDialog.h
+        src/ui/PositionChangeDialog.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

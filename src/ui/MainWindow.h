@@ -12,6 +12,8 @@
 #include "EventHandler.h"         // mEventHandler (워치독 이벤트 → 사용자 알림)
 #include "SimConfigBuilder.h"     // SimStart 의 합성 설정 조립(WatchSynthStreamConfig 포함)
 #include "WaveLodHistory.h"       // 8분 엔벨로프 이력 버퍼(중앙 1개, pause/스크롤백용)
+#include "PositionTimingModel.h"
+#include "PositionSequenceController.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -22,6 +24,7 @@ class QPushButton;
 class QQuickWidget;
 class TabManager;   
 class TabRateScope; 
+class TabSequenceDisplay;
 class ReadoutBar;   
 
 #define AUDIO_OUTPUT 0
@@ -56,6 +59,7 @@ class MainWindow : public QMainWindow
     
     Q_PROPERTY(int highPassCutoff READ highPassCutoff WRITE setHighPassCutoff NOTIFY highPassCutoffChanged)
     Q_PROPERTY(bool useConset READ useConset WRITE setUseConset NOTIFY useConsetChanged)
+    Q_PROPERTY(QObject* positionTiming READ positionTiming CONSTANT)
 
     // Constant lists for QML Combobox Models
     Q_PROPERTY(QStringList averagingPeriodList READ averagingPeriodList CONSTANT)
@@ -125,6 +129,8 @@ public:
     bool useConset() const;
     void setUseConset(bool val);
 
+    QObject *positionTiming() const;
+
     QStringList averagingPeriodList() const { return mAveragingPeriodList; }
     QStringList bphList() const { return mBphList; }
     QStringList simBphList() const { return mSimBphList; }
@@ -158,6 +164,7 @@ private:
     Ui::MainWindow *ui;
     TabManager     *mTabManager = nullptr;
     TabRateScope   *mRateScope  = nullptr;
+    TabSequenceDisplay *mSequenceDisplay = nullptr;
     QPushButton    *mPauseBtn   = nullptr;
     QLabel         *mSeekLabel  = nullptr;
     WaveLodHistory  mWaveHistory;
@@ -167,6 +174,9 @@ private:
     void   RegisterDisplayTabs(void);
     void   PublishMeasurementToTabs(void);
     void   updateSeekLabel(double absSample);
+    void   onPositionPhaseChanged(const QString &positionName, const QString &phaseLabel, int remainingSec);
+    void   onPositionMeasurementEnded(int positionIndex, const QString &positionName,
+                                      const QString &nextPositionName, bool sequenceComplete);
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   LoadAudioDevices(void);
@@ -201,6 +211,8 @@ private:
     MeasurementEngine          mEngine;
     CaptureController         *mCapture= nullptr;
     EventHandler              *mEventHandler= nullptr;  // 워치독 이벤트 → 알림 표시(severity 별)
+    PositionTimingModel       *mPositionTiming = nullptr;
+    PositionSequenceController *mPositionSequence = nullptr;
     
     int                        mAvalableRates[5];
     int                        mNumberofRates;

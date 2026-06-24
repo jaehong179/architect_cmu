@@ -1,4 +1,5 @@
 #include "TabSequenceDisplay.h"
+#include "PositionNames.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -22,13 +23,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("Position:"), this));
     mPos = new QComboBox(this);
-    // Plan §Test Positions (Chronoscope X1 G3 / NIHS 95-10): 수평 CH·CB + 수직 9H·6H·3H·12H,
-    //  중간(intermediate) 포지션 4개 포함 → 최대 10 포지션 시퀀스.
-    mPos->addItems({QStringLiteral("CH (dial up)"), QStringLiteral("CB (dial down)"),
-                    QStringLiteral("9H"), QStringLiteral("6H"),
-                    QStringLiteral("3H"), QStringLiteral("12H"),
-                    QStringLiteral("10H30 (int.)"), QStringLiteral("7H30 (int.)"),
-                    QStringLiteral("4H30 (int.)"), QStringLiteral("1H30 (int.)")});
+    mPos->addItems(standardPositionNames());
     ctl->addWidget(mPos);
     mCapture = new QPushButton(QStringLiteral("Capture current"), this);
     mClear   = new QPushButton(QStringLiteral("Reset"), this);
@@ -151,6 +146,30 @@ void TabSequenceDisplay::updateComplete()
         mComplete->setText(QStringLiteral("Progress %1/6 positions").arg(n));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888;"));
     }
+}
+
+void TabSequenceDisplay::setCurrentPositionByIndex(int index)
+{
+    if (!mPos || index < 0 || index >= mPos->count())
+        return;
+    mPos->setCurrentIndex(index);
+}
+
+void TabSequenceDisplay::setPhaseStatus(const QString &phaseLabel, int remainingSec)
+{
+    if (!mLive) return;
+    if (phaseLabel.isEmpty() || phaseLabel == QStringLiteral("idle")) {
+        if (mHaveLast)
+            onMeasurement(mLast);
+        else
+            mLive->setText(QStringLiteral("Current: Waiting for signal…"));
+        return;
+    }
+    const QString phaseText = (phaseLabel == QStringLiteral("stabilizing"))
+        ? QStringLiteral("Stabilizing") : QStringLiteral("Measuring");
+    mLive->setText(QStringLiteral("%1 [%2]: %3 s remaining")
+        .arg(phaseText, mPos->currentText())
+        .arg(remainingSec));
 }
 
 void TabSequenceDisplay::onResetSession()

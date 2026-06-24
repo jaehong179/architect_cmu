@@ -1,5 +1,6 @@
 #include <QtGlobal>
 #include "MainWindow.h"
+#include "PositionChangeDialog.h"
 #include "./ui_MainWindow.h"
 #include <QMediaDevices>
 #include <QAudioDevice>
@@ -130,6 +131,19 @@ MainWindow::MainWindow(QWidget *parent)
     mControlPanelQuickWidget->setSource(QUrl(QStringLiteral("qrc:/qml/src/ui/ControlPanel.qml")));
     mControlPanelQuickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
 
+    mPositionTiming = new PositionTimingModel(this);
+    mPositionSequence = new PositionSequenceController(this);
+    mPositionSequence->setTimingModel(mPositionTiming);
+    connect(mPositionSequence, &PositionSequenceController::phaseChanged,
+            this, &MainWindow::onPositionPhaseChanged);
+    connect(mPositionSequence, &PositionSequenceController::measurementWindowEnded,
+            this, &MainWindow::onPositionMeasurementEnded);
+    connect(mPositionSequence, &PositionSequenceController::currentPositionIndexChanged,
+            this, [this](int idx) {
+        if (mSequenceDisplay)
+            mSequenceDisplay->setCurrentPositionByIndex(idx);
+    });
+
     QVBoxLayout *cpLayout = new QVBoxLayout(ui->ControlPanelPlaceholder);
     cpLayout->setContentsMargins(0, 0, 0, 0);
     cpLayout->addWidget(mControlPanelQuickWidget);
@@ -167,7 +181,15 @@ void MainWindow::RegisterDisplayTabs(void)
 {
     mTabManager = new TabManager(ui->GraphicsTabWidget, this);
     mTabManager->addWaveSink(&mWaveHistory);
-    
+
+    mSequenceDisplay = new TabSequenceDisplay(this);
+    mTabManager->registerTab(mSequenceDisplay);
+
+    auto *ltpTab = new TabLongTermPerformance(this);
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, mTabManager, &TabManager::broadcastSeek);
+    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, &MainWindow::updateSeekLabel);
+    mTabManager->registerTab(ltpTab);
+
     mRateScope = new TabRateScope(this);
     mRateScope->setHistory(&mWaveHistory);
     connect(mRateScope, &TabRateScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
@@ -175,15 +197,14 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(mRateScope);
 
     mTabManager->registerTab(new TabSoundPrint(this));
-    
+
     auto *traceTab = new TabTraceDisplay(this);
     connect(traceTab, &TabTraceDisplay::seekRequested, mTabManager, &TabManager::broadcastSeek);
     connect(traceTab, &TabTraceDisplay::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(traceTab);
 
     mTabManager->registerTab(new TabVarioStability(this));
-    mTabManager->registerTab(new TabSequenceDisplay(this));
-    
+
     auto *bnsTab = new TabBeatNoiseScope(this);
     bnsTab->setHistory(&mWaveHistory);
     connect(bnsTab, &TabBeatNoiseScope::seekRequested, mTabManager, &TabManager::broadcastSeek);
@@ -194,11 +215,6 @@ void MainWindow::RegisterDisplayTabs(void)
     connect(bedTab, &TabBeatErrorTrace::seekRequested, mTabManager, &TabManager::broadcastSeek);
     connect(bedTab, &TabBeatErrorTrace::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(bedTab);
-
-    auto *ltpTab = new TabLongTermPerformance(this);
-    connect(ltpTab, &TabLongTermPerformance::seekRequested, mTabManager, &TabManager::broadcastSeek);
-    connect(ltpTab, &TabLongTermPerformance::seekRequested, this, &MainWindow::updateSeekLabel);
-    mTabManager->registerTab(ltpTab);
 
     auto *escTab = new TabEscapementAnalyzer(this);
     escTab->setHistory(&mWaveHistory);
@@ -499,6 +515,11 @@ void MainWindow::startSession()
 
 void MainWindow::stopSession()
 {
+    if (mPositionSequence)
+        mPositionSequence->stop();
+    if (mSequenceDisplay)
+        mSequenceDisplay->setPhaseStatus(QString(), 0);
+
     SetGuiStopMode();
 
     if (mCurrentMode == LIVE) {
@@ -702,6 +723,8 @@ void MainWindow::LiveStart(void)
     QAudioDevice dev = mAudioInputDevices[mDeviceIndex];
     mCapture->startLive(dev, mCurrentSamplesPerSecond, mGain);
     SetGuiRunMode();
+    if (mPositionSequence)
+        mPositionSequence->start();
     statusBar()->showMessage("Running");
 }
 
@@ -948,5 +971,47 @@ void MainWindow::SyncDetectorBphToSimBph(void)
     int detectorIdx = mBphList.indexOf(QString::number(simBphVal));
     if (detectorIdx >= 0) {
         setDetectorBphIndex(detectorIdx);
+    }
+}
+
+QObject *MainWindow::positionTiming() const
+{
+    return mPositionTiming;
+}
+
+void MainWindow::onPositionPhaseChanged(const QString &positionName,
+                                        const QString &phaseLabel, int remainingSec)
+{
+    if (mSequenceDisplay)
+        mSequenceDisplay->setPhaseStatus(phaseLabel, remainingSec);
+
+    if (phaseLabel.isEmpty() || phaseLabel == QStringLiteral("idle")) {
+        statusBar()->showMessage(QStringLiteral("Stopped"));
+        return;
+    }
+
+    const QString phaseText = (phaseLabel == QStringLiteral("stabilizing"))
+        ? QStringLiteral("Stabilizing") : QStringLiteral("Measuring");
+    statusBar()->showMessage(QStringLiteral("%1 %2 — %3 s remaining")
+        .arg(phaseText, positionName)
+        .arg(remainingSec));
+}
+
+void MainWindow::onPositionMeasurementEnded(int positionIndex,
+                                          const QString &positionName,
+                                          const QString &nextPositionName,
+                                          bool sequenceComplete)
+{
+    if (sequenceComplete) {
+        QString message = tr("Measurement time for %1 is complete.\n\n"
+                             "All core positions in the sequence are done.")
+                              .arg(positionName);
+        QMessageBox::information(this, tr("Sequence Complete"), message);
+    } else {
+        PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
+        dlg.exec();
+
+        if (mPositionSequence)
+            mPositionSequence->confirmPositionChange();
     }
 }
