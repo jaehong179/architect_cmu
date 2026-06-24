@@ -86,10 +86,16 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
         mCursors[i] = new QCPItemStraightLine(plots[i]);
         mCursors[i]->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
         mCursors[i]->setVisible(false);
-        // 파형 이력(8분) 경계 — 이 선보다 왼쪽(오래된) 구간은 클릭해도 파형 탭이 복원 못 함.
-        mWaveLimit[i] = new QCPItemStraightLine(plots[i]);
-        mWaveLimit[i]->setPen(QPen(QColor(230, 140, 0), 1, Qt::DotLine));   // 주황 점선(커서와 구분)
-        mWaveLimit[i]->setVisible(false);
+        // 파형 이력(8분) 이전 = 선택해도 파형 복원 불가 → 그 구간을 회색 배경으로 음영.
+        mWaveShade[i] = new QCPItemRect(plots[i]);
+        mWaveShade[i]->setPen(Qt::NoPen);
+        mWaveShade[i]->setBrush(QColor(0, 0, 0, 28));                       // 반투명 회색
+        mWaveShade[i]->setLayer(QStringLiteral("grid"));                    // 데이터·밴드 뒤(배경)
+        mWaveShade[i]->topLeft->setTypeX(QCPItemPosition::ptPlotCoords);    // x=시간, y=축높이 비율(0~1)
+        mWaveShade[i]->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        mWaveShade[i]->bottomRight->setTypeX(QCPItemPosition::ptPlotCoords);
+        mWaveShade[i]->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        mWaveShade[i]->setVisible(false);
         QCustomPlot *pl = plots[i];
         connect(pl, &QCustomPlot::mousePress, this, [this, pl](QMouseEvent *e) {
             if (mXtoSample.isEmpty()) return;
@@ -178,11 +184,11 @@ void TabLongTermPerformance::applyView()
         p->xAxis->setRange(lo, hi);
         p->graph(0)->rescaleValueAxis(false, true);       // 보이는 구간 기준 세로 스케일
         p->yAxis->scaleRange(1.1, p->yAxis->range().center());
-        if (mWaveLimit[i]) {
-            mWaveLimit[i]->setVisible(showLimit);
-            if (showLimit) {
-                mWaveLimit[i]->point1->setCoords(limitX, 0);
-                mWaveLimit[i]->point2->setCoords(limitX, 1);
+        if (mWaveShade[i]) {
+            mWaveShade[i]->setVisible(showLimit);
+            if (showLimit) {                                   // [lo, 경계] × 전체 높이 음영
+                mWaveShade[i]->topLeft->setCoords(lo, 0);
+                mWaveShade[i]->bottomRight->setCoords(limitX, 1);
             }
         }
     }

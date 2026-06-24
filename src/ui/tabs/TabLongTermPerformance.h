@@ -4,7 +4,7 @@
 //  3단 스택. 각 단에 기간평균(점선)·변동범위 밴드(min/max). 경과 따라 데시메이션.
 //  X축은 10분 폭으로 고정, 10분 경과 후에는 최근 10분만 보이도록 흘러간다(슬라이딩).
 //  ※ 파형 이력(WaveLodHistory)은 8분이라, 8분보다 오래된 지점은 클릭해도 파형 탭이 복원 못 함.
-//    → 파형 가능 경계(최근 8분)를 세로선으로 표시하고, 클릭 seek 는 그 경계로 클램프한다.
+//    → 그 선택 불가 구간(8분 이전)을 회색 배경으로 음영 처리하고, 클릭 seek 는 그 경계로 클램프한다.
 //  각 레인 우측 상단에 최대/최소/표준편차 수치를 고정 표시.
 #include "TabView.h"
 #include <QVector>
@@ -34,7 +34,7 @@ private:
     void   showCursor(double xSeconds);          // 세 레인에 클릭 커서선
     QVector<QPair<double,double>> mXtoSample;    // (x초, totalSamples)
     QCPItemStraightLine *mCursors[3]   = {nullptr, nullptr, nullptr};
-    QCPItemStraightLine *mWaveLimit[3] = {nullptr, nullptr, nullptr};   // 파형 이력(8분) 경계 세로선
+    QCPItemRect         *mWaveShade[3] = {nullptr, nullptr, nullptr};   // 8분 이전(선택 불가) 구간 회색 배경
     struct Lane { QCustomPlot *plot=nullptr; QCPItemRect *band=nullptr; QCPItemText *stats=nullptr;
                   double sum=0,sumSq=0,min=0,max=0,xFirst=0,xLast=0; long n=0; bool have=false;
                   void add(double x,double v); double avg() const { return n?sum/n:0; }
