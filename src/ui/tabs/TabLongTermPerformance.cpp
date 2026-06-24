@@ -34,6 +34,8 @@ static QCustomPlot *makeLane(QWidget *parent, const QString &yLabel, const QColo
     p->xAxis->setTicker(timeTicker);
     p->xAxis->setTickLabels(true);
     if (xLabels) p->xAxis->setLabel(QStringLiteral("time (mm:ss)"));
+    // 우측 끝(예: 10:00) 눈금 라벨이 위젯 가장자리에 잘리지 않도록 우측 최소 여백 확보.
+    p->axisRect()->setMinimumMargins(QMargins(0, 0, 30, 0));
     return p;
 }
 
