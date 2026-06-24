@@ -38,6 +38,11 @@ struct MeasurementSnapshot
 
     bool     synced        = false; // 비트 동기(BPH lock) 상태
 
+    // [이상치] 직전 값이 데이터 적응형 이상치였는지(평균/RLS 계산에선 제외됨). 표시 마킹용.
+    bool     rateOutlier      = false;
+    bool     beatErrorOutlier = false;
+    bool     amplitudeOutlier = false;
+
     int      sampleRateHz  = 0;     // 현재 샘플레이트
     uint64_t totalSamples  = 0;     // 누적 처리 샘플 수
     int      liftAngle     = 0;     // 현재 lift angle 설정(°)
@@ -49,6 +54,7 @@ struct MeasurementSnapshot
     //  탭은 필요분을 자기 버퍼로 복사할 것. (WaveBlock 의 env/raw 포인터와 동일 규약)
     const double *rateTicX = nullptr;  const double *rateTicY = nullptr;  int rateTicN = 0;
     const double *rateTocX = nullptr;  const double *rateTocY = nullptr;  int rateTocN = 0;
+    const double *rateTicOutY = nullptr;  const double *rateTocOutY = nullptr;  // [이상치] 점별 표식(이상치 y/NaN)
     int           rateMaxPoints = 0;   // RatePlot x축 범위(0..rateMaxPoints), 롤링 윈도 크기
 };
 
@@ -66,6 +72,7 @@ struct WaveEvent
     int      type   = 0;   // 1=A(unlock), 2=C(drop/lock)  (tg_event_type_t)
     float    peak   = 0.0f;// 엔벨로프 피크값
     uint64_t markSample = 0; // 표시용 해상 위치(A=sample, C=onset 또는 peak; UseConset 선택 반영)
+    bool     outlier = false; // [이상치] 이 A이벤트가 rate 이상치로 판정됨(엔진이 검출 직후 소스에서 박음)
 };
 
 struct WaveBlock

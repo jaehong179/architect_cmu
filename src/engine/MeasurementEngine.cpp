@@ -2,6 +2,12 @@
 #include <QtMath>
 #include <cmath>
 
+// [이상치] 운영 토글 — 현재는 Rate 만 검출/평균제외/표시. beat error·amplitude 는 로직을 보존하되
+//  비활성(아래 false→true 로 즉시 부활). false 면 push() 자체가 단락되어 검출/로그/평균제외 모두 안 함.
+static constexpr bool kRateOutlierEnabled = true;
+static constexpr bool kBeatOutlierEnabled = false;
+static constexpr bool kAmpOutlierEnabled  = false;
+
 // 측정 상수.
 static constexpr double ERROR_RATE_Y_SCALE      = 10.0;
 static constexpr int    ERROR_RATE_X_DATA_POINTS = 250;
@@ -32,6 +38,8 @@ MeasurementEngine::MeasurementEngine()
     mRate.yToc.reserve(mRate.MaxTicTocDataPoints);
     mRate.RlsTicRate = new RollingLeastSquares(RLS_WINDOW_INIT);
     mRate.RlsTocRate = new RollingLeastSquares(RLS_WINDOW_INIT);
+    mRate.DetrendTic = new RollingLeastSquares(12);   // [이상치] 검출 전용 단기 추세(국소 직선)
+    mRate.DetrendToc = new RollingLeastSquares(12);
     mRate.RlsRateValid = false;
 }
 
@@ -41,6 +49,8 @@ MeasurementEngine::~MeasurementEngine()
     delete mBeat.RollBeatError;
     delete mRate.RlsTicRate;
     delete mRate.RlsTocRate;
+    delete mRate.DetrendTic;
+    delete mRate.DetrendToc;
 }
 
 void MeasurementEngine::setConfig(int sampleRateHz, int averagingPeriodSec, int liftAngleDeg)
@@ -60,6 +70,10 @@ void MeasurementEngine::reset()
     mBeat.BeatErrorIdx = 0;
     mBeat.RollBeatError->Reset();
 
+    // [이상치] 검출기·플래그 초기화
+    mRate.Outlier.reset(); mBeat.Outlier.reset(); mAmp.Outlier.reset();
+    mRate.LastOutlier = mBeat.LastOutlier = mAmp.LastOutlier = false;
+
     mRate.BPH_Valid = false;
     mRate.xTicIndex = 0;
     mRate.xTocIndex = 0;
@@ -71,20 +85,26 @@ void MeasurementEngine::reset()
     mRate.xToc.clear();
     mRate.yTic.clear();
     mRate.yToc.clear();
+    mRate.yTicOut.clear();
+    mRate.yTocOut.clear();
     mRate.RlsTicRate->Reset();
     mRate.RlsTocRate->Reset();
+    mRate.DetrendTic->Reset();
+    mRate.DetrendToc->Reset();
     mRate.RlsRateValid = false;
 }
 
-void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec,
-                                       double value, int maxS, int& index)
+void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec, QVector<double>& ovec,
+                                       double value, double outlierValue, int maxS, int& index)
 {
     if (yvec.size() < maxS) {
         yvec.append(value);   // Growing
+        ovec.append(outlierValue);   // [이상치] 같은 위치에 마스크(이상치 y / NaN)
         xvec.append(index);   // Never Changes once added
         index = (index + 1) % maxS;
     } else {
         yvec[index] = value;  // Overwriting
+        ovec[index] = outlierValue;  // [이상치] 링 위치 덮어쓰기 시 마스크도 동기 갱신
         index = (index + 1) % maxS;
     }
 }
@@ -121,9 +141,13 @@ MeasurementEngine::computeRateError(double A_EventTime, bool haveValidBPH, doubl
         mRate.RlsTocRate->Resize(mAveragingPeriod * mRate.WatchHertz);
         mRate.RlsTicRate->Reset();
         mRate.RlsTocRate->Reset();
+        mRate.DetrendTic->Reset();
+        mRate.DetrendToc->Reset();
 
         mBeat.RollBeatError->Reset();
         mAmp.RollAmplitude->Reset();
+        mRate.Outlier.reset(); mBeat.Outlier.reset(); mAmp.Outlier.reset();   // [이상치] 재동기 → baseline 초기화
+        mRate.LastOutlier = mBeat.LastOutlier = mAmp.LastOutlier = false;
     }
     if ((haveValidBPH) && (mRate.HaveStartTime)) {
         double InstTimingError, InstTimingErrorMs, ExpectedTimeTarget, TimeMeasured;
@@ -144,13 +168,23 @@ MeasurementEngine::computeRateError(double A_EventTime, bool haveValidBPH, doubl
         InstTimingErrorMs = InstTimingErrorMs + mRate.ZeroOffsetValue;
 
         double WrappedRateError = wrapInToRange(InstTimingErrorMs, -ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
+        // [이상치] 비트 타이밍오차 급변 → RLS(rate 회귀)에서 제외. (스코프 점은 표시 그대로 유지)
+        // [이상치] 단기 추세(국소 직선)로 예측 → 잔차로 검출. 곡선 rate 에서도 곡률 오검을 피한다.
+        //  (예측은 현재 점을 더하기 '전' 적합선 기준. 이상치는 추세에 안 넣어 추세를 안 오염시킨다.)
+        RollingLeastSquares *detr = (TicOrToc == TIC) ? mRate.DetrendTic : mRate.DetrendToc;
+        double predicted = 0.0;
+        const bool haveResid = detr->Predict(TimeMeasured, predicted);
+        const double residual = haveResid ? (InstTimingError - predicted) : 0.0;
+        mRate.LastOutlier = kRateOutlierEnabled && haveResid && mRate.Outlier.push(residual);
+        const double outMark = mRate.LastOutlier ? WrappedRateError : std::nan("");  // 이상치면 점 표식, 아니면 NaN
+        if (!mRate.LastOutlier) detr->AddPoint(TimeMeasured, InstTimingError);        // 정상값만 추세에 반영
         if (TicOrToc == TIC) {
-            mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xTic, mRate.yTic, WrappedRateError, mRate.MaxTicTocDataPoints, mRate.xTicIndex);
+            if (!mRate.LastOutlier) mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);
+            addOrOverwrite(mRate.xTic, mRate.yTic, mRate.yTicOut, WrappedRateError, outMark, mRate.MaxTicTocDataPoints, mRate.xTicIndex);
             upd = TicUpdated;
         } else {
-            mRate.RlsTocRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xToc, mRate.yToc, WrappedRateError, mRate.MaxTicTocDataPoints, mRate.xTocIndex);
+            if (!mRate.LastOutlier) mRate.RlsTocRate->AddPoint(TimeMeasured, InstTimingError);
+            addOrOverwrite(mRate.xToc, mRate.yToc, mRate.yTocOut, WrappedRateError, outMark, mRate.MaxTicTocDataPoints, mRate.xTocIndex);
             upd = TocUpdated;
         }
 
@@ -179,7 +213,8 @@ void MeasurementEngine::computeBeatError(double A_EventTime, bool /*haveValidBPH
         double t2 = (mBeat.BeatErrorTimes[2] - mBeat.BeatErrorTimes[1]) / (double)mSampleRate;
 
         mBeat.BeatErrorMs = qAbs(((t1 - t2) / 2.0) * 1000.0);
-        mBeat.RollBeatError->Add(mBeat.BeatErrorMs);
+        mBeat.LastOutlier = kBeatOutlierEnabled && mBeat.Outlier.push(mBeat.BeatErrorMs);   // [이상치] 검출(현재 비활성)
+        if (!mBeat.LastOutlier) mBeat.RollBeatError->Add(mBeat.BeatErrorMs);  // 이상치는 평균에서 제외
         mBeat.BeatErrorTimes[0] = mBeat.BeatErrorTimes[2];
         mBeat.BeatErrorIdx = 1;
     }
@@ -206,7 +241,8 @@ void MeasurementEngine::computeAmplitude(double C_EventTime, bool /*haveValidBPH
                 mAmp.Amplitude_Toc = TempAmp;
                 if (mAmp.Amplitude_Tic_Valid) {
                     double AverageAmplitudeTicToc = (mAmp.Amplitude_Tic + mAmp.Amplitude_Toc) / 2.0;
-                    mAmp.RollAmplitude->Add(AverageAmplitudeTicToc);
+                    mAmp.LastOutlier = kAmpOutlierEnabled && mAmp.Outlier.push(AverageAmplitudeTicToc);   // [이상치] 검출(현재 비활성)
+                    if (!mAmp.LastOutlier) mAmp.RollAmplitude->Add(AverageAmplitudeTicToc);  // 이상치는 평균에서 제외
                     mAmp.Amplitude_Tic_Valid = false;
                 }
             }
@@ -242,5 +278,8 @@ MeasurementEngine::Results MeasurementEngine::results() const
     r.beatErrorMs    = r.beatErrorValid ? mBeat.RollBeatError->GetAverage() : 0.0;
     r.amplitudeValid = mAmp.RollAmplitude->CurrentSize() > 0;
     r.amplitudeDeg   = r.amplitudeValid ? mAmp.RollAmplitude->GetAverage() : 0.0;
+    r.rateOutlier      = mRate.LastOutlier;     // [이상치] 직전 이벤트 지표별 이상치 여부(평균엔 미반영)
+    r.beatErrorOutlier = mBeat.LastOutlier;
+    r.amplitudeOutlier = mAmp.LastOutlier;
     return r;
 }

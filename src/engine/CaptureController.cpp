@@ -388,11 +388,15 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
             if (r.detector_reset_event) PERF_LOG("A-4","QA-US-01","detector_reset",  1, "event","");
 
             // [탭] 엔벨로프/마커 렌더링은 TabRateScope.onWave 가 담당.
+            // [이상치] A이벤트 처리 직후 엔진의 rate 이상치 판정을 이벤트별로 보관 → 아래 WaveEvent 에 박는다.
+            QVarLengthArray<bool, 32> aOutlier(r.num_events);
+            for (int i=0;i<(int)r.num_events;i++) aOutlier[i] = false;
             for (int i=0;i<r.num_events;i++) {
                 double val;
                 if (r.events[i].type==TG_EVENT_A) {
                     val = r.events[i].sample_index + r.events[i].sub_sample_offset;
                     aEvent(val,(r.sync_status==TG_SYNC_SYNCED),r.detected_bph);
+                    aOutlier[i] = mEngine->lastRateOutlier();   // [이상치] 이 A이벤트의 판정 즉시 보관
 #if PERF_ENABLE
                     matchGroundTruth(val, /*isAEvent=*/true);   // [PERF · §E-2/§G-2] 검출 A vs 정답 A 대조
 #endif
@@ -418,7 +422,9 @@ void CaptureController::processSamples(TMasterAudioDataRaw *p)
                     uint64_t mark = r.events[ei].sample_index;
                     if (r.events[ei].type == TG_EVENT_C && useConset && r.events[ei].onset_valid)
                         mark = r.events[ei].onset_sample_index;
-                    wevs.append(WaveEvent{ r.events[ei].sample_index, (int)r.events[ei].type, r.events[ei].peak_value, mark });
+                    WaveEvent we{ r.events[ei].sample_index, (int)r.events[ei].type, r.events[ei].peak_value, mark };
+                    we.outlier = aOutlier[ei];   // [이상치] 엔진 판정을 이벤트에 박아 모든 탭이 그대로 사용
+                    wevs.append(we);
                 }
                 WaveBlock wb;
                 wb.env = r.processed_pcm; wb.n = (int)r.processed_pcm_len; wb.startSample = r.processed_pcm_start_sample;

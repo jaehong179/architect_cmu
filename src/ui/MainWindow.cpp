@@ -281,6 +281,9 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.beatErrorMs    = res.beatErrorMs;
     snap.amplitudeValid = res.amplitudeValid;
     snap.amplitudeDeg   = res.amplitudeDeg;
+    snap.rateOutlier      = res.rateOutlier;       // [이상치] 평균엔 미반영, 표시 마킹용
+    snap.beatErrorOutlier = res.beatErrorOutlier;
+    snap.amplitudeOutlier = res.amplitudeOutlier;
     snap.synced         = res.bphValid;
     snap.sampleRateHz   = mCurrentSamplesPerSecond;
     snap.totalSamples   = mCapture ? mCapture->totalSamples() : 0;
@@ -289,6 +292,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     // RatePlot 시리즈(포인터는 이 호출 동안만 유효 → 탭이 복사).
     snap.rateTicX = mEngine.ticX().constData(); snap.rateTicY = mEngine.ticY().constData(); snap.rateTicN = mEngine.ticX().size();
     snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
+    snap.rateTicOutY = mEngine.ticOutY().constData(); snap.rateTocOutY = mEngine.tocOutY().constData();   // [이상치] 점별 표식
     snap.rateMaxPoints = mEngine.maxDataPoints();
     mTabManager->broadcastMeasurement(snap);
 }
