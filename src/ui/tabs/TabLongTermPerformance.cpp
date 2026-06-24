@@ -44,7 +44,7 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
 
     // 컨트롤: X축은 8분 고정이라 기간 선택 없음 — 리셋만 제공.
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("X axis: fixed 8 min (sliding after)"), this));
+    ctl->addWidget(new QLabel(QStringLiteral("X axis: fixed 10 min (sliding after)"), this));
     ctl->addStretch(1);
     auto *resetBtn = new QPushButton(QStringLiteral("↻ Reset"), this);
     ctl->addWidget(resetBtn);
@@ -84,11 +84,17 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
         mCursors[i] = new QCPItemStraightLine(plots[i]);
         mCursors[i]->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
         mCursors[i]->setVisible(false);
+        // 파형 이력(8분) 경계 — 이 선보다 왼쪽(오래된) 구간은 클릭해도 파형 탭이 복원 못 함.
+        mWaveLimit[i] = new QCPItemStraightLine(plots[i]);
+        mWaveLimit[i]->setPen(QPen(QColor(230, 140, 0), 1, Qt::DotLine));   // 주황 점선(커서와 구분)
+        mWaveLimit[i]->setVisible(false);
         QCustomPlot *pl = plots[i];
         connect(pl, &QCustomPlot::mousePress, this, [this, pl](QMouseEvent *e) {
             if (mXtoSample.isEmpty()) return;
             const double x = pl->xAxis->pixelToCoord(e->position().x());
-            showCursor(x); emit seekRequested(sampleAtX(x));
+            // 파형 이력(8분) 밖이면 경계로 클램프 — 파형 탭이 복원 가능한 가장 오래된 시점.
+            const double seekX = (mCurX > kWaveHistorySec) ? qMax(x, mCurX - kWaveHistorySec) : x;
+            showCursor(seekX); emit seekRequested(sampleAtX(seekX));
         });
     }
 
@@ -146,14 +152,26 @@ void TabLongTermPerformance::redrawLane(Lane &L, const QString &unit)
 
 void TabLongTermPerformance::applyView()
 {
-    // X축 8분 고정: 경과<8분이면 [0,8분], 그 이후엔 최근 8분만 보이도록 흘러간다.
+    // X축 10분 고정: 경과<10분이면 [0,10분], 그 이후엔 최근 10분만 보이도록 흘러간다.
     const double lo = (mCurX <= kWindowSec) ? 0.0 : (mCurX - kWindowSec);
     const double hi = lo + kWindowSec;
-    for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot}) {
+    // 파형 이력(8분) 경계: 경과가 8분을 넘어 윈도우에 '파형 없는' 오래된 구간이 생길 때만 표시.
+    const bool   showLimit = (mCurX > kWaveHistorySec);
+    const double limitX = mCurX - kWaveHistorySec;
+    QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
+    for (int i = 0; i < 3; ++i) {
+        QCustomPlot *p = plots[i];
         if (!p) continue;
         p->xAxis->setRange(lo, hi);
         p->graph(0)->rescaleValueAxis(false, true);       // 보이는 구간 기준 세로 스케일
         p->yAxis->scaleRange(1.1, p->yAxis->range().center());
+        if (mWaveLimit[i]) {
+            mWaveLimit[i]->setVisible(showLimit);
+            if (showLimit) {
+                mWaveLimit[i]->point1->setCoords(limitX, 0);
+                mWaveLimit[i]->point2->setCoords(limitX, 1);
+            }
+        }
     }
 }
 

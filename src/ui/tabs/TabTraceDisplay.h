@@ -49,6 +49,7 @@ private:
     static constexpr double kAmpLo=270.0, kAmpHi=300.0, kLateSlow=-1.0;
     static constexpr double kDiffPeriodWinS = 4.0;   // Chour DiffPeriod 창(초)
     // 그래프 무한 누적 방지: 최근 kHistorySec 구간만 유지(장기추이는 Long-Term 탭 담당).
-    static constexpr double kHistorySec = 600.0;     // rate/amp 플롯 보존 시간(초)
+    //  지속 관찰용 — 8분 보존(넘으면 오토스케일이 최근 8분으로 흘러감). 장기추이는 Long-Term(10분).
+    static constexpr double kHistorySec = 480.0;     // rate/amp 플롯 보존 시간(초, 8분)
 };
 #endif // TABTRACEDISPLAY_H
