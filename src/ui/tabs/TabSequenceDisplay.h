@@ -4,6 +4,8 @@
 //  요약행 X(평균)·D(최대-최소)·DVH(수직-수평차)·Di(수직 불균형). (display_tab.pdf 시퀀스 표 구성)
 //  ※ 하드웨어가 포지션을 USB로 전송하지 않음(EXP-12) → 수동 포지션 선택 + 캡처.
 #include "TabView.h"
+#include "RadarChartWidget.h"
+
 class QTableWidget;
 class QComboBox;
 class QPushButton;
@@ -27,13 +29,15 @@ private:
     void recomputeSummary();
     void updateComplete();                          // 6개 핵심 포지션 모두 캡처 시 완료 표시
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
-    QTableWidget *mTable   = nullptr;   // 포지션 행: Position | Rate | Beat | Ampl
-    QTableWidget *mSummary = nullptr;   // 요약 행: X | D | DVH | Di
-    QComboBox    *mPos     = nullptr;
-    QPushButton  *mCapture = nullptr;
-    QPushButton  *mClear   = nullptr;
-    QLabel       *mLive    = nullptr;
-    QLabel       *mComplete = nullptr;  // FR-MPS: 시퀀스 완료 시 녹색 "Ok"
+    int getRowIndexForPosition(const QString &posName) const;
+
+    QTableWidget     *mTable   = nullptr;   // 포지션 행: Position | Rate | Beat | Ampl (고정 8행)
+    RadarChartWidget *mRadar   = nullptr;   // 극좌표 레이더 차트 위젯
+    QComboBox        *mPos     = nullptr;
+    QPushButton      *mCapture = nullptr;
+    QPushButton      *mClear   = nullptr;
+    QLabel           *mLive    = nullptr;
+    QLabel           *mComplete = nullptr;  // FR-MPS: 시퀀스 완료 시 녹색 "Ok"
     MeasurementSnapshot mLast;
     bool mHaveLast = false;
     static constexpr double kUnbalanceSd = 10.0;   // 수직 rate 산포(Di) 불균형 경고 임계(s/d)
