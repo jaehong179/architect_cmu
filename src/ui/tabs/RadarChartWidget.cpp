@@ -32,20 +32,20 @@ void RadarChartWidget::clearData()
 
 double RadarChartWidget::getPositionAngleRad(const QString &pos) const
 {
-    // 8방위 극좌표 각도 매핑 (도 단위를 라디안으로 변환)
-    // 9H (3시) = 0도
-    // CB (1시 반) = 45도
-    // CH (12시) = 90도
-    // 12H (9시) = 180도
-    // 3H (7시 반) = 225도
-    // 6H (6시) = 270도
+    // 6개 포지션을 360도 공간에 60도 간격으로 균등 배치 (시계 방향 순서)
+    // CH (12시)  = 90도
+    // CB (2시)   = 30도
+    // 9H (4시)   = 330도 (-30도)
+    // 6H (6시)   = 270도 (-90도)
+    // 3H (8시)   = 210도 (-150도)
+    // 12H (10시) = 150도 (-210도)
     double deg = 0.0;
-    if (pos == QStringLiteral("9H")) deg = 0.0;
-    else if (pos == QStringLiteral("CB")) deg = 45.0;
-    else if (pos == QStringLiteral("CH")) deg = 90.0;
-    else if (pos == QStringLiteral("12H")) deg = 180.0;
-    else if (pos == QStringLiteral("3H")) deg = 225.0;
+    if (pos == QStringLiteral("CH")) deg = 90.0;
+    else if (pos == QStringLiteral("CB")) deg = 30.0;
+    else if (pos == QStringLiteral("9H")) deg = 330.0;
     else if (pos == QStringLiteral("6H")) deg = 270.0;
+    else if (pos == QStringLiteral("3H")) deg = 210.0;
+    else if (pos == QStringLiteral("12H")) deg = 150.0;
     else return -1.0; // 정의되지 않은 포지션
 
     return deg * M_PI / 180.0;
@@ -124,8 +124,8 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
 
     // 4. 6개 방위 축선 및 포지션 라벨 그리기
     const QString corePos[6] = {
-        QStringLiteral("9H"), QStringLiteral("CB"), QStringLiteral("CH"),
-        QStringLiteral("12H"), QStringLiteral("3H"), QStringLiteral("6H")
+        QStringLiteral("CB"), QStringLiteral("CH"), QStringLiteral("12H"),
+        QStringLiteral("3H"), QStringLiteral("6H"), QStringLiteral("9H")
     };
 
     painter.setFont(QFont(QStringLiteral("Segoe UI"), 8, QFont::Bold));
@@ -193,13 +193,30 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
             return a.angle < b.angle;
         });
 
-        // (b) 영역 폴리곤 생성 및 채우기
+        // (b) 베이지어 곡선(Catmull-Rom 기반 Cubic Spline) 경로 생성 및 채우기
         QPainterPath areaPath;
         areaPath.moveTo(pts[0].pt);
-        for (int i = 1; i < pts.size(); ++i) {
-            areaPath.lineTo(pts[i].pt);
+
+        int n = pts.size();
+        double tension = 0.20; // 곡선의 부드러움 텐션 계수
+
+        for (int i = 0; i < n; ++i) {
+            int prevIdx  = (i - 1 + n) % n;
+            int currIdx  = i;
+            int nextIdx  = (i + 1) % n;
+            int next2Idx = (i + 2) % n;
+
+            QPointF pPrev  = pts[prevIdx].pt;
+            QPointF pCurr  = pts[currIdx].pt;
+            QPointF pNext  = pts[nextIdx].pt;
+            QPointF pNext2 = pts[next2Idx].pt;
+
+            // Catmull-Rom 방식을 근사하여 제어점 계산
+            QPointF c1 = pCurr + tension * (pNext - pPrev);
+            QPointF c2 = pNext - tension * (pNext2 - pCurr);
+
+            areaPath.cubicTo(c1, c2, pNext);
         }
-        areaPath.closeSubpath();
 
         // 파란색 반투명 영역 채우기
         painter.setBrush(QBrush(QColor(0, 162, 232, 35)));

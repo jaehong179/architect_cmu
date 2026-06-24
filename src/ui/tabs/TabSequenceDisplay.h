@@ -23,11 +23,13 @@ public:
 public slots:
     void setCurrentPositionByIndex(int index);
     void setPhaseStatus(const QString &phaseLabel, int remainingSec);
+    void onPositionComboChanged(int index);
 
 private:
     void capture();
     void recomputeSummary();
     void updateComplete();                          // 6개 핵심 포지션 모두 캡처 시 완료 표시
+    void updateRadarChart();                        // 차트 실시간 및 정적 데이터 갱신 헬퍼
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
     int getRowIndexForPosition(const QString &posName) const;
 
