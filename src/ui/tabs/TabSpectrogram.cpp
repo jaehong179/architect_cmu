@@ -90,12 +90,6 @@ void TabSpectrogram::onWave(const WaveBlock &w)
     if ((mTick++ % 8) == 0 && isVisible()) recompute();
 }
 
-// [③] 선택 해제 → 최신 시점 표시.
-void TabSpectrogram::onSeekClear()
-{
-    if (mHistory && mHistory->hasData()) onSeek((double)mHistory->latestAbs());
-}
-
 // [③] 다른 탭 선택 시점 → 그 구간을 이력에서 복원해 스펙트로그램 표시(raw→mBuf, env→mEvtBuf).
 void TabSpectrogram::onSeek(double absSample)
 {

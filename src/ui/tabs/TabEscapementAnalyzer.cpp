@@ -84,12 +84,6 @@ void TabEscapementAnalyzer::onWave(const WaveBlock &w)
     if (isVisible()) render();
 }
 
-// [③] 선택 해제 → 최신 시점 표시.
-void TabEscapementAnalyzer::onSeekClear()
-{
-    if (mHistory && mHistory->hasData()) onSeek((double)mHistory->latestAbs());
-}
-
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 파형을 이력에서 복원해 표시(파형부만; 가운데 누적 점열은 동결).
 void TabEscapementAnalyzer::onSeek(double absSample)
 {

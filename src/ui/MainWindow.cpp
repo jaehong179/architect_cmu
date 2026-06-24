@@ -259,7 +259,6 @@ void MainWindow::RegisterDisplayTabs(void)
 void MainWindow::updateSeekLabel(double absSample)
 {
     if (!mSeekLabel) return;
-    if (absSample < 0.0) { mSeekLabel->setText(QString()); return; }   // [③] 선택 해제 → 라벨 비움
     if (mPauseBtn && !mPauseBtn->isChecked()) return;                  // [③] 선택은 정지 중에만 — 라이브 클릭은 라벨도 무시
     const int sr = mWaveHistory.sampleRate();
     const double t = sr > 0 ? absSample / (double)sr : 0.0;

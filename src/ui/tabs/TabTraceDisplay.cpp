@@ -65,14 +65,7 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     // [③] 트렌드 클릭 → 커서 표시 + 그 x(초)의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
     auto onClick = [this](QCustomPlot *pl, QMouseEvent *e) {
         if (mXtoSample.isEmpty()) return;
-        const QPoint pos = e->position().toPoint();
-        const double x = pl->xAxis->pixelToCoord(pos.x());
-        // 그래프(축 영역) 밖이거나 데이터 범위 밖 클릭 → 선택 해제(전역 reset, 미선택과 동일).
-        if (!pl->axisRect()->rect().contains(pos)
-            || x > mXtoSample.last().first || x < mXtoSample.first().first) {
-            emit seekRequested(-1.0);
-            return;
-        }
+        const double x = pl->xAxis->pixelToCoord(e->position().x());
         // 커서는 onSeek 왕복(pause 게이트)으로만 표시 → 선택은 정지 중에만.
         emit seekRequested(sampleAtX(x));
     };

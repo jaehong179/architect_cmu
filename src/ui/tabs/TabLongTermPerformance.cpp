@@ -91,14 +91,7 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
         QCustomPlot *pl = plots[i];
         connect(pl, &QCustomPlot::mousePress, this, [this, pl](QMouseEvent *e) {
             if (mXtoSample.isEmpty()) return;
-            const QPoint pos = e->position().toPoint();
-            const double x = pl->xAxis->pixelToCoord(pos.x());
-            // 그래프(축 영역) 밖이거나 데이터 범위 밖 클릭 → 선택 해제(전역 reset, 미선택과 동일).
-            const double xFirst = mXtoSample.first().first;
-            if (!pl->axisRect()->rect().contains(pos) || x > mCurX || x < xFirst) {
-                emit seekRequested(-1.0);
-                return;
-            }
+            const double x = pl->xAxis->pixelToCoord(e->position().x());
             // 파형 이력(8분) 밖이면 경계로 클램프 — 파형 탭이 복원 가능한 가장 오래된 시점.
             //  커서는 onSeek 왕복(broadcastSeek 가 pause 게이트)으로만 표시 → 선택은 정지 중에만.
             const double seekX = (mCurX > kWaveHistorySec) ? qMax(x, mCurX - kWaveHistorySec) : x;

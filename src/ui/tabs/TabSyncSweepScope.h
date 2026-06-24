@@ -24,9 +24,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
-    void onSeek(double absSample) override;            // [③] 정지 중 트렌드 클릭 → 그 시점 표시
-    void onSeekClear() override;                       // [③] 해제 → 최신 표시(.cpp)
-    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mRawBuf.clear(); } }   // seek 했으면 버퍼 비움
+    void onSeek(double absSample) override;            // [③] 정지 중 트렌드 클릭 → 그 시점 표시    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mRawBuf.clear(); } }   // seek 했으면 버퍼 비움
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;

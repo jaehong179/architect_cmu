@@ -22,9 +22,7 @@ public:
     QString tabTitle() const override { return QStringLiteral("Time-Frequency Spectrogram Display"); }
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
-    void onSeek(double absSample) override;            // [③] 다른 탭 선택 시점의 스펙트로그램 표시
-    void onSeekClear() override;                       // [③] 해제 → 최신 표시(.cpp)
-    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mEvtBuf.clear(); } }   // seek 했으면 버퍼 비움
+    void onSeek(double absSample) override;            // [③] 다른 탭 선택 시점의 스펙트로그램 표시    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mEvtBuf.clear(); } }   // seek 했으면 버퍼 비움
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:
     void onShown() override;

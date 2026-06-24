@@ -127,12 +127,6 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
     if (isVisible()) render();
 }
 
-// [③] 선택 해제 → 최신 시점을 표시(onSeek 가 스트립 선택도 해제).
-void TabBeatNoiseScope::onSeekClear()
-{
-    if (mHistory && mHistory->hasData()) onSeek((double)mHistory->latestAbs());
-}
-
 // [③] 다른 탭에서 선택한 시점 → 그 비트를 이력에서 복원해 Scope1에 표시(스트립 선택 해제, 누적 동결).
 void TabBeatNoiseScope::onSeek(double absSample)
 {

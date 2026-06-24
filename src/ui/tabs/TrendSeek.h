@@ -65,15 +65,9 @@ public:
         QObject::connect(plot, &QCustomPlot::mousePress, plot,
             [this, plot, onSeek](QMouseEvent *e) {
                 if (mMap.isEmpty()) return;
-                const QPoint pos = e->position().toPoint();
-                const double x = plot->xAxis->pixelToCoord(pos.x());
-                // 그래프(축 영역)/데이터 범위 밖 클릭 → 선택 해제(-1). 안쪽이면 그 시점 방출.
-                //  커서는 onSeek 왕복(broadcastSeek 가 pause 게이트)으로만 표시 → 선택은 정지 중에만.
-                if (!plot->axisRect()->rect().contains(pos)
-                    || x > mMap.last().first || x < mMap.first().first)
-                    onSeek(-1.0);
-                else
-                    onSeek(sampleAtX(x));
+                const double x = plot->xAxis->pixelToCoord(e->position().x());
+                // 커서는 onSeek 왕복(broadcastSeek 가 pause 게이트)으로만 표시 → 선택은 정지 중에만.
+                onSeek(sampleAtX(x));
             });
     }
 
