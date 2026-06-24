@@ -141,6 +141,12 @@ void TabWaveformCompare::onWave(const WaveBlock &w)
     if (isVisible()) render();
 }
 
+// [③] 선택 해제 → 최신 시점 표시.
+void TabWaveformCompare::onSeekClear()
+{
+    if (mHistory && mHistory->hasData()) onSeek((double)mHistory->latestAbs());
+}
+
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(파형부만; 평균/paperstrip 누적은 동결).
 void TabWaveformCompare::onSeek(double absSample)
 {

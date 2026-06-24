@@ -76,6 +76,12 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
     if (isVisible()) render();   // (정지는 전역 Pause = 방송 중단이 담당)
 }
 
+// [③] 선택 해제 → 최신 시점 표시.
+void TabSyncSweepScope::onSeekClear()
+{
+    if (mHistory && mHistory->hasData()) onSeek((double)mHistory->latestAbs());
+}
+
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(스윕 앵커 등 누적은 동결).
 void TabSyncSweepScope::onSeek(double absSample)
 {

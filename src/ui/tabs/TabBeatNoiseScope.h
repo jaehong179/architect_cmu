@@ -28,6 +28,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;            // [③] 다른 탭에서 선택한 시점을 Scope1에 표시
+    void onSeekClear() override;                       // [③] 해제 → 최신 표시(.cpp)
     void onResumeLive(bool seeked) override { mSelectedStrip = -1; if (seeked) { mBuf.clear(); mHaveLastBeat = false; } }   // 라이브 복귀
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 signals:

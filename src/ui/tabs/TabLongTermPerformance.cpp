@@ -100,8 +100,9 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
                 return;
             }
             // 파형 이력(8분) 밖이면 경계로 클램프 — 파형 탭이 복원 가능한 가장 오래된 시점.
+            //  커서는 onSeek 왕복(broadcastSeek 가 pause 게이트)으로만 표시 → 선택은 정지 중에만.
             const double seekX = (mCurX > kWaveHistorySec) ? qMax(x, mCurX - kWaveHistorySec) : x;
-            showCursor(seekX); emit seekRequested(sampleAtX(seekX));
+            emit seekRequested(sampleAtX(seekX));
         });
     }
 

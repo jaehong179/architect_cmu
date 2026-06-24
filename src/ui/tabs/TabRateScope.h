@@ -24,6 +24,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;   // [③] 정지 중 트렌드 클릭 → 그 시점으로 스코프 이동
+    void onSeekClear() override;              // [③] 선택 해제 → 상단 커서 숨김 + 하단 최신 표시
 
     // 8분 이력 버퍼 주입(MainWindow 소유). pause 중 이 버퍼를 queryWindow 로 그린다.
     void setHistory(WaveLodHistory *h) { mHistory = h; }

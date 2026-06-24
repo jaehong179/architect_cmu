@@ -73,7 +73,8 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
             emit seekRequested(-1.0);
             return;
         }
-        showCursor(x); emit seekRequested(sampleAtX(x));
+        // 커서는 onSeek 왕복(pause 게이트)으로만 표시 → 선택은 정지 중에만.
+        emit seekRequested(sampleAtX(x));
     };
     connect(mRate, &QCustomPlot::mousePress, this, [this, onClick](QMouseEvent *e) { onClick(mRate, e); });
     connect(mAmp,  &QCustomPlot::mousePress, this, [this, onClick](QMouseEvent *e) { onClick(mAmp,  e); });

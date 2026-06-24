@@ -63,7 +63,13 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         bool found = false;
         const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);  // 동결된 점들의 x범위
         if (!found) return;
-        const double x  = mRatePlot->xAxis->pixelToCoord(e->position().x());
+        const QPoint pos = e->position().toPoint();
+        const double x  = mRatePlot->xAxis->pixelToCoord(pos.x());
+        // 그래프(축 영역)/점 범위 밖 클릭 → 선택 해제(전역 reset).
+        if (!mRatePlot->axisRect()->rect().contains(pos) || x < kr.lower || x > kr.upper) {
+            emit seekRequested(-1.0);
+            return;
+        }
         const double lo = kr.lower, hi = kr.upper;
         const double f  = (hi > lo) ? qBound(0.0, (x - lo) / (hi - lo), 1.0) : 1.0;
         const int    bph = (mLastBph > 0) ? mLastBph : 28800;
@@ -386,6 +392,18 @@ void TabRateScope::onSeek(double absSample)
             }
             mRatePlot->replot(QCustomPlot::rpQueuedReplot);
         }
+    }
+}
+
+// [③] 선택 해제 — 하단 스코프를 최신 동결 창으로 되돌리고 상단 클릭 커서를 숨긴다.
+void TabRateScope::onSeekClear()
+{
+    if (!mPaused || !mHistory || !mHistory->hasData()) return;
+    const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
+    onSeek(latest);                                    // 하단: 최신 파형 창
+    if (mRateCursor) {                                  // 상단: 선택 커서 숨김
+        mRateCursor->setVisible(false);
+        if (mRatePlot) mRatePlot->replot(QCustomPlot::rpQueuedReplot);
     }
 }
 

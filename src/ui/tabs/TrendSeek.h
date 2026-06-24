@@ -65,10 +65,25 @@ public:
         QObject::connect(plot, &QCustomPlot::mousePress, plot,
             [this, plot, onSeek](QMouseEvent *e) {
                 if (mMap.isEmpty()) return;
-                const double x = plot->xAxis->pixelToCoord(e->position().x());
-                showCursor(x);
-                onSeek(sampleAtX(x));
+                const QPoint pos = e->position().toPoint();
+                const double x = plot->xAxis->pixelToCoord(pos.x());
+                // 그래프(축 영역)/데이터 범위 밖 클릭 → 선택 해제(-1). 안쪽이면 그 시점 방출.
+                //  커서는 onSeek 왕복(broadcastSeek 가 pause 게이트)으로만 표시 → 선택은 정지 중에만.
+                if (!plot->axisRect()->rect().contains(pos)
+                    || x > mMap.last().first || x < mMap.first().first)
+                    onSeek(-1.0);
+                else
+                    onSeek(sampleAtX(x));
             });
+    }
+
+    // [③] 선택 해제 — 커서만 숨긴다(매핑 데이터는 유지, clear() 와 다름).
+    void hideCursor()
+    {
+        for (PlotCur &pc : mPlots) if (pc.cur) {
+            pc.cur->setVisible(false);
+            if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
+        }
     }
 
 private:
