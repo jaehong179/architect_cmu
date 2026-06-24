@@ -17,6 +17,11 @@ public:
     QString tabTitle() const override { return QStringLiteral("Multi-Position Sequence Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+
+public slots:
+    void setCurrentPositionByIndex(int index);
+    void setPhaseStatus(const QString &phaseLabel, int remainingSec);
+
 private:
     void capture();
     void recomputeSummary();

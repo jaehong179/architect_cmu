@@ -366,83 +366,211 @@ Rectangle {
             // 3. MEASUREMENT / DETECTOR PARAMETERS
             // ==========================================
             Rectangle {
+                id: measurementSettingsCard
                 Layout.fillWidth: true
-                Layout.preferredHeight: measureCol.implicitHeight + 16
+                Layout.preferredHeight: measurementSettingsExpanded
+                    ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 16)
+                    : (measureHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
                 border.color: root.colorBorder
+                clip: true
+
+                property bool measurementSettingsExpanded: false
 
                 ColumnLayout {
-                    id: measureCol
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 8
 
-                    Text {
-                        text: "Measurement Settings"
-                        color: root.colorTextMain
-                        font.bold: true
-                        font.pixelSize: 13
-                    }
-
-                    // Detector BPH (Sim 모드가 아닐 때만 콤보박스 노출)
-                    ColumnLayout {
+                    RowLayout {
+                        id: measureHeader
                         Layout.fillWidth: true
                         spacing: 4
-                        Text { text: "Detector BPH"; color: root.colorTextSub; font.pixelSize: 11 }
-                        
-                        ComboBox {
-                            id: detBphCombo
-                            Layout.fillWidth: true
-                            visible: cppBackend.currentMode !== 2
-                            model: cppBackend.bphList
-                            currentIndex: cppBackend.detectorBphIndex
-                            onActivated: (index) => { cppBackend.detectorBphIndex = index }
-                            enabled: !cppBackend.isRunning
+
+                        Text {
+                            text: "Measurement Settings"
+                            color: root.colorTextMain
+                            font.bold: true
+                            font.pixelSize: 13
                         }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 28
-                            color: root.colorBgInput
-                            radius: 4
-                            visible: cppBackend.currentMode === 2
-                            Text {
-                                anchors.centerIn: parent
-                                text: "Follows Sim BPH"
-                                color: root.colorPrimaryLight
-                                font.bold: true
+                        Item { Layout.fillWidth: true }
+
+                        Button {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 24
+                            text: measurementSettingsCard.measurementSettingsExpanded ? "▾" : "▸"
+                            onClicked: {
+                                measurementSettingsCard.measurementSettingsExpanded =
+                                    !measurementSettingsCard.measurementSettingsExpanded
+                            }
+                            background: Rectangle {
+                                color: "transparent"
+                                border.color: root.colorBorder
+                                radius: 4
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: root.colorTextSub
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
                                 font.pixelSize: 11
                             }
                         }
                     }
 
-                    // Lift Angle
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text { text: "Lift Angle (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                        SpinBox {
-                            Layout.preferredWidth: 110
-                            from: 30
-                            to: 70
-                            value: cppBackend.liftAngle
-                            enabled: !cppBackend.isRunning
-                            onValueModified: { cppBackend.liftAngle = value }
-                        }
-                    }
-
-                    // Averaging Period
                     ColumnLayout {
+                        id: measureDetails
                         Layout.fillWidth: true
-                        spacing: 4
-                        Text { text: "Averaging Period"; color: root.colorTextSub; font.pixelSize: 11 }
-                        ComboBox {
-                            id: avgCombo
+                        visible: measurementSettingsCard.measurementSettingsExpanded
+                        spacing: 8
+
+                        // Detector BPH (Sim 모드가 아닐 때만 콤보박스 노출)
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            model: cppBackend.averagingPeriodList
-                            currentIndex: cppBackend.averagingPeriodIndex
-                            onActivated: (index) => { cppBackend.averagingPeriodIndex = index }
-                            enabled: !cppBackend.isRunning
+                            spacing: 4
+                            Text { text: "Detector BPH"; color: root.colorTextSub; font.pixelSize: 11 }
+
+                            ComboBox {
+                                id: detBphCombo
+                                Layout.fillWidth: true
+                                visible: cppBackend.currentMode !== 2
+                                model: cppBackend.bphList
+                                currentIndex: cppBackend.detectorBphIndex
+                                onActivated: (index) => { cppBackend.detectorBphIndex = index }
+                                enabled: !cppBackend.isRunning
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 28
+                                color: root.colorBgInput
+                                radius: 4
+                                visible: cppBackend.currentMode === 2
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "Follows Sim BPH"
+                                    color: root.colorPrimaryLight
+                                    font.bold: true
+                                    font.pixelSize: 11
+                                }
+                            }
+                        }
+
+                        // Lift Angle
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text { text: "Lift Angle (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                            SpinBox {
+                                Layout.preferredWidth: 110
+                                from: 30
+                                to: 70
+                                value: cppBackend.liftAngle
+                                enabled: !cppBackend.isRunning
+                                onValueModified: { cppBackend.liftAngle = value }
+                            }
+                        }
+
+                        // Averaging Period
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Text { text: "Averaging Period"; color: root.colorTextSub; font.pixelSize: 11 }
+                            ComboBox {
+                                id: avgCombo
+                                Layout.fillWidth: true
+                                model: cppBackend.averagingPeriodList
+                                currentIndex: cppBackend.averagingPeriodIndex
+                                onActivated: (index) => { cppBackend.averagingPeriodIndex = index }
+                                enabled: !cppBackend.isRunning
+                            }
+                        }
+
+                        // Position Timing (per-position stabilization / measurement)
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Position Timing"
+                                    color: root.colorTextMain
+                                    font.bold: true
+                                    font.pixelSize: 12
+                                }
+                                Item { Layout.fillWidth: true }
+                                Button {
+                                    text: "Reset defaults"
+                                    enabled: !cppBackend.isRunning
+                                    onClicked: { cppBackend.positionTiming.resetToDefaults() }
+                                    background: Rectangle {
+                                        color: parent.enabled ? root.colorBgInput : "transparent"
+                                        border.color: root.colorBorder
+                                        radius: 4
+                                    }
+                                    contentItem: Text {
+                                        text: parent.text
+                                        color: parent.enabled ? root.colorTextSub : "#666"
+                                        font.pixelSize: 10
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Position"; color: root.colorTextSub; font.pixelSize: 10; Layout.fillWidth: true }
+                                Text { text: "Stab (s)"; color: root.colorTextSub; font.pixelSize: 10; Layout.preferredWidth: 72; horizontalAlignment: Text.AlignHCenter }
+                                Text { text: "Meas (s)"; color: root.colorTextSub; font.pixelSize: 10; Layout.preferredWidth: 72; horizontalAlignment: Text.AlignHCenter }
+                            }
+
+                            ListView {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: contentHeight
+                                interactive: false
+                                spacing: 4
+                                model: cppBackend.positionTiming
+                                delegate: RowLayout {
+                                    required property string name
+                                    required property int stabilizationSec
+                                    required property int measurementSec
+                                    required property int index
+
+                                    width: ListView.view.width
+                                    spacing: 4
+
+                                    Text {
+                                        text: name
+                                        color: root.colorTextSub
+                                        font.pixelSize: 10
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                    }
+                                    SpinBox {
+                                        Layout.preferredWidth: 72
+                                        from: 0
+                                        to: 600
+                                        value: stabilizationSec
+                                        enabled: !cppBackend.isRunning
+                                        onValueModified: {
+                                            cppBackend.positionTiming.setStabilizationSec(index, value)
+                                        }
+                                    }
+                                    SpinBox {
+                                        Layout.preferredWidth: 72
+                                        from: 1
+                                        to: 600
+                                        value: measurementSec
+                                        enabled: !cppBackend.isRunning
+                                        onValueModified: {
+                                            cppBackend.positionTiming.setMeasurementSec(index, value)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -452,52 +580,94 @@ Rectangle {
             // 4. ADVANCED / DETECTOR TUNING
             // ==========================================
             Rectangle {
+                id: advancedTuningCard
                 Layout.fillWidth: true
-                Layout.preferredHeight: advCol.implicitHeight + 16
+                Layout.preferredHeight: advancedTuningExpanded
+                    ? (advHeader.implicitHeight + advDetails.implicitHeight + 16)
+                    : (advHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
                 border.color: root.colorBorder
+                clip: true
+
+                property bool advancedTuningExpanded: false
 
                 ColumnLayout {
-                    id: advCol
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 8
 
-                    Text {
-                        text: "Advanced / Tuning"
-                        color: root.colorTextMain
-                        font.bold: true
-                        font.pixelSize: 13
-                    }
-
-                    // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                     RowLayout {
+                        id: advHeader
                         Layout.fillWidth: true
-                        Text { text: "High Pass Cutoff (Hz)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                        SpinBox {
-                            Layout.preferredWidth: 110
-                            from: 10
-                            to: 10000
-                            stepSize: 50
-                            value: cppBackend.highPassCutoff
-                            enabled: !cppBackend.isRunning
-                            onValueModified: { cppBackend.highPassCutoff = value }
+                        spacing: 4
+
+                        Text {
+                            text: "Advanced / Tuning"
+                            color: root.colorTextMain
+                            font.bold: true
+                            font.pixelSize: 13
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Button {
+                            Layout.preferredWidth: 28
+                            Layout.preferredHeight: 24
+                            text: advancedTuningCard.advancedTuningExpanded ? "▾" : "▸"
+                            onClicked: {
+                                advancedTuningCard.advancedTuningExpanded =
+                                    !advancedTuningCard.advancedTuningExpanded
+                            }
+                            background: Rectangle {
+                                color: "transparent"
+                                border.color: root.colorBorder
+                                radius: 4
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: root.colorTextSub
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                                font.pixelSize: 11
+                            }
                         }
                     }
 
-                    // Onset Amplitude
-                    CheckBox {
-                        text: "C Event Onset Amplitude"
-                        checked: cppBackend.useConset
-                        enabled: !cppBackend.isRunning
-                        onCheckedChanged: { cppBackend.useConset = checked }
-                        contentItem: Text {
-                            text: parent.text
-                            color: root.colorTextMain
-                            leftPadding: 24
-                            verticalAlignment: Text.AlignVCenter
-                            font.pixelSize: 11
+                    ColumnLayout {
+                        id: advDetails
+                        Layout.fillWidth: true
+                        visible: advancedTuningCard.advancedTuningExpanded
+                        spacing: 8
+
+                        // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text { text: "High Pass Cutoff (Hz)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                            SpinBox {
+                                Layout.preferredWidth: 110
+                                from: 10
+                                to: 10000
+                                stepSize: 50
+                                value: cppBackend.highPassCutoff
+                                enabled: !cppBackend.isRunning
+                                onValueModified: { cppBackend.highPassCutoff = value }
+                            }
+                        }
+
+                        // Onset Amplitude
+                        CheckBox {
+                            text: "C Event Onset Amplitude"
+                            checked: cppBackend.useConset
+                            enabled: !cppBackend.isRunning
+                            onCheckedChanged: { cppBackend.useConset = checked }
+                            contentItem: Text {
+                                text: parent.text
+                                color: root.colorTextMain
+                                leftPadding: 24
+                                verticalAlignment: Text.AlignVCenter
+                                font.pixelSize: 11
+                            }
                         }
                     }
                 }
