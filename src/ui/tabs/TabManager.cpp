@@ -64,6 +64,11 @@ void TabManager::setPaused(bool p)
 
 void TabManager::broadcastSeek(double absSample)
 {
+    if (absSample < 0.0) {  // [③] 음수 = 선택 해제(그래프 밖 클릭) — 모든 탭 커서 숨김(정지 여부 무관).
+        for (TabView *t : mTabs)
+            if (t) t->onSeekClear();
+        return;
+    }
     if (!mPaused) return;   // seek 는 정지(동결) 중에만 의미 — 라이브 중 클릭은 무시.
     mSeekedSincePause = true;   // 이번 정지 구간에서 seek 발생 → resume 시 해당 버퍼 정리 필요
     for (TabView *t : mTabs)

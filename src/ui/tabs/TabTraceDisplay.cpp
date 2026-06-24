@@ -63,16 +63,20 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     mCurLabel->setVisible(false);
 
     // [③] 트렌드 클릭 → 커서 표시 + 그 x(초)의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
-    connect(mRate, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
+    auto onClick = [this](QCustomPlot *pl, QMouseEvent *e) {
         if (mXtoSample.isEmpty()) return;
-        const double x = mRate->xAxis->pixelToCoord(e->position().x());
+        const QPoint pos = e->position().toPoint();
+        const double x = pl->xAxis->pixelToCoord(pos.x());
+        // 그래프(축 영역) 밖이거나 데이터 범위 밖 클릭 → 선택 해제(전역 reset, 미선택과 동일).
+        if (!pl->axisRect()->rect().contains(pos)
+            || x > mXtoSample.last().first || x < mXtoSample.first().first) {
+            emit seekRequested(-1.0);
+            return;
+        }
         showCursor(x); emit seekRequested(sampleAtX(x));
-    });
-    connect(mAmp, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
-        if (mXtoSample.isEmpty()) return;
-        const double x = mAmp->xAxis->pixelToCoord(e->position().x());
-        showCursor(x); emit seekRequested(sampleAtX(x));
-    });
+    };
+    connect(mRate, &QCustomPlot::mousePress, this, [this, onClick](QMouseEvent *e) { onClick(mRate, e); });
+    connect(mAmp,  &QCustomPlot::mousePress, this, [this, onClick](QMouseEvent *e) { onClick(mAmp,  e); });
 
     onResetSession();
 }
@@ -107,6 +111,16 @@ void TabTraceDisplay::onSeek(double absSample)
 }
 
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
+// [③] 선택 해제 — 클릭 커서/라벨을 숨긴다(데이터·축은 유지).
+void TabTraceDisplay::onSeekClear()
+{
+    if (mCurRate)  mCurRate->setVisible(false);
+    if (mCurAmp)   mCurAmp->setVisible(false);
+    if (mCurLabel) mCurLabel->setVisible(false);
+    if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
+    if (mAmp)  mAmp->replot(QCustomPlot::rpQueuedReplot);
+}
+
 double TabTraceDisplay::sampleAtX(double xSeconds) const
 {
     if (mXtoSample.isEmpty()) return 0.0;

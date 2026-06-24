@@ -259,6 +259,7 @@ void MainWindow::RegisterDisplayTabs(void)
 void MainWindow::updateSeekLabel(double absSample)
 {
     if (!mSeekLabel) return;
+    if (absSample < 0.0) { mSeekLabel->setText(QString()); return; }   // [③] 선택 해제 → 라벨 비움
     const int sr = mWaveHistory.sampleRate();
     const double t = sr > 0 ? absSample / (double)sr : 0.0;
     mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));

@@ -23,6 +23,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
     void onSeek(double absSample) override;   // [③] 다른 탭 seek → 커서 동기화
+    void onSeekClear() override;              // [③] 선택 해제 → 세 레인 커서 숨김
 signals:
     void seekRequested(double absSample);   // [③] 정지 중 클릭 → 그 시점(스코프 탭 점프)
 protected:

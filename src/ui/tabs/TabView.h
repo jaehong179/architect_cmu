@@ -46,6 +46,9 @@ public:
     //  정지 중에만 의미. 8분 이력 버퍼를 읽는 스코프 탭이 override 해 그 시점을 그린다. 기본 무시.
     virtual void onSeek(double /*absSample*/) {}
 
+    // [③] 선택 해제 — 그래프 밖 클릭 시 호출. 보이는 seek 커서/선택 표시만 숨긴다(데이터는 유지).
+    virtual void onSeekClear() {}
+
     // [③] 정지 해제(라이브 복귀) 시 호출 — 정지 중 seek 가 있었으면(seeked=true) seek 로 채운
     //  임시 버퍼를 비워 라이브로 깨끗이 복귀. seek 없이 정지만 했으면 버퍼가 연속이므로 그대로 둔다.
     //  (소스까지 멈추는 '전체 정지'라 resume 시 인덱스가 끊기지 않음 → 불필요한 리빌드 방지.)
