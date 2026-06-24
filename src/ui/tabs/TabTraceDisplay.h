@@ -32,6 +32,14 @@ private:
     // 클릭한 x(초) → 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples).
     double sampleAtX(double xSeconds) const;
     void   showCursor(double xSeconds);          // [③] 클릭 지점 세로 커서선(선택 확인용)
+    // [이상치] 엔진 snapshot 플래그 → 배경 빨강 음영 마킹(상승엣지 1회). rate/amplitude 각각.
+    void   redrawAnomalies(QCustomPlot *plot, QVector<double> &anomX, QVector<QCPItemRect*> &marks);
+    QVector<double> mRateAnomX, mAmpAnomX;
+    QVector<QCPItemRect*> mRateAnomMarks, mAmpAnomMarks;
+    bool mRatePrevOut = false, mAmpPrevOut = false;
+    static constexpr double kAnomBandSec = 1.5;   // 마킹 배경 폭(초)
+    static constexpr int    kMaxAnomMarks = 256;
+    static constexpr bool   kShowAnomalyShade = false;  // 빨강 음영 표시(현재 off; 코드/검출은 보존)
     QVector<QPair<double,double>> mXtoSample;   // (x초, totalSamples) — 클릭→시점 변환용
     QCPItemStraightLine *mCurRate = nullptr;    // 클릭 커서(상단)
     QCPItemStraightLine *mCurAmp  = nullptr;    // 클릭 커서(하단)

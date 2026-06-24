@@ -152,6 +152,18 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
     mAmp->graph(0)->data()->removeBefore(cutoff);
     while (!mXtoSample.isEmpty() && mXtoSample.first().first < cutoff) mXtoSample.removeFirst();
 
+    // [이상치] 라인 음영 현재 off(kShowAnomalyShade). 토글 on 일 때만 누적(불필요 계산 방지).
+    if (kShowAnomalyShade) {
+        auto detect = [&](bool valid, bool out, QVector<double> &anomX, bool &prev) {
+            const bool on = valid && out;
+            if (on && !prev) anomX.push_back(x);
+            prev = on;
+            while (!anomX.isEmpty() && anomX.first() < cutoff) anomX.removeFirst();
+        };
+        detect(s.rateValid,      s.rateOutlier,      mRateAnomX, mRatePrevOut);
+        detect(s.amplitudeValid, s.amplitudeOutlier, mAmpAnomX,  mAmpPrevOut);
+    }
+
     // ── 파생 측정 (Plan §Expected Enhancements / Chour) ─────────────────────
     //  비트당 주기 편차(ms) = rate(s/d) × I_target / 86400 × 1000,  I_target = 3600/BPH (E1).
     //  DiffPeriod = 최근 4초 창 평균,  AvgPeriod = 세션 시작부터 누적 평균,
@@ -185,23 +197,57 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
                           mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;")); }
     else { mAlert->setText(warn.join(QStringLiteral("    "))); mAlert->setStyleSheet(QStringLiteral("color:#c00; font-weight:bold;")); }
 
-    if (isVisible()) { mRate->rescaleAxes(); mRate->replot(QCustomPlot::rpQueuedReplot);
+    if (isVisible()) { mRate->rescaleAxes();
+                       redrawAnomalies(mRate, mRateAnomX, mRateAnomMarks);
+                       mRate->replot(QCustomPlot::rpQueuedReplot);
                        mAmp->rescaleAxes();
                        // 밴드가 보이도록 y범위에 270~300° 포함.
                        QCPRange yr = mAmp->yAxis->range();
                        mAmp->yAxis->setRange(qMin(yr.lower, kAmpLo - 5.0), qMax(yr.upper, kAmpHi + 5.0));
+                       redrawAnomalies(mAmp, mAmpAnomX, mAmpAnomMarks);
                        mAmp->replot(QCustomPlot::rpQueuedReplot); }
+}
+
+// 이상치 시각들을 배경 세로 음영(빨강 반투명)으로 표시. 풀 재사용. (LongTerm 과 동일 방식)
+void TabTraceDisplay::redrawAnomalies(QCustomPlot *plot, QVector<double> &anomX, QVector<QCPItemRect*> &marks)
+{
+    if (!kShowAnomalyShade) {        // 음영 off — 혹시 남은 마킹 숨기고 종료(검출은 엔진 유지)
+        for (QCPItemRect *m : marks) if (m) m->setVisible(false);
+        return;
+    }
+    if (!plot) return;
+    while (marks.size() < anomX.size() && marks.size() < kMaxAnomMarks) {
+        auto *r = new QCPItemRect(plot);
+        r->setPen(Qt::NoPen);
+        r->setBrush(QColor(220, 30, 30, 45));
+        r->setLayer(QStringLiteral("grid"));
+        r->topLeft->setTypeX(QCPItemPosition::ptPlotCoords);
+        r->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        r->bottomRight->setTypeX(QCPItemPosition::ptPlotCoords);
+        r->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        marks.push_back(r);
+    }
+    const double half = kAnomBandSec * 0.5;
+    for (int i = 0; i < marks.size(); ++i) {
+        const bool on = (i < anomX.size());
+        marks[i]->setVisible(on);
+        if (on) {
+            marks[i]->topLeft->setCoords(anomX[i] - half, 0);
+            marks[i]->bottomRight->setCoords(anomX[i] + half, 1);
+        }
+    }
 }
 
 void TabTraceDisplay::onShown()
 {
     // 숨은 동안 쌓인 데이터(축 미조정)나 정지 상태에서 전환해도 제대로 보이도록 축을 맞춘다.
     //  (onMeasurement 의 rescale 은 isVisible() 가드라, 숨김+정지 조합에선 호출 안 됨.)
-    if (mRate) { mRate->rescaleAxes(); mRate->replot(); }
+    if (mRate) { mRate->rescaleAxes(); redrawAnomalies(mRate, mRateAnomX, mRateAnomMarks); mRate->replot(); }
     if (mAmp)  {
         mAmp->rescaleAxes();
         QCPRange yr = mAmp->yAxis->range();
         mAmp->yAxis->setRange(qMin(yr.lower, kAmpLo - 5.0), qMax(yr.upper, kAmpHi + 5.0));
+        redrawAnomalies(mAmp, mAmpAnomX, mAmpAnomMarks);
         mAmp->replot();
     }
 }
@@ -211,6 +257,10 @@ void TabTraceDisplay::onResetSession()
     mHaveT0 = false; mRateWin.clear(); mRateSum=mAmpSum=0; mRateN=mAmpN=0;
     mDevWin.clear(); mDevSum=0; mDevN=0;
     mXtoSample.clear();
+    // [이상치] 마킹 리셋
+    mRatePrevOut = mAmpPrevOut = false; mRateAnomX.clear(); mAmpAnomX.clear();
+    for (QCPItemRect *m : mRateAnomMarks) if (m) m->setVisible(false);
+    for (QCPItemRect *m : mAmpAnomMarks)  if (m) m->setVisible(false);
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     if (mBar) mBar->update(MeasurementSnapshot{});

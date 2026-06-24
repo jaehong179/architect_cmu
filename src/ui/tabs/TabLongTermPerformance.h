@@ -37,9 +37,16 @@ private:
     QCPItemRect         *mWaveShade[3] = {nullptr, nullptr, nullptr};   // 8분 이전(선택 불가) 구간 회색 배경
     struct Lane { QCustomPlot *plot=nullptr; QCPItemRect *band=nullptr; QCPItemText *stats=nullptr;
                   double sum=0,sumSq=0,min=0,max=0,xFirst=0,xLast=0; long n=0; bool have=false;
+                  bool prevOut = false;              // 이상치 플래그 상승엣지 검출용(snapshot 기반)
+                  QVector<double> anomX;             // 이상치 발생 시각(초) — 윈도우로 트림
+                  QVector<QCPItemRect*> anomMarks;   // 배경 음영 마킹 풀(재사용)
                   void add(double x,double v); double avg() const { return n?sum/n:0; }
                   double sigma() const; };
     void redrawLane(Lane &L, const QString &unit);
+    void redrawAnomalies(Lane &L);          // 이상치 시각들을 배경 세로 음영으로 표시
+    static constexpr double kAnomBandSec = 1.5;   // 이상치 마킹 배경 폭(초)
+    static constexpr int    kMaxAnomMarks = 256;  // 레인당 마킹 풀 상한
+    static constexpr bool   kShowAnomalyShade = false;  // 라인 그래프 빨강 음영 표시(현재 off; 코드/검출은 보존)
     void applyView();                       // 8분 고정 + 8분 경과 후 슬라이딩, 세로 스케일 갱신
     ReadoutBar *mBar = nullptr;
     Lane mRate, mAmp, mBe;

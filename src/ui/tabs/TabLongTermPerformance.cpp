@@ -196,6 +196,39 @@ void TabLongTermPerformance::applyView()
             }
         }
     }
+    redrawAnomalies(mRate);
+    redrawAnomalies(mAmp);
+    redrawAnomalies(mBe);
+}
+
+// 이상치 발생 시각들을 배경 세로 음영(빨강 반투명)으로 표시. 마킹은 풀을 재사용한다.
+void TabLongTermPerformance::redrawAnomalies(Lane &L)
+{
+    if (!kShowAnomalyShade) {        // 음영 off — 혹시 남은 마킹 숨기고 종료(검출은 엔진 유지)
+        for (QCPItemRect *m : L.anomMarks) if (m) m->setVisible(false);
+        return;
+    }
+    if (!L.plot) return;
+    while (L.anomMarks.size() < L.anomX.size() && L.anomMarks.size() < kMaxAnomMarks) {
+        auto *r = new QCPItemRect(L.plot);
+        r->setPen(Qt::NoPen);
+        r->setBrush(QColor(220, 30, 30, 45));               // 반투명 빨강(이상치)
+        r->setLayer(QStringLiteral("grid"));                 // 데이터·밴드 뒤(배경)
+        r->topLeft->setTypeX(QCPItemPosition::ptPlotCoords);
+        r->topLeft->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        r->bottomRight->setTypeX(QCPItemPosition::ptPlotCoords);
+        r->bottomRight->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        L.anomMarks.push_back(r);
+    }
+    const double half = kAnomBandSec * 0.5;
+    for (int i = 0; i < L.anomMarks.size(); ++i) {
+        const bool on = (i < L.anomX.size());
+        L.anomMarks[i]->setVisible(on);
+        if (on) {
+            L.anomMarks[i]->topLeft->setCoords(L.anomX[i] - half, 0);
+            L.anomMarks[i]->bottomRight->setCoords(L.anomX[i] + half, 1);
+        }
+    }
 }
 
 // 시간축 x(초) — 정책을 한 곳에 모음(2번↔1번 전환은 mXTimeBase 만 바꾸면 됨).
@@ -216,6 +249,19 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
     mCurX = x;
     mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
     while (!mXtoSample.isEmpty() && mXtoSample.first().first < mCurX - kWindowSec) mXtoSample.removeFirst();
+
+    // [이상치] 라인 그래프 음영은 현재 off(kShowAnomalyShade). 토글 on 일 때만 누적(불필요 계산 방지).
+    if (kShowAnomalyShade) {
+        auto detect = [&](Lane &L, bool valid, bool outlier) {
+            const bool on = valid && outlier;
+            if (on && !L.prevOut) L.anomX.push_back(x);
+            L.prevOut = on;
+            while (!L.anomX.isEmpty() && L.anomX.first() < mCurX - kWindowSec) L.anomX.removeFirst();
+        };
+        detect(mRate, s.rateValid,      s.rateOutlier);
+        detect(mAmp,  s.amplitudeValid, s.amplitudeOutlier);
+        detect(mBe,   s.beatErrorValid, s.beatErrorOutlier);
+    }
 
     // 데시메이션: 경과(분) 증가 → 점 추가 간격 K 증가(장시간 가독성/효율).
     const long K = 1 + (long)(x / 60.0);
@@ -258,6 +304,8 @@ void TabLongTermPerformance::onResetSession()
         if (L->plot) { L->plot->graph(0)->data()->clear(); L->plot->graph(1)->data()->clear(); }
         if (L->band) { L->band->topLeft->setCoords(0,0); L->band->bottomRight->setCoords(0,0); }
         if (L->stats) L->stats->setText(QString());
+        L->prevOut = false; L->anomX.clear();                 // [이상치] 마킹 리셋(검출은 엔진 담당)
+        for (QCPItemRect *m : L->anomMarks) if (m) m->setVisible(false);
     }
     if (mBar) mBar->update(MeasurementSnapshot{});
     for (int i = 0; i < 3; ++i) if (mCursors[i]) mCursors[i]->setVisible(false);   // [③] seek 커서 리셋
