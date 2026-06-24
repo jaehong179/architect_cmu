@@ -6,6 +6,6 @@
 class QWidget;
 
 // tableHtml: "<table…>…</table>" 형태(행: <tr><td><b>항목 :</b></td><td>색상 설명</td></tr>).
-//  기본 펼침(접지 않음). 버튼으로 접기/펼치기.
-QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent);
+//  startExpanded: true(기본)=펼침, false=접힘. 버튼으로 접기/펼치기.
+QWidget *makeLegendBox(const QString &tableHtml, QWidget *parent, bool startExpanded = true);
 #endif // LEGENDBOX_H

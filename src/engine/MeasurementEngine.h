@@ -59,7 +59,7 @@ private:
     void computeBeatError(double aEventSample, bool haveValidBph, double bph);
     void computeAmplitude(double cEventSample, bool haveValidBph, double bph);
     static void   addOrOverwrite(QVector<double>& xv, QVector<double>& yv, QVector<double>& ov,
-                                 double value, double outlierValue, int maxS, int& index);
+                                 double xValue, double yValue, double outlierValue, int maxS, int& index);
     static double wrapInToRange(double number, double lowerBound, double upperBound);
 
     struct RateState {

@@ -5,7 +5,6 @@
 #include "TabView.h"
 class QCustomPlot;
 class QLabel;
-class ReadoutBar;
 
 class TabVarioStability : public TabView
 {
@@ -28,7 +27,6 @@ private:
     void refresh();
     Stat         mRate, mAmp;
     double       mT0 = 0.0; bool mHaveT0 = false; double mElapsed = 0.0;
-    ReadoutBar  *mBar = nullptr;
     QLabel      *mRateLbl = nullptr, *mAmpLbl = nullptr, *mElapsedLbl = nullptr;
     QCustomPlot *mRateBar = nullptr, *mAmpBar = nullptr;
     static constexpr double kRateBandLo = -7.0,  kRateBandHi = 7.0;    // rate 양호 밴드(s/d)

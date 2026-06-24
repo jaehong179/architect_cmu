@@ -1,4 +1,5 @@
 #include "TabSequenceDisplay.h"
+#include "PositionNames.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -11,60 +12,132 @@
 
 bool TabSequenceDisplay::isHorizontal(const QString &pos)
 {
-    // Plan §Test Positions: 수평 = CH(다이얼 업) / CB(다이얼 다운), 나머지는 수직(크라운 방향).
     return pos.startsWith(QStringLiteral("CH")) || pos.startsWith(QStringLiteral("CB"));
+}
+
+int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
+{
+    QString clean = posName.split(QLatin1Char(' ')).first();
+    if (clean == QStringLiteral("CH")) return 0;
+    if (clean == QStringLiteral("CB")) return 1;
+    if (clean == QStringLiteral("9H")) return 2;
+    if (clean == QStringLiteral("6H")) return 3;
+    if (clean == QStringLiteral("3H")) return 4;
+    if (clean == QStringLiteral("12H")) return 5;
+    return -1;
 }
 
 TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 {
-    auto *lay = new QVBoxLayout(this);
+    // 전체 다크 테마 적용
+    this->setStyleSheet(QStringLiteral("background-color: #141414; color: #FFFFFF;"));
 
+    auto *lay = new QVBoxLayout(this);
+    lay->setContentsMargins(10, 10, 10, 10);
+    lay->setSpacing(8);
+
+    // 상단 제어 바
     auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("Position:"), this));
+    ctl->setContentsMargins(0, 0, 0, 0);
+
+    auto *posLabel = new QLabel(QStringLiteral("Position:"), this);
+    posLabel->setStyleSheet(QStringLiteral("font-weight: bold; color: #888888;"));
+    ctl->addWidget(posLabel);
+
     mPos = new QComboBox(this);
-    // Plan §Test Positions (Chronoscope X1 G3 / NIHS 95-10): 수평 CH·CB + 수직 9H·6H·3H·12H,
-    //  중간(intermediate) 포지션 4개 포함 → 최대 10 포지션 시퀀스.
-    mPos->addItems({QStringLiteral("CH (dial up)"), QStringLiteral("CB (dial down)"),
-                    QStringLiteral("9H"), QStringLiteral("6H"),
-                    QStringLiteral("3H"), QStringLiteral("12H"),
-                    QStringLiteral("10H30 (int.)"), QStringLiteral("7H30 (int.)"),
-                    QStringLiteral("4H30 (int.)"), QStringLiteral("1H30 (int.)")});
+    mPos->addItems(standardPositionNames());
+    mPos->setStyleSheet(QStringLiteral(
+        "QComboBox { background-color: #222222; color: #FFFFFF; border: 1px solid #333333; padding: 4px 8px; border-radius: 4px; min-width: 120px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox QAbstractItemView { background-color: #222222; color: #FFFFFF; selection-background-color: #007acc; }"
+    ));
     ctl->addWidget(mPos);
+
     mCapture = new QPushButton(QStringLiteral("Capture current"), this);
-    mClear   = new QPushButton(QStringLiteral("Reset"), this);
-    ctl->addWidget(mCapture); ctl->addWidget(mClear);
-    mComplete = new QLabel(this);   // 완료 인디케이터(녹색 Ok)
+    mCapture->setStyleSheet(QStringLiteral(
+        "QPushButton { background-color: #007acc; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #0098ff; }"
+        "QPushButton:pressed { background-color: #005999; }"
+    ));
+    ctl->addWidget(mCapture);
+
+    mClear = new QPushButton(QStringLiteral("Reset"), this);
+    mClear->setStyleSheet(QStringLiteral(
+        "QPushButton { background-color: #333333; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; }"
+        "QPushButton:hover { background-color: #444444; }"
+        "QPushButton:pressed { background-color: #222222; }"
+    ));
+    ctl->addWidget(mClear);
+
+    mComplete = new QLabel(this);
     mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
-    ctl->addWidget(mComplete); ctl->addStretch(1);
+    ctl->addWidget(mComplete);
+
+    ctl->addStretch(1);
     lay->addLayout(ctl);
 
+    // 실시간 상태 라벨
     mLive = new QLabel(QStringLiteral("Current: Waiting for signal…"), this);
-    mLive->setStyleSheet(QStringLiteral("font-family:monospace;"));
+    mLive->setStyleSheet(QStringLiteral("font-family: monospace; color: #AAAAAA; padding: 2px 0px;"));
     lay->addWidget(mLive);
 
-    mTable = new QTableWidget(0, 4, this);
-    mTable->setHorizontalHeaderLabels({QStringLiteral("Position"), QStringLiteral("Rate s/d"),
-                                       QStringLiteral("Beat ms"), QStringLiteral("Ampl °")});
-    mTable->horizontalHeader()->setStretchLastSection(true);
-    lay->addWidget(mTable, 1);
+    // 메인 하단 영역 (좌우 2분할)
+    auto *mainLay = new QHBoxLayout();
+    mainLay->setSpacing(15);
 
-    // 요약 표: X / D / DVH / Di 행.
-    mSummary = new QTableWidget(4, 4, this);
-    mSummary->setHorizontalHeaderLabels({QStringLiteral(""), QStringLiteral("Rate"),
-                                         QStringLiteral("Beat"), QStringLiteral("Ampl")});
-    mSummary->verticalHeader()->setVisible(false);
-    mSummary->horizontalHeader()->setStretchLastSection(true);
-    const char *rn[4] = {"X (mean)", "D (max-min)", "DVH (V-H)", "Di (V unbal.)"};
-    for (int r = 0; r < 4; ++r) {
-        auto *it = new QTableWidgetItem(QString::fromLatin1(rn[r]));
+    // 좌측: 단일 통합 테이블 위젯
+    mTable = new QTableWidget(8, 4, this);
+    mTable->setHorizontalHeaderLabels({QStringLiteral(""), QStringLiteral("Rate"),
+                                       QStringLiteral("Amplitude"), QStringLiteral("Beat error")});
+    mTable->verticalHeader()->setVisible(false);
+    mTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    mTable->horizontalHeader()->setStyleSheet(QStringLiteral(
+        "QHeaderView::section { background-color: #1e1e1e; color: #888888; border: none; font-weight: bold; padding: 6px; }"
+    ));
+    mTable->setStyleSheet(QStringLiteral(
+        "QTableWidget { background-color: #141414; color: #E0E0E0; gridline-color: #252525; border: 1px solid #252525; }"
+        "QTableWidget::item { padding: 4px; border-bottom: 1px solid #252525; }"
+    ));
+
+    // 테이블 초기값 세팅 (행별 타이틀 고정 및 읽기전용)
+    const QString rowNames[8] = {
+        QStringLiteral("CH"), QStringLiteral("CB"), QStringLiteral("9H"),
+        QStringLiteral("6H"), QStringLiteral("3H"), QStringLiteral("12H"),
+        QStringLiteral("Average"), QStringLiteral("Deviation")
+    };
+    for (int r = 0; r < 8; ++r) {
+        auto *it = new QTableWidgetItem(rowNames[r]);
         it->setFlags(Qt::ItemIsEnabled);
-        mSummary->setItem(r, 0, it);
+        if (r >= 6) {
+            // 통계 행은 스타일을 다르게 (연한 회색 글씨)
+            it->setForeground(QBrush(QColor(150, 150, 150)));
+        } else {
+            it->setFont(QFont(QStringLiteral("Segoe UI"), 9, QFont::Bold));
+        }
+        mTable->setItem(r, 0, it);
+
+        // 나머지 셀들도 빈 값으로 아이템 채우기
+        for (int c = 1; c < 4; ++c) {
+            auto *cell = new QTableWidgetItem(QStringLiteral("--"));
+            cell->setFlags(Qt::ItemIsEnabled);
+            cell->setTextAlignment(Qt::AlignCenter);
+            if (r >= 6) {
+                cell->setForeground(QBrush(QColor(150, 150, 150)));
+            }
+            mTable->setItem(r, c, cell);
+        }
     }
-    mSummary->setMaximumHeight(160);
-    lay->addWidget(mSummary);
+    mainLay->addWidget(mTable, 6); // 비율 6
+
+    // 우측: 레이더 차트 위젯
+    mRadar = new RadarChartWidget(this);
+    mainLay->addWidget(mRadar, 5); // 비율 5
+
+    lay->addLayout(mainLay, 1);
 
     connect(mCapture, &QPushButton::clicked, this, &TabSequenceDisplay::capture);
     connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
+
     recomputeSummary();
 }
 
@@ -81,80 +154,151 @@ void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
 
 void TabSequenceDisplay::capture()
 {
-    if (!mHaveLast || mTable->rowCount() >= 10) return;
-    const int r = mTable->rowCount();
-    mTable->insertRow(r);
-    mTable->setItem(r, 0, new QTableWidgetItem(mPos->currentText()));
-    mTable->setItem(r, 1, new QTableWidgetItem(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--")));
-    mTable->setItem(r, 2, new QTableWidgetItem(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs,'f',2) : QStringLiteral("--")));
-    mTable->setItem(r, 3, new QTableWidgetItem(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg,'f',0) : QStringLiteral("--")));
+    if (!mHaveLast) return;
+    
+    int r = getRowIndexForPosition(mPos->currentText());
+    if (r < 0 || r >= 6) return;
+
+    // 테이블 셀 값 업데이트
+    mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
+    mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
+    mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
+
+    // 오차 한도 초과 시 빨간색 텍스트 경고 하이라이트
+    bool isCritical = false;
+    if (mLast.rateValid && std::abs(mLast.rate) > 20.0) isCritical = true;
+    if (mLast.beatErrorValid && mLast.beatErrorMs > 0.8) isCritical = true;
+    if (mLast.amplitudeValid && mLast.amplitudeDeg < 220.0) isCritical = true;
+
+    QColor textColor = isCritical ? QColor(255, 77, 77) : QColor(224, 224, 224);
+    for (int c = 0; c < 4; ++c) {
+        if (mTable->item(r, c)) {
+            mTable->item(r, c)->setForeground(QBrush(textColor));
+        }
+    }
+
+    // 레이더 차트에도 캡처된 Rate 전달
+    mRadar->setPositionRate(mPos->currentText(), mLast.rate, mLast.rateValid);
+
     recomputeSummary();
 }
 
 void TabSequenceDisplay::recomputeSummary()
 {
-    // 컬럼별(Rate=1, Beat=2, Ampl=3) 통계 수집 + 수직/수평 분리.
-    auto setCell = [&](int row, int col, const QString &t){
-        auto *it = new QTableWidgetItem(t); it->setFlags(Qt::ItemIsEnabled);
-        mSummary->setItem(row, col, it);
-    };
-    for (int c = 1; c <= 3; ++c) {
-        QVector<double> all, vert, horiz; bool any=false;
-        for (int r = 0; r < mTable->rowCount(); ++r) {
-            bool ok=false; const double v = mTable->item(r,c) ? mTable->item(r,c)->text().toDouble(&ok) : 0.0;
-            if (!ok) continue; any=true; all.push_back(v);
-            const QString pos = mTable->item(r,0) ? mTable->item(r,0)->text() : QString();
-            (isHorizontal(pos) ? horiz : vert).push_back(v);
-        }
-        if (!any) { setCell(0,c,"--"); setCell(1,c,"--"); setCell(2,c,"--"); setCell(3,c,"--"); continue; }
-        const int prec = (c==1?1:(c==2?2:0));
-        double mn=all[0],mx=all[0],sum=0; for(double v:all){mn=std::min(mn,v);mx=std::max(mx,v);sum+=v;}
-        setCell(0,c, QString::number(sum/all.size(),'f',prec));   // X
-        setCell(1,c, QString::number(mx-mn,'f',prec));            // D
-        // DVH = 평균(수직) − 평균(수평) — Rate/Ampl 만 의미.
-        if (c != 2 && !vert.isEmpty() && !horiz.isEmpty()) {
-            double sv=0; for(double v:vert)sv+=v; double sh=0; for(double v:horiz)sh+=v;
-            setCell(2,c, QString::number(sv/vert.size()-sh/horiz.size(),'f',prec));
-        } else setCell(2,c,"--");
-        // Di = 수직 포지션 rate 산포(max-min) — 불균형 지표(Rate 만).
-        //  Plan: "indicators that help reveal possible balance-wheel unbalance" → 임계 초과 시 빨간 강조.
-        if (c == 1 && vert.size() >= 2) {
-            double vmn=vert[0],vmx=vert[0]; for(double v:vert){vmn=std::min(vmn,v);vmx=std::max(vmx,v);}
-            const double di = vmx - vmn;
-            setCell(3,c, QString::number(di,'f',prec));
-            if (auto *it = mSummary->item(3, c)) {
-                const bool unbal = di > kUnbalanceSd;
-                it->setBackground(unbal ? QBrush(QColor(255, 120, 120)) : QBrush());
-                if (unbal) it->setToolTip(QStringLiteral("excessive vertical-position rate spread → suspected balance-wheel unbalance"));
+    // 각 열(Rate=1, Ampl=2, Beat=3) 통계 계산
+    for (int c = 1; c < 4; ++c) {
+        QVector<double> values;
+        for (int r = 0; r < 6; ++r) {
+            QTableWidgetItem *it = mTable->item(r, c);
+            if (it && it->text() != QStringLiteral("--")) {
+                bool ok = false;
+                double v = it->text().toDouble(&ok);
+                if (ok) values.push_back(v);
             }
-        } else setCell(3,c,"--");
+        }
+
+        int prec = (c == 1 ? 1 : (c == 2 ? 0 : 2));
+
+        if (values.isEmpty()) {
+            mTable->item(6, c)->setText(QStringLiteral("--"));
+            mTable->item(7, c)->setText(QStringLiteral("--"));
+            continue;
+        }
+
+        // 1. 평균(Average) 계산
+        double sum = 0.0;
+        for (double v : values) sum += v;
+        double avg = sum / values.size();
+        mTable->item(6, c)->setText(QString::number(avg, 'f', prec));
+
+        // 2. 표본 표준편차(Deviation) 계산
+        if (values.size() >= 2) {
+            double varSum = 0.0;
+            for (double v : values) {
+                varSum += (v - avg) * (v - avg);
+            }
+            double sd = std::sqrt(varSum / (values.size() - 1));
+            mTable->item(7, c)->setText(QString::number(sd, 'f', prec));
+        } else {
+            mTable->item(7, c)->setText(QStringLiteral("--"));
+        }
     }
     updateComplete();
 }
 
 void TabSequenceDisplay::updateComplete()
 {
-    // 6개 핵심 포지션(CH·CB·9H·6H·3H·12H)이 모두 캡처되면 녹색 "Ok" 표시.
-    static const char *core[6] = {"CH", "CB", "9H", "6H", "3H", "12H"};
-    bool have[6] = {false,false,false,false,false,false};
-    for (int r = 0; mTable && r < mTable->rowCount(); ++r) {
-        const QString pos = mTable->item(r,0) ? mTable->item(r,0)->text() : QString();
-        for (int k = 0; k < 6; ++k)
-            if (pos.startsWith(QString::fromLatin1(core[k]))) have[k] = true;
+    // 6개 핵심 포지션이 모두 채워졌는지 검사
+    bool haveAll = true;
+    for (int r = 0; r < 6; ++r) {
+        if (mTable->item(r, 1)->text() == QStringLiteral("--")) {
+            haveAll = false;
+            break;
+        }
     }
-    int n = 0; for (bool b : have) if (b) ++n;
+
+    int n = 0;
+    for (int r = 0; r < 6; ++r) {
+        if (mTable->item(r, 1)->text() != QStringLiteral("--")) {
+            n++;
+        }
+    }
+
     if (!mComplete) return;
-    if (n >= 6) {
+
+    if (haveAll) {
         mComplete->setText(QStringLiteral("✓ Sequence complete (Ok)"));
-        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#0a8a0a;"));
+        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#00FF66;"));
     } else {
         mComplete->setText(QStringLiteral("Progress %1/6 positions").arg(n));
-        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888;"));
+        mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888888;"));
     }
+}
+
+void TabSequenceDisplay::setCurrentPositionByIndex(int index)
+{
+    if (!mPos || index < 0 || index >= mPos->count())
+        return;
+    mPos->setCurrentIndex(index);
+}
+
+void TabSequenceDisplay::setPhaseStatus(const QString &phaseLabel, int remainingSec)
+{
+    if (!mLive) return;
+    if (phaseLabel.isEmpty() || phaseLabel == QStringLiteral("idle")) {
+        if (mHaveLast)
+            onMeasurement(mLast);
+        else
+            mLive->setText(QStringLiteral("Current: Waiting for signal…"));
+        return;
+    }
+    const QString phaseText = (phaseLabel == QStringLiteral("stabilizing"))
+        ? QStringLiteral("Stabilizing") : QStringLiteral("Measuring");
+    mLive->setText(QStringLiteral("%1 [%2]: %3 s remaining")
+        .arg(phaseText, mPos->currentText())
+        .arg(remainingSec));
 }
 
 void TabSequenceDisplay::onResetSession()
 {
-    if (mTable) mTable->setRowCount(0);
+    // 0~5행 데이터 초기화 및 텍스트 색상 복원
+    for (int r = 0; r < 6; ++r) {
+        for (int c = 1; c < 4; ++c) {
+            if (mTable->item(r, c)) {
+                mTable->item(r, c)->setText(QStringLiteral("--"));
+            }
+        }
+        // 기본 텍스트 색상으로 복원
+        for (int c = 0; c < 4; ++c) {
+            if (mTable->item(r, c)) {
+                mTable->item(r, c)->setForeground(QBrush(QColor(224, 224, 224)));
+            }
+        }
+    }
+
+    if (mRadar) {
+        mRadar->clearData();
+    }
+
     recomputeSummary();
 }

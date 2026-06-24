@@ -97,6 +97,8 @@ void TabSpectrogram::onSeek(double absSample)
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
     if (!mConfigured) { mBuf.configure((int)(sr * 2.2)); mEvtBuf.configure((int)(sr * 2.2)); mConfigured = true; }
+    mBuf.clear();
+    mEvtBuf.clear();
     WaveLodHistory::replayInto(*mHistory, mEvtBuf, &mBuf, absSample, (int)(sr * 2.2));   // env→mEvtBuf, raw→mBuf
     recompute();
 }

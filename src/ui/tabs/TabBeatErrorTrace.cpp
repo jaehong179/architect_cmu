@@ -1,5 +1,4 @@
 #include "TabBeatErrorTrace.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
@@ -8,7 +7,6 @@
 TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Slope&nbsp;:</b></td><td>Slope of the two lines = rate (rising=fast · falling=slow)</td></tr>"
@@ -63,7 +61,6 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 // 스냅샷은 수치 readout + beat error 경고에 사용. (트레이스 자체는 비트 이벤트 기반)
 void TabBeatErrorTrace::onMeasurement(const MeasurementSnapshot &s)
 {
-    mBar->update(s);
     mBeatErrValid = s.beatErrorValid; mBeatErrMs = s.beatErrorMs;
 }
 
@@ -181,7 +178,6 @@ void TabBeatErrorTrace::onResetSession()
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
-    if (mBar) mBar->update(MeasurementSnapshot{});
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
     if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }

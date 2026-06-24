@@ -10,7 +10,6 @@ class QCPItemRect;
 class QCPItemStraightLine;
 class QCPItemText;
 class QLabel;
-class ReadoutBar;
 
 class TabTraceDisplay : public TabView
 {
@@ -44,7 +43,6 @@ private:
     QCPItemStraightLine *mCurRate = nullptr;    // 클릭 커서(상단)
     QCPItemStraightLine *mCurAmp  = nullptr;    // 클릭 커서(하단)
     QCPItemText         *mCurLabel = nullptr;   // 선택 시각/샘플 표시(상단)
-    ReadoutBar  *mBar   = nullptr;
     QCustomPlot *mRate  = nullptr;   // 상단: rate(raw+smoothed)
     QCustomPlot *mAmp   = nullptr;   // 하단: amplitude
     QCPItemRect *mAmpBand = nullptr; // 진폭 정상범위(270~300°) 시각 밴드

@@ -1,0 +1,230 @@
+#include "RadarChartWidget.h"
+#include <QPainter>
+#include <QPainterPath>
+#include <cmath>
+#include <algorithm>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+RadarChartWidget::RadarChartWidget(QWidget *parent) : QWidget(parent)
+{
+    // 기본 크기 설정
+    setMinimumSize(250, 250);
+}
+
+void RadarChartWidget::setPositionRate(const QString &position, double rate, bool valid)
+{
+    // 포지션 이름에서 괄호 등 세부설명 제거하여 매핑 일치시킴 (예: "CH (dial up)" -> "CH")
+    QString cleanPos = position.split(QLatin1Char(' ')).first();
+    mRates[cleanPos] = rate;
+    mValids[cleanPos] = valid;
+    update(); // 위젯 다시 그리기
+}
+
+void RadarChartWidget::clearData()
+{
+    mRates.clear();
+    mValids.clear();
+    update();
+}
+
+double RadarChartWidget::getPositionAngleRad(const QString &pos) const
+{
+    // 8방위 극좌표 각도 매핑 (도 단위를 라디안으로 변환)
+    // 9H (3시) = 0도
+    // CB (1시 반) = 45도
+    // CH (12시) = 90도
+    // 12H (9시) = 180도
+    // 3H (7시 반) = 225도
+    // 6H (6시) = 270도
+    double deg = 0.0;
+    if (pos == QStringLiteral("9H")) deg = 0.0;
+    else if (pos == QStringLiteral("CB")) deg = 45.0;
+    else if (pos == QStringLiteral("CH")) deg = 90.0;
+    else if (pos == QStringLiteral("12H")) deg = 180.0;
+    else if (pos == QStringLiteral("3H")) deg = 225.0;
+    else if (pos == QStringLiteral("6H")) deg = 270.0;
+    else return -1.0; // 정의되지 않은 포지션
+
+    return deg * M_PI / 180.0;
+}
+
+void RadarChartWidget::paintEvent(QPaintEvent *event)
+{
+    Q_UNUSED(event);
+
+    QPainter painter(this);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    // 1. 배경 채우기 (다크 테마)
+    painter.fillRect(rect(), QColor(20, 20, 20));
+
+    // 2. 좌표 설정
+    QPointF center(width() / 2.0, height() / 2.0);
+    double R = std::min(width(), height()) / 2.0 * 0.75; // 라벨 표시 공간 확보 위해 0.75배
+    double R_0 = R * 0.5; // 0 s/d 기준선 반경
+
+    if (R <= 10.0) return;
+
+    // 3. 동심원 격자선 그리기 (-20, -10, 0, +10, +20 s/d)
+    // 최대 한도는 ±30 s/d로 설정
+    double maxVal = 30.0;
+
+    auto getRadiusForValue = [&](double val) -> double {
+        double norm = std::max(-maxVal, std::min(val, maxVal));
+        return R_0 * (1.0 + norm / maxVal);
+    };
+
+    // 격자 원 반지름 계산
+    double r_m20 = getRadiusForValue(-20.0);
+    double r_m10 = getRadiusForValue(-10.0);
+    double r_0   = R_0;
+    double r_p10 = getRadiusForValue(10.0);
+    double r_p20 = getRadiusForValue(20.0);
+
+    // (a) -20 s/d 원 (빨간색)
+    painter.setBrush(Qt::NoBrush);
+    painter.setPen(QPen(QColor(160, 40, 40, 150), 1, Qt::SolidLine));
+    painter.drawEllipse(center, r_m20, r_m20);
+
+    // (b) -10 s/d 원 (어두운 회색)
+    painter.setPen(QPen(QColor(80, 80, 80, 150), 1, Qt::SolidLine));
+    painter.drawEllipse(center, r_m10, r_m10);
+
+    // (c) 0 s/d 원 (굵은 연회색/흰색)
+    painter.setPen(QPen(QColor(180, 180, 180, 200), 1.5, Qt::SolidLine));
+    painter.drawEllipse(center, r_0, r_0);
+
+    // (d) +10 s/d 원 (어두운 회색)
+    painter.setPen(QPen(QColor(80, 80, 80, 150), 1, Qt::SolidLine));
+    painter.drawEllipse(center, r_p10, r_p10);
+
+    // (e) +20 s/d 원 (빨간색)
+    painter.setPen(QPen(QColor(160, 40, 40, 150), 1, Qt::SolidLine));
+    painter.drawEllipse(center, r_p20, r_p20);
+
+    // (f) 격자선 수치 텍스트 표시 (12시 방향 약간 오른쪽 또는 중심 세로선)
+    painter.setFont(QFont(QStringLiteral("Segoe UI"), 7, QFont::Bold));
+    
+    auto drawGridText = [&](double val, const QString &text, const QColor &color, double r) {
+        painter.setPen(color);
+        // 중심선 바로 위에 그리면 축선과 겹치므로 Y 오프셋을 조절하고 X는 중심 근처로
+        QRectF textRect(center.x() - 15, center.y() - r - 6, 30, 12);
+        painter.drawText(textRect, Qt::AlignCenter, text);
+    };
+
+    drawGridText(-20.0, QStringLiteral("-20"), QColor(180, 60, 60), r_m20);
+    drawGridText(-10.0, QStringLiteral("-10"), QColor(130, 130, 130), r_m10);
+    drawGridText(0.0,   QStringLiteral("0"),   QColor(220, 220, 220), r_0);
+    drawGridText(10.0,  QStringLiteral("+10"), QColor(130, 130, 130), r_p10);
+    drawGridText(20.0,  QStringLiteral("+20"), QColor(180, 60, 60), r_p20);
+
+    // 4. 6개 방위 축선 및 포지션 라벨 그리기
+    const QString corePos[6] = {
+        QStringLiteral("9H"), QStringLiteral("CB"), QStringLiteral("CH"),
+        QStringLiteral("12H"), QStringLiteral("3H"), QStringLiteral("6H")
+    };
+
+    painter.setFont(QFont(QStringLiteral("Segoe UI"), 8, QFont::Bold));
+
+    for (const QString &pos : corePos) {
+        double rad = getPositionAngleRad(pos);
+        if (rad < 0) continue;
+
+        QPointF dir(std::cos(rad), -std::sin(rad));
+        QPointF endPt = center + dir * R;
+
+        // 방사축 라인 (매우 어둡고 투명한 선)
+        painter.setPen(QPen(QColor(60, 60, 60, 120), 1, Qt::DashLine));
+        painter.drawLine(center, endPt);
+
+        // 포지션 라벨 텍스트 배치
+        QPointF labelPt = center + dir * (R + 15);
+        painter.setPen(QColor(150, 150, 150));
+        
+        // 텍스트 위치 정렬 튜닝
+        QRectF rect(labelPt.x() - 20, labelPt.y() - 10, 40, 20);
+        int align = Qt::AlignCenter;
+        if (std::abs(dir.x()) < 0.1) {
+            // 수직 방향 (CH, 6H)
+            align = Qt::AlignCenter | (dir.y() < 0 ? Qt::AlignBottom : Qt::AlignTop);
+        } else if (std::abs(dir.y()) < 0.1) {
+            // 수평 방향 (9H, 12H)
+            align = Qt::AlignVCenter | (dir.x() > 0 ? Qt::AlignLeft : Qt::AlignRight);
+        }
+        painter.drawText(rect, align, pos);
+    }
+
+    // 5. 측정 데이터 플로팅 및 폐곡선 그리기
+    struct PlottedPoint {
+        QString pos;
+        double angle;
+        QPointF pt;
+        double val;
+        bool isCritical;
+    };
+
+    QVector<PlottedPoint> pts;
+    for (const QString &pos : corePos) {
+        if (mValids.value(pos, false)) {
+            double rate = mRates.value(pos, 0.0);
+            double rad = getPositionAngleRad(pos);
+            double r_val = getRadiusForValue(rate);
+            
+            QPointF dir(std::cos(rad), -std::sin(rad));
+            QPointF pt = center + dir * r_val;
+            
+            PlottedPoint p;
+            p.pos = pos;
+            p.angle = rad;
+            p.pt = pt;
+            p.val = rate;
+            p.isCritical = (std::abs(rate) > 20.0); // ±20 s/d 초과 시 임계값 경고
+            pts.push_back(p);
+        }
+    }
+
+    if (pts.size() >= 3) {
+        // (a) 각도에 따라 반시계 방향 정렬 (0 ~ 2*PI)
+        std::sort(pts.begin(), pts.end(), [](const PlottedPoint &a, const PlottedPoint &b) {
+            return a.angle < b.angle;
+        });
+
+        // (b) 영역 폴리곤 생성 및 채우기
+        QPainterPath areaPath;
+        areaPath.moveTo(pts[0].pt);
+        for (int i = 1; i < pts.size(); ++i) {
+            areaPath.lineTo(pts[i].pt);
+        }
+        areaPath.closeSubpath();
+
+        // 파란색 반투명 영역 채우기
+        painter.setBrush(QBrush(QColor(0, 162, 232, 35)));
+        painter.setPen(Qt::NoPen);
+        painter.drawPath(areaPath);
+
+        // 파란색 외곽선 그리기
+        painter.setBrush(Qt::NoBrush);
+        painter.setPen(QPen(QColor(0, 162, 232, 220), 2.5, Qt::SolidLine));
+        painter.drawPath(areaPath);
+
+    } else if (pts.size() == 2) {
+        // 데이터가 2개인 경우 선 하나만 그림
+        painter.setPen(QPen(QColor(0, 162, 232, 200), 2, Qt::SolidLine));
+        painter.drawLine(pts[0].pt, pts[1].pt);
+    }
+
+    // (c) 각 점 마커 드로잉 (외곽선 흰색 + 내부 파랑/빨강)
+    for (const auto &p : pts) {
+        painter.setPen(QPen(Qt::white, 1.5));
+        if (p.isCritical) {
+            painter.setBrush(QBrush(QColor(230, 40, 40))); // 오차가 큰 경우 빨간색 마커
+        } else {
+            painter.setBrush(QBrush(QColor(0, 162, 232))); // 정상 범위 파란색 마커
+        }
+        painter.drawEllipse(p.pt, 4.0, 4.0);
+    }
+}

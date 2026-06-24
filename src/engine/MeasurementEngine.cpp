@@ -95,15 +95,16 @@ void MeasurementEngine::reset()
 }
 
 void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec, QVector<double>& ovec,
-                                       double value, double outlierValue, int maxS, int& index)
+                                       double xValue, double yValue, double outlierValue, int maxS, int& index)
 {
     if (yvec.size() < maxS) {
-        yvec.append(value);   // Growing
+        xvec.append(xValue);
+        yvec.append(yValue);
         ovec.append(outlierValue);   // [이상치] 같은 위치에 마스크(이상치 y / NaN)
-        xvec.append(index);   // Never Changes once added
         index = (index + 1) % maxS;
     } else {
-        yvec[index] = value;  // Overwriting
+        xvec[index] = xValue;
+        yvec[index] = yValue;
         ovec[index] = outlierValue;  // [이상치] 링 위치 덮어쓰기 시 마스크도 동기 갱신
         index = (index + 1) % maxS;
     }
@@ -179,12 +180,14 @@ MeasurementEngine::computeRateError(double A_EventTime, bool haveValidBPH, doubl
         const double outMark = mRate.LastOutlier ? WrappedRateError : std::nan("");  // 이상치면 점 표식, 아니면 NaN
         if (!mRate.LastOutlier) detr->AddPoint(TimeMeasured, InstTimingError);        // 정상값만 추세에 반영
         if (TicOrToc == TIC) {
-            if (!mRate.LastOutlier) mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xTic, mRate.yTic, mRate.yTicOut, WrappedRateError, outMark, mRate.MaxTicTocDataPoints, mRate.xTicIndex);
+            if (!mRate.LastOutlier) mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);   // [이상치] 이상치는 회귀 제외
+            addOrOverwrite(mRate.xTic, mRate.yTic, mRate.yTicOut, TimeMeasured, WrappedRateError, outMark,
+                           mRate.MaxTicTocDataPoints, mRate.xTicIndex);
             upd = TicUpdated;
         } else {
             if (!mRate.LastOutlier) mRate.RlsTocRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xToc, mRate.yToc, mRate.yTocOut, WrappedRateError, outMark, mRate.MaxTicTocDataPoints, mRate.xTocIndex);
+            addOrOverwrite(mRate.xToc, mRate.yToc, mRate.yTocOut, TimeMeasured, WrappedRateError, outMark,
+                           mRate.MaxTicTocDataPoints, mRate.xTocIndex);
             upd = TocUpdated;
         }
 

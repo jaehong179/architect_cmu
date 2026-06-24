@@ -55,7 +55,7 @@ struct MeasurementSnapshot
     const double *rateTicX = nullptr;  const double *rateTicY = nullptr;  int rateTicN = 0;
     const double *rateTocX = nullptr;  const double *rateTocY = nullptr;  int rateTocN = 0;
     const double *rateTicOutY = nullptr;  const double *rateTocOutY = nullptr;  // [이상치] 점별 표식(이상치 y/NaN)
-    int           rateMaxPoints = 0;   // RatePlot x축 범위(0..rateMaxPoints), 롤링 윈도 크기
+    int           rateMaxPoints = 0;   // tic/toc 롤링 버퍼 크기(점 개수); X값은 초 단위 시각
 };
 
 // ── 파형(PCM/엔벨로프) 게시 ────────────────────────────────────────────────

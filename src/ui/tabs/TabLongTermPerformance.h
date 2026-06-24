@@ -9,7 +9,6 @@
 #include "TabView.h"
 #include <QVector>
 class QCustomPlot;
-class ReadoutBar;
 class QCPItemRect;
 class QCPItemStraightLine;
 class QCPItemText;
@@ -48,7 +47,6 @@ private:
     static constexpr int    kMaxAnomMarks = 256;  // 레인당 마킹 풀 상한
     static constexpr bool   kShowAnomalyShade = false;  // 라인 그래프 빨강 음영 표시(현재 off; 코드/검출은 보존)
     void applyView();                       // 8분 고정 + 8분 경과 후 슬라이딩, 세로 스케일 갱신
-    ReadoutBar *mBar = nullptr;
     Lane mRate, mAmp, mBe;
     double mT0=0.0; bool mHaveT0=false; long mTick=0; double mCurX=0.0;
 

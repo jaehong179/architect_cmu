@@ -13,7 +13,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 # [빌드 메모리] 거대 TU(qcustomplot 등) 병렬 컴파일 시 cc1plus 'out of memory' 방지 —
 #  동시 컴파일 작업 수를 4로 제한(가용 RAM 대비 코어수 기본 병렬이 메모리를 초과하는 문제).
 #  Ninja 제너레이터에서만 적용. 고사양/대용량 RAM 머신이면 숫자를 올려도 된다.
-set_property(GLOBAL PROPERTY JOB_POOLS compile_pool=4)
+set_property(GLOBAL PROPERTY JOB_POOLS compile_pool=8)
 set(CMAKE_JOB_POOL_COMPILE compile_pool)
 
 if(MINGW)
@@ -21,9 +21,9 @@ if(MINGW)
 endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets QuickWidgets)
 
 #DP REMOVED NOT NEED IN THIS VERSION
 #IF(WIN32)
@@ -38,6 +38,13 @@ set(PROJECT_SOURCES
         src/ui/MainWindow.cpp
         src/ui/MainWindow.h
         src/ui/MainWindow.ui
+        src/ui/PositionNames.h
+        src/ui/PositionTimingModel.h
+        src/ui/PositionTimingModel.cpp
+        src/ui/PositionSequenceController.h
+        src/ui/PositionSequenceController.cpp
+        src/ui/PositionChangeDialog.h
+        src/ui/PositionChangeDialog.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -129,6 +136,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabVarioStability.cpp
         src/ui/tabs/TabSequenceDisplay.h
         src/ui/tabs/TabSequenceDisplay.cpp
+        src/ui/tabs/RadarChartWidget.h
+        src/ui/tabs/RadarChartWidget.cpp
         src/ui/tabs/TabBeatNoiseScope.h
         src/ui/tabs/TabBeatNoiseScope.cpp
         src/ui/tabs/TabBeatErrorTrace.h
@@ -216,6 +225,7 @@ target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/u
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
 IF(WIN32)
 #DP REMOVED NOT NEED IN THIS VERSION
 #target_link_libraries(TimeGrapher PRIVATE fftw)

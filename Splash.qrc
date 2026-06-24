@@ -2,4 +2,7 @@
     <qresource prefix="/images">
         <file>Splash.png</file>
     </qresource>
+    <qresource prefix="/qml">
+        <file>src/ui/ControlPanel.qml</file>
+    </qresource>
 </RCC>

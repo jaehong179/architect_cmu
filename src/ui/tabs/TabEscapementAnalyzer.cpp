@@ -1,5 +1,4 @@
 #include "TabEscapementAnalyzer.h"
-#include "ReadoutBar.h"
 #include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay 시 과거 구간 복원
 #include "qcustomplot.h"
@@ -12,7 +11,6 @@
 TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    mBar = new ReadoutBar(this); lay->addWidget(mBar);
     lay->addWidget(makeLegendBox(QStringLiteral(
         "<table cellspacing='0' cellpadding='2'>"
         "<tr><td valign='top'><b>Waveform&nbsp;:</b></td><td>"
@@ -66,7 +64,6 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
 
 void TabEscapementAnalyzer::onMeasurement(const MeasurementSnapshot &s)
 {
-    if (mBar) mBar->update(s);
     if (s.beatErrorValid) mLastBeatErr = s.beatErrorMs;
 }
 
@@ -100,6 +97,8 @@ void TabEscapementAnalyzer::onSeek(double absSample)
     const uint64_t from = ((uint64_t)absSample > half) ? (uint64_t)absSample - half : 0;
     WaveLodHistory::ReconBlock rb;
     mHistory->reconstruct(from, win, rb);
+    mBuf.clear();
+    mRawBuf.clear();
     mBuf.push(rb.block);                                        // 엔벨로프 + 이벤트
     if (rb.block.raw && rb.block.rawN > 0) {                    // 원신호 → mRawBuf
         WaveBlock raw;
@@ -345,7 +344,6 @@ void TabEscapementAnalyzer::onResetSession()
     mAmpScale = 0.0; mScaleFrames = 0; mScaleLocked = false;
     mAnchored = false; mAnchorStartSample = 0; mBeatNumber = 0; mLastASample = 0; mAnchorBph = 0;
     mBeatErrVals.clear(); mBeatErrNums.clear(); mBeatErrOut.clear(); mLastBeatErr = 0.0;
-    if (mBar) mBar->update(MeasurementSnapshot{});
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPlot) {
         mPlot->graph(0)->data()->clear();
