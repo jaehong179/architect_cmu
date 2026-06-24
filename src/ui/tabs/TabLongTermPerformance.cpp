@@ -194,11 +194,21 @@ void TabLongTermPerformance::applyView()
     }
 }
 
+// 시간축 x(초) — 정책을 한 곳에 모음(2번↔1번 전환은 mXTimeBase 만 바꾸면 됨).
+//  · DataTime(2번): 누적샘플/샘플레이트 → Live pause 중 샘플이 안 늘어 '갭' 없이 연속.
+//  · WallClock(1번): 벽시계 경과(pause 포함) → onMeasurement 의 선 끊기(NaN)와 함께 사용.
+double TabLongTermPerformance::measurementX(const MeasurementSnapshot &s) const
+{
+    if (mXTimeBase == XTimeBase::DataTime && s.sampleRateHz > 0)
+        return (double)s.totalSamples / (double)s.sampleRateHz;
+    return (s.timeMs - mT0) / 1000.0;   // WallClock (또는 sr 미상 시 폴백)
+}
+
 void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
 {
     mBar->update(s);
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
-    const double x = (s.timeMs - mT0) / 1000.0;
+    const double x = measurementX(s);
     mCurX = x;
     mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
     while (!mXtoSample.isEmpty() && mXtoSample.first().first < mCurX - kWindowSec) mXtoSample.removeFirst();
@@ -207,9 +217,17 @@ void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
     const long K = 1 + (long)(x / 60.0);
     const bool addPoint = (mTick++ % K == 0);
     if (addPoint) {
+        // [1번/WallClock] pause 등으로 x 가 크게 점프하면 직선 연결을 끊는다(NaN). DataTime 에선 갭이 없어 미발동.
+        if (mXTimeBase == XTimeBase::WallClock && mHaveLastAdd && (x - mLastAddX) > kPauseGapSec) {
+            const double gx = mLastAddX + 1e-3;
+            mRate.plot->graph(0)->addData(gx, qQNaN());
+            mAmp.plot->graph(0)->addData(gx, qQNaN());
+            mBe.plot->graph(0)->addData(gx, qQNaN());
+        }
         if (s.rateValid)      { mRate.add(x, s.rate);        mRate.plot->graph(0)->addData(x, s.rate); }
         if (s.amplitudeValid) { mAmp.add(x, s.amplitudeDeg); mAmp.plot->graph(0)->addData(x, s.amplitudeDeg); }
         if (s.beatErrorValid) { mBe.add(x, s.beatErrorMs);   mBe.plot->graph(0)->addData(x, s.beatErrorMs); }
+        mHaveLastAdd = true; mLastAddX = x;
         redrawLane(mRate, QString());
         redrawLane(mAmp, QStringLiteral("°"));
         redrawLane(mBe, QStringLiteral("ms"));
@@ -229,6 +247,7 @@ void TabLongTermPerformance::onShown()
 void TabLongTermPerformance::onResetSession()
 {
     mHaveT0 = false; mTick = 0; mCurX = 0.0;
+    mHaveLastAdd = false; mLastAddX = 0.0;
     mXtoSample.clear();
     for (Lane *L : {&mRate, &mAmp, &mBe}) {
         L->sum=0; L->sumSq=0; L->min=0; L->max=0; L->n=0; L->have=false; L->xFirst=L->xLast=0;

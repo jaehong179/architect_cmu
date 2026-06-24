@@ -44,6 +44,18 @@ private:
     ReadoutBar *mBar = nullptr;
     Lane mRate, mAmp, mBe;
     double mT0=0.0; bool mHaveT0=false; long mTick=0; double mCurX=0.0;
+
+    // ── 시간축 정책 (전환은 mXTimeBase 한 줄) ──────────────────────────────
+    //  · DataTime(2번, 현재 기본): x = 누적샘플/샘플레이트. Live pause 중 샘플이 안 늘어
+    //    '갭' 없이 연속(pause 가 트렌드에 안 보임).
+    //  · WallClock(1번): x = 벽시계 경과(pause 포함). pause 가 실제 시간만큼 벌어지므로
+    //    onMeasurement 의 선 끊기(NaN)와 함께 써서 가짜 직선을 막는다.
+    enum class XTimeBase { DataTime, WallClock };
+    XTimeBase mXTimeBase = XTimeBase::DataTime;
+    double measurementX(const MeasurementSnapshot &s) const;   // 시간축 x(초) 계산 — 정책 단일 지점
+    double mLastAddX = 0.0; bool mHaveLastAdd = false;         // WallClock 선 끊기용(직전 추가 x)
+    static constexpr double kPauseGapSec = 2.0;               // 이보다 큰 x 점프 = pause 갭 → 선 끊기(WallClock)
+
     static constexpr double kWindowSec     = 600.0;   // X축 고정 폭(10분, 넘으면 슬라이딩)
     static constexpr double kWaveHistorySec = 480.0;  // 파형 이력 보존(8분) = 클릭 seek 가능 한계
 };
