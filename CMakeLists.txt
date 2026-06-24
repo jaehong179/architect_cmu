@@ -135,6 +135,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabVarioStability.cpp
         src/ui/tabs/TabSequenceDisplay.h
         src/ui/tabs/TabSequenceDisplay.cpp
+        src/ui/tabs/RadarChartWidget.h
+        src/ui/tabs/RadarChartWidget.cpp
         src/ui/tabs/TabBeatNoiseScope.h
         src/ui/tabs/TabBeatNoiseScope.cpp
         src/ui/tabs/TabBeatErrorTrace.h
