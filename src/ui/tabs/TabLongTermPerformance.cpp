@@ -56,6 +56,10 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
     mRate.plot = makeLane(this, QStringLiteral("rate s/d"),     QColor(200,40,140), false);
     mAmp.plot  = makeLane(this, QStringLiteral("amplitude °"),  QColor(40,80,200),  false);
     mBe.plot   = makeLane(this, QStringLiteral("beat err ms"),  QColor(30,150,60),  true);
+    // 세 레인의 좌/우 여백을 공유 → y라벨 폭이 달라도 플롯 시작/끝 x 가 일치(세로 정렬).
+    auto *mg = new QCPMarginGroup(mRate.plot);
+    for (QCustomPlot *p : {mRate.plot, mAmp.plot, mBe.plot})
+        p->axisRect()->setMarginGroup(QCP::msLeft | QCP::msRight, mg);
     // 변동범위 밴드(반투명) + 우측 상단 통계 텍스트(최대/최소/σ) — 각 레인.
     struct LB { Lane *L; QColor c; } lanes[] = {
         {&mRate, QColor(200,40,140)}, {&mAmp, QColor(40,80,200)}, {&mBe, QColor(30,150,60)} };
