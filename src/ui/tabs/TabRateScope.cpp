@@ -141,6 +141,14 @@ void TabRateScope::setupPlots()
     mRatePlot->graph(1)->setLineStyle(QCPGraph::lsNone);
     mRatePlot->graph(1)->setPen(QPen(Qt::blue));
     mRatePlot->graph(1)->setName("Toc Rate");
+    // [이상치] tic/toc 이상치 점을 다른 색(주황 채움)으로 표식(평균/RLS 에선 제외된 점들).
+    for (int gi = 2; gi <= 3; ++gi) {
+        mRatePlot->addGraph();
+        mRatePlot->graph(gi)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc,
+                                              QColor(255, 140, 0), 6));   // 주황 채움(빨강/파랑과 구분)
+        mRatePlot->graph(gi)->setLineStyle(QCPGraph::lsNone);
+        mRatePlot->graph(gi)->removeFromLegend();
+    }
     mRatePlot->legend->setVisible(true);
 }
 
@@ -163,6 +171,18 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     }
     mRatePlot->graph(0)->setData(tx, ty);
     mRatePlot->graph(1)->setData(ox, oy);
+    // [이상치] 점별 표식 — 이상치(NaN 아님)만 골라 (x,y) 로 그린다(평균/RLS 제외된 점).
+    auto outliersOf = [](const QVector<double> &xv, const double *outY, int n,
+                         QVector<double> &xo, QVector<double> &yo) {
+        if (!outY) return;
+        for (int i = 0; i < xv.size() && i < n; ++i)
+            if (!qIsNaN(outY[i])) { xo.push_back(xv[i]); yo.push_back(outY[i]); }
+    };
+    QVector<double> tox, toy_, oox, ooy;
+    outliersOf(tx, snap.rateTicOutY, snap.rateTicN, tox, toy_);
+    outliersOf(ox, snap.rateTocOutY, snap.rateTocN, oox, ooy);
+    mRatePlot->graph(2)->setData(tox, toy_);
+    mRatePlot->graph(3)->setData(oox, ooy);
     if (snap.rateMaxPoints > 0) mRatePlot->xAxis->setRange(0, snap.rateMaxPoints);
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }

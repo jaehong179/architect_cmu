@@ -51,8 +51,8 @@ private:
     int      mWindowLen = 0; bool mTicInit = false, mTocInit = false;
     uint64_t mLastC = 0; bool mHaveLastC = false; long mCCount = 0;
 
-    // paperstrip 용 최근 A onset 절대샘플.
-    QVector<uint64_t> mAOnsetHist; uint64_t mAnchor = 0; bool mHaveAnchor = false;
+    // paperstrip 용 최근 A onset 절대샘플(+ 이상치 플래그, 이벤트에 박혀 들어옴).
+    QVector<uint64_t> mAOnsetHist; QVector<bool> mAOnsetOutlier; uint64_t mAnchor = 0; bool mHaveAnchor = false;
 
     static constexpr double kPreMs  = 25.0;   // C 이전(tg NEGATIVE_SPAN)
     static constexpr double kPostMs = 10.0;   // C 이후(tg POSITIVE_SPAN)

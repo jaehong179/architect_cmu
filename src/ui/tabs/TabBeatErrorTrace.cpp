@@ -31,6 +31,10 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mPlot->graph(1)->setPen(QPen(QColor(200,40,40), 1));
     mPlot->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200,40,40), 3));
     mPlot->graph(1)->setName(QStringLiteral("Toc"));
+    mPlot->addGraph();   // graph(2) = rate 이상치(주황) — 점 위에 겹쳐 강조(선 연속성 유지)
+    mPlot->graph(2)->setLineStyle(QCPGraph::lsNone);
+    mPlot->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(255,140,0), 6));
+    mPlot->graph(2)->setName(QStringLiteral("outlier"));
     mPlot->xAxis->setLabel(QStringLiteral("beat #"));
     mPlot->yAxis->setLabel(QStringLiteral("timing error (ms) · gap between the two lines = beat error"));
     mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);
@@ -97,6 +101,7 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         if (y < 0) y += kWrapMs;
         y -= kWrapMs / 2.0;
         mPlot->graph(n % 2 == 0 ? 0 : 1)->addData((double)n, y);
+        if (e.outlier) mPlot->graph(2)->addData((double)n, y);   // [이상치] rate 이상치 비트에 주황 점 겹침
         mSeek.addPoint((double)n, (double)e.sample);   // [③] beat# → 절대 샘플(클릭→시점)
 
         // E6: 기울기 m = ΔE/Δn (ms/비트) — 검출 누락으로 비트 번호가 건너뛰어도
@@ -113,6 +118,7 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         const double cut = (double)mN - kMaxDots;
         mPlot->graph(0)->data()->removeBefore(cut);
         mPlot->graph(1)->data()->removeBefore(cut);
+        mPlot->graph(2)->data()->removeBefore(cut);
     }
 
     // 최신 Tic·Toc 점 사이 간격(=beat error)을 양방향 화살표로 표시.

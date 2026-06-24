@@ -66,6 +66,10 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
     mPaper->graph(1)->setLineStyle(QCPGraph::lsNone);
     mPaper->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(235, 70, 70), 4.5));
     mPaper->graph(1)->setName(QStringLiteral("tac"));
+    mPaper->addGraph();   // graph2 = rate 이상치(주황) — RateScope 와 통일
+    mPaper->graph(2)->setLineStyle(QCPGraph::lsNone);
+    mPaper->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(255, 140, 0), 6));
+    mPaper->graph(2)->setName(QStringLiteral("outlier"));
     mPaper->legend->setVisible(true);
     mPaper->legend->setBrush(QBrush(QColor(0, 0, 0, 190)));
     mPaper->legend->setBorderPen(QPen(QColor(120, 120, 120)));
@@ -166,7 +170,8 @@ void TabWaveformCompare::accumulate(const WaveBlock &)
             if (mAOnsetHist.isEmpty() || event.sample > mAOnsetHist.last()) {
                 if (!mHaveAnchor) { mAnchor = event.sample; mHaveAnchor = true; }
                 mAOnsetHist.push_back(event.sample);
-                while (mAOnsetHist.size() > kPaperHist) mAOnsetHist.remove(0);
+                mAOnsetOutlier.push_back(event.outlier);   // [이상치] 이벤트에 박힌 플래그 그대로 보관
+                while (mAOnsetHist.size() > kPaperHist) { mAOnsetHist.remove(0); mAOnsetOutlier.remove(0); }
             }
         } else if (event.type == 2) {                            // C peak → tic/toc 평균
             if (mHaveLastC && event.sample <= mLastC) continue;
@@ -304,7 +309,7 @@ void TabWaveformCompare::drawPaperstrip()
     const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
     const int beat = mBuf.samplesPerBeat();
     if (beat <= 0 || mAOnsetHist.isEmpty() || !mHaveAnchor) {
-        mPaper->graph(0)->data()->clear(); mPaper->graph(1)->data()->clear(); mPaper->clearItems(); mPaper->replot(); return;
+        mPaper->graph(0)->data()->clear(); mPaper->graph(1)->data()->clear(); mPaper->graph(2)->data()->clear(); mPaper->clearItems(); mPaper->replot(); return;
     }
     // tg paperstrip: 폴딩창 W = 비트주기/zoom. 고정 앵커(점프 없음) + 고정 0.5 오프셋(초기 가운데).
     //  → tic·tac 이 거의 같은 x 로 접히되 'beat error' 만큼 벌어지고, rate 드리프트는 기울기/ wrap 으로 보임.
@@ -314,8 +319,9 @@ void TabWaveformCompare::drawPaperstrip()
     // 처음부터 1분 폭 고정: 경과<60s 면 [0,60], 그 이후엔 [현재−60s, 현재]로 스크롤.
     const double yLo = (latestSec <= kPaperSecs) ? 0.0 : (latestSec - kPaperSecs);
     const double yHi = yLo + kPaperSecs;
-    QVector<double> ticX, ticY, tacX, tacY;
-    for (uint64_t aSample : mAOnsetHist) {
+    QVector<double> ticX, ticY, tacX, tacY, outX, outY;
+    for (int idx = 0; idx < mAOnsetHist.size(); ++idx) {
+        const uint64_t aSample = mAOnsetHist[idx];
         const double tSec = (double)aSample / sr;
         if (tSec < yLo) continue;
         const long beatIndex = (long)llround((double)((int64_t)aSample - (int64_t)mAnchor) / (double)beat);
@@ -323,11 +329,13 @@ void TabWaveformCompare::drawPaperstrip()
         if (foldRemainder < 0) foldRemainder += foldWidth;
         double phase = foldRemainder / foldWidth + 0.5;          // 고정 앵커·오프셋 → x 안 흔들림
         phase -= std::floor(phase);                              // [0,1) wrap
-        if (beatIndex % 2 == 0) { ticX.push_back(phase); ticY.push_back(tSec); }
-        else                    { tacX.push_back(phase); tacY.push_back(tSec); }
+        if (idx < mAOnsetOutlier.size() && mAOnsetOutlier[idx]) { outX.push_back(phase); outY.push_back(tSec); }  // [이상치] 주황
+        else if (beatIndex % 2 == 0) { ticX.push_back(phase); ticY.push_back(tSec); }
+        else                         { tacX.push_back(phase); tacY.push_back(tSec); }
     }
     mPaper->graph(0)->setData(ticX, ticY, false);
     mPaper->graph(1)->setData(tacX, tacY, false);
+    mPaper->graph(2)->setData(outX, outY, false);
     mPaper->clearItems();
     auto drawVLine = [&](double xPos, const QColor &color){
         auto *line = new QCPItemLine(mPaper); line->start->setCoords(xPos, yLo); line->end->setCoords(xPos, latestSec);
@@ -358,7 +366,7 @@ void TabWaveformCompare::onResetSession()
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mTicAvg.clear(); mTocAvg.clear(); mWindowLen = 0; mTicInit = mTocInit = false;
     mLastC = 0; mHaveLastC = false; mCCount = 0;
-    mAOnsetHist.clear(); mAnchor = 0; mHaveAnchor = false;
+    mAOnsetHist.clear(); mAOnsetOutlier.clear(); mAnchor = 0; mHaveAnchor = false;
     if (mBar) mBar->update(MeasurementSnapshot{});
     for (QCustomPlot *plot : {mPaper, mTic, mToc, mPeriod}) {
         if (!plot) continue;

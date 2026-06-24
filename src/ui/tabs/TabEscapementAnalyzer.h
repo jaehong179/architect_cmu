@@ -47,6 +47,7 @@ private:
     bool     mAnchored = false; uint64_t mAnchorStartSample = 0; long mBeatNumber = 0; uint64_t mLastASample = 0; int mAnchorBph = 0;
     QVector<double> mBeatErrVals;   // 랩된 타이밍오차(ms, ±kWrapMs/2)
     QVector<long>   mBeatErrNums;   // 비트 번호(짝/홀 → Tic/Tac)
+    QVector<bool>   mBeatErrOut;    // [이상치] 각 점의 rate 이상치 플래그(이벤트에 박혀 들어옴)
     double   mLastBeatErr = 0.0;
     static constexpr int    kScaleWarm = 40;
     static constexpr double kWrapMs    = 6.0;   // 가운데 마커 ±3ms 창(sub-ms beat error 가독)
