@@ -248,12 +248,22 @@ add_custom_command(TARGET TimeGrapher POST_BUILD
 if(${QT_VERSION} VERSION_LESS 6.1.0)
   set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.TimeGrapher)
 endif()
+# [개발 편의] 콘솔 서브시스템 빌드 옵션 — 기본 OFF.
+#  ON(=build.ps1 -Console)이면 Windows GUI 서브시스템 대신 콘솔로 빌드되어 qInfo/qDebug 가
+#  실행 터미널에 출력된다. 기본/배포/Qt Creator 빌드는 OFF 이라 영향 없음(기존과 동일한 GUI exe).
+option(CONSOLE_BUILD "Build as console subsystem so qInfo/qDebug print to the terminal" OFF)
+if(CONSOLE_BUILD)
+    set(TG_WIN32_EXECUTABLE FALSE)
+else()
+    set(TG_WIN32_EXECUTABLE TRUE)
+endif()
+
 set_target_properties(TimeGrapher PROPERTIES
     ${BUNDLE_ID_OPTION}
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
     MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
     MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
+    WIN32_EXECUTABLE ${TG_WIN32_EXECUTABLE}
 )
 
 if(APPLE)
