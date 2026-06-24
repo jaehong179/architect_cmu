@@ -137,6 +137,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     connect(mCapture, &QPushButton::clicked, this, &TabSequenceDisplay::capture);
     connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
+    connect(mPos, &QComboBox::currentIndexChanged, this, &TabSequenceDisplay::onPositionComboChanged);
 
     recomputeSummary();
 }
@@ -150,6 +151,8 @@ void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
         .arg(s.beatErrorValid ? QString::number(s.beatErrorMs,'f',2) : QStringLiteral("--"))
         .arg(s.amplitudeValid ? QString::number(s.amplitudeDeg,'f',0) : QStringLiteral("--"))
         .arg(s.bphValid ? QString::number(s.bph) : QStringLiteral("--")));
+
+    updateRadarChart();
 }
 
 void TabSequenceDisplay::capture()
@@ -177,8 +180,8 @@ void TabSequenceDisplay::capture()
         }
     }
 
-    // 레이더 차트에도 캡처된 Rate 전달
-    mRadar->setPositionRate(mPos->currentText(), mLast.rate, mLast.rateValid);
+    // 레이더 차트 실시간 갱신 적용
+    updateRadarChart();
 
     recomputeSummary();
 }
@@ -301,4 +304,38 @@ void TabSequenceDisplay::onResetSession()
     }
 
     recomputeSummary();
+    updateRadarChart();
+}
+
+void TabSequenceDisplay::onPositionComboChanged(int index)
+{
+    Q_UNUSED(index);
+    mHaveLast = false; // 이전 포지션의 실시간 측정값 만료 처리
+    updateRadarChart();
+}
+
+void TabSequenceDisplay::updateRadarChart()
+{
+    if (!mRadar) return;
+
+    // 1. 테이블에 캡처된 정적 데이터 반영
+    for (int r = 0; r < 6; ++r) {
+        QString posName = mTable->item(r, 0)->text();
+        QTableWidgetItem *rateItem = mTable->item(r, 1);
+        if (rateItem && rateItem->text() != QStringLiteral("--")) {
+            bool ok = false;
+            double rateVal = rateItem->text().toDouble(&ok);
+            if (ok) {
+                mRadar->setPositionRate(posName, rateVal, true);
+                continue;
+            }
+        }
+        // 캡처되지 않은 데이터는 무효(invalid) 처리
+        mRadar->setPositionRate(posName, 0.0, false);
+    }
+
+    // 2. 현재 실시간으로 들어오고 있는 라이브 측정값이 있으면 추가 덮어쓰기
+    if (mHaveLast && mLast.rateValid) {
+        mRadar->setPositionRate(mPos->currentText(), mLast.rate, true);
+    }
 }
