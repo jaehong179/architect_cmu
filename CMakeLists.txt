@@ -74,6 +74,7 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/core/stats/RollingLeastSquares.cpp
         src/core/stats/RollingAverage.h
         src/core/stats/RollingAverage.cpp
+        src/core/stats/RollingOutlier.h
         # [render] Sound Print 폴딩 렌더러 + 위젯 (표현)
         src/render/SoundImageWidget.h
         src/render/SoundImageWidget.cpp

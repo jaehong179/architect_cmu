@@ -82,3 +82,13 @@ void RollingLeastSquares::AddPoint(double x, double y)
   return true;
 }
 
+// 적합선의 예측값 y = ȳ + slope·(x − x̄). 추세 제거 후 잔차(이상치) 계산용.
+bool RollingLeastSquares::Predict(double x, double &y)
+{
+  double slope;
+  if (!GetRate(slope)) return false;
+  double n = static_cast<double>(size);
+  y = (sumY / n) + slope * (x - sumX / n);
+  return true;
+}
+

@@ -19,6 +19,7 @@ public:
     void Resize(int new_size);
     void AddPoint(double x, double y);
     bool GetRate(double &slope);
+    bool Predict(double x, double &y);   // 현재 적합선의 예측값(추세) — 잔차(이상치) 계산용
 };
 
 #endif // ROLLINGLEASTSQUARES_H
