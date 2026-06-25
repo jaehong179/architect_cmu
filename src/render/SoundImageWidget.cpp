@@ -24,7 +24,7 @@ void SoundImageWidget::CreateImage(int w, int h)
     image = nullptr;
     if (w <= 0 || h <= 0) return;
     image = new QImage(w, h, QImage::Format_ARGB32);
-    image->fill(Qt::white);
+    image->fill(QColor(24, 24, 31));
     resetView();
 }
 
@@ -143,7 +143,7 @@ void SoundImageWidget::resetView()
 void SoundImageWidget::paintEvent(QPaintEvent * /*event*/)
 {
     QPainter painter(this);
-    painter.fillRect(rect(), Qt::white);
+    painter.fillRect(rect(), QColor(24, 24, 31));
 
     if (!image || image->isNull()) return;
 

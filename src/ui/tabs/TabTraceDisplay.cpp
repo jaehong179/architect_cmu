@@ -190,8 +190,8 @@ void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
     if (warn.isEmpty()) { mAlert->setText(QString("Normal · session mean rate=%1 s/d  amp=%2°")
                               .arg(mRateN?QString::number(mRateSum/mRateN,'f',1):"--")
                               .arg(mAmpN?QString::number(mAmpSum/mAmpN,'f',0):"--"));
-                          mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;")); }
-    else { mAlert->setText(warn.join(QStringLiteral("    "))); mAlert->setStyleSheet(QStringLiteral("color:#c00; font-weight:bold;")); }
+                          mAlert->setStyleSheet(QStringLiteral("color:#2ed573; font-weight:bold;")); }
+    else { mAlert->setText(warn.join(QStringLiteral("    "))); mAlert->setStyleSheet(QStringLiteral("color:#ff4757; font-weight:bold;")); }
 
     if (isVisible()) { mRate->rescaleAxes();
                        redrawAnomalies(mRate, mRateAnomX, mRateAnomMarks);
@@ -257,7 +257,7 @@ void TabTraceDisplay::onResetSession()
     mRatePrevOut = mAmpPrevOut = false; mRateAnomX.clear(); mAmpAnomX.clear();
     for (QCPItemRect *m : mRateAnomMarks) if (m) m->setVisible(false);
     for (QCPItemRect *m : mAmpAnomMarks)  if (m) m->setVisible(false);
-    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
+    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
     // [③] 이전 세션의 seek 커서/라벨 제거(새 세션 = 시점 표시 리셋).
     if (mCurRate)  mCurRate->setVisible(false);

@@ -27,7 +27,7 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
         "<font color='#00b400'>┊ green</font>=wrap boundary</td></tr>"
         "</table>"), this);
     key->setWordWrap(true);
-    key->setStyleSheet(QStringLiteral("QLabel{ background:#f6f6f6; border:1px solid #c4c4c4; border-radius:4px; padding:5px; }"));
+    key->setStyleSheet(QStringLiteral("QLabel{ background:#1e1e26; border:1px solid #3a3a4a; border-radius:4px; padding:5px; color:#e0e0e0; }"));
     key->setVisible(true);                               // 기본 펼침
     connect(legendBtn, &QPushButton::toggled, this, [key, legendBtn](bool on){
         key->setVisible(on); legendBtn->setText(on ? QStringLiteral("▾ Legend (collapse)") : QStringLiteral("▸ Legend (expand)"));
