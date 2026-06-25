@@ -1,9 +1,11 @@
 // rate_error_cli — CaptureController::processSamples (src/engine/CaptureController.cpp) 의
-//  "WAV 입력 → tg_process → A/C 이벤트" 경로만 떼어낸 Qt-free 콘솔 도구.
-//  출력 CSV(type,peak)는 WaveEvent(src/ui/tabs/MeasurementModel.h) 의 type/peak 멤버와 동일한 의미:
-//   type = "A"(unlock) 또는 "C"(drop/lock), peak = 그 이벤트 시점의 엔벨로프 피크값(tg_event_t.peak_value).
+//  "WAV 입력 → tg_process → A 이벤트 → TIC/TOC 시각" 경로만 떼어낸 Qt-free 콘솔 도구.
+//  출력 CSV(TIC,TOC)는 MeasurementEngine::computeRateError (src/engine/MeasurementEngine.cpp) 가
+//   계산하는 TimeMeasured(= A_EventTime / sampleRate) 값을, 같은 TIC/TOC 판정 로직(HaveStartTime,
+//   TicTocBeatNumber 의 동기 끊김 시 재시작 포함)으로 재현해 기록한다. RLS/이상치/평균 로직은 제외.
 #include "Timegrapher.h"
 #include "WavReader.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -68,7 +70,6 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "failed to open %s for writing\n", opt.outputCsv.c_str());
         return 1;
     }
-    std::fprintf(csv, "type,peak\n");
 
     const int sampleRate = (int)wav.sampleRate();
 
@@ -90,15 +91,36 @@ int main(int argc, char **argv)
     std::vector<float> block(DETECTOR_NUMBER_OF_SAMPLES);
     uint64_t aEventCount = 0, cEventCount = 0;
 
+    // [TIC/TOC] MeasurementEngine::computeRateError 의 HaveStartTime/TicTocBeatNumber
+    //  상태머신을 그대로 재현(RLS/이상치/평균 로직은 제외) → TimeMeasured 만 TIC/TOC 별로 모은다.
+    bool ticTocHaveStartTime = false;
+    uint64_t ticTocBeatNumber = 0;
+    std::vector<double> ticTimes, tocTimes;
+
+    auto handleAEvent = [&](double aEventSample, bool haveValidBph) {
+        if (!haveValidBph && ticTocHaveStartTime) {
+            ticTocHaveStartTime = false;
+        } else if (haveValidBph && !ticTocHaveStartTime) {
+            ticTocHaveStartTime = true;
+            ticTocBeatNumber = 0;
+        }
+        if (haveValidBph && ticTocHaveStartTime) {
+            const double timeMeasured = aEventSample / (double)sampleRate;
+            ticTocBeatNumber++;
+            const bool isTic = ((ticTocBeatNumber - 1) & 1) == 0;
+            (isTic ? ticTimes : tocTimes).push_back(timeMeasured);
+        }
+    };
+
     auto handleResult = [&](const tg_result_t &r) {
         for (size_t i = 0; i < r.num_events; i++) {
             const tg_event_t &ev = r.events[i];
             if (ev.type == TG_EVENT_A) {
                 aEventCount++;
-                std::fprintf(csv, "A,%.6f\n", (double)ev.peak_value);
+                const double aEventSample = ev.sample_index + ev.sub_sample_offset;
+                handleAEvent(aEventSample, r.sync_status == TG_SYNC_SYNCED);
             } else if (ev.type == TG_EVENT_C) {
                 cEventCount++;
-                std::fprintf(csv, "C,%.6f\n", (double)ev.peak_value);
             }
         }
     };
@@ -119,6 +141,16 @@ int main(int argc, char **argv)
     if (tg_flush(ctx, &flushResult) == 0) handleResult(flushResult);
 
     tg_destroy(ctx);
+
+    // [TIC/TOC] 같은 행에 i번째 TIC, i번째 TOC 시각을 나란히 기록(개수가 다르면 남는 칸은 빈 칸).
+    std::fprintf(csv, "TIC,TOC\n");
+    const size_t rowCount = std::max(ticTimes.size(), tocTimes.size());
+    for (size_t i = 0; i < rowCount; i++) {
+        if (i < ticTimes.size()) std::fprintf(csv, "%.6f", ticTimes[i]);
+        std::fprintf(csv, ",");
+        if (i < tocTimes.size()) std::fprintf(csv, "%.6f", tocTimes[i]);
+        std::fprintf(csv, "\n");
+    }
     std::fclose(csv);
 
     std::fprintf(stderr, "done: A-events=%llu C-events=%llu -> %s\n",
