@@ -1,9 +1,6 @@
 # Deployment View
 
-The scope is the physical deployment of the TimeGrapher application across three target platforms.
-The diagram shows the hardware devices, execution environments, deployed artifacts, and communication paths for each platform.
-
-TimeGrapher is a standalone desktop application with no network dependencies. The same codebase compiles to platform-specific artifacts, with platform-specific audio and camera drivers abstracted behind common interfaces in the `audio/capture` and (planned) `vision` packages.
+The opening paragraph contradicts the diagram — it says "standalone desktop application with no network dependencies," but the diagram shows the desktop app uploading over HTTP to AWS Cloud, plus a mobile browser loading an SPA from Vercel. Let me fix that first description.
 
 ![Deployment View](../images/deploymentView.jpg)
 
