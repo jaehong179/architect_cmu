@@ -1,11 +1,13 @@
 // rate_error_cli — CaptureController::processSamples (src/engine/CaptureController.cpp) 의
-//  "WAV 입력 → tg_process → A 이벤트 → TIC/TOC 시각" 경로만 떼어낸 Qt-free 콘솔 도구.
+//  "WAV 입력 → tg_process → A 이벤트 → TIC/TOC 의 Rate Error" 경로만 떼어낸 Qt-free 콘솔 도구.
 //  출력 CSV(TIC,TOC)는 MeasurementEngine::computeRateError (src/engine/MeasurementEngine.cpp) 가
-//   계산하는 TimeMeasured(= A_EventTime / sampleRate) 값을, 같은 TIC/TOC 판정 로직(HaveStartTime,
-//   TicTocBeatNumber 의 동기 끊김 시 재시작 포함)으로 재현해 기록한다. RLS/이상치/평균 로직은 제외.
+//   계산하는 WrappedRateError(InstTimingErrorMs 를 ±ERROR_RATE_Y_SCALE 로 wrap한 값, ms) 를
+//   같은 HaveStartTime/TicTocBeatNumber/ZeroOffset 로직으로 재현해 기록한다.
+//   RLS/이상치 검출/평균 로직은 표시값(WrappedRateError) 계산에 영향이 없으므로 제외.
 #include "Timegrapher.h"
 #include "WavReader.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -91,24 +93,51 @@ int main(int argc, char **argv)
     std::vector<float> block(DETECTOR_NUMBER_OF_SAMPLES);
     uint64_t aEventCount = 0, cEventCount = 0;
 
-    // [TIC/TOC] MeasurementEngine::computeRateError 의 HaveStartTime/TicTocBeatNumber
-    //  상태머신을 그대로 재현(RLS/이상치/평균 로직은 제외) → TimeMeasured 만 TIC/TOC 별로 모은다.
-    bool ticTocHaveStartTime = false;
+    // [TIC/TOC] MeasurementEngine::computeRateError (src/engine/MeasurementEngine.cpp:122-208) 의
+    //  HaveStartTime/TicTocBeatNumber/ZeroOffset 상태머신과 WrappedRateError 계산을 그대로 재현한다.
+    constexpr double ERROR_RATE_Y_SCALE = 10.0;   // MeasurementEngine.cpp 와 동일
+    bool   ticTocHaveStartTime = false;
+    bool   ticTocHaveZeroOffset = false;
+    double ticTocStartTime = 0.0;
+    double ticTocZeroOffsetValue = 0.0;
     uint64_t ticTocBeatNumber = 0;
-    std::vector<double> ticTimes, tocTimes;
+    std::vector<double> ticRateError, tocRateError;
 
-    auto handleAEvent = [&](double aEventSample, bool haveValidBph) {
+    auto wrapInToRange = [](double number, double lower, double upper) {
+        const double rangeSize = upper - lower;
+        const double shifted = number - lower;
+        double wrapped = std::fmod(shifted, rangeSize);
+        if (wrapped < 0) wrapped += rangeSize;
+        return wrapped + lower;
+    };
+
+    auto handleAEvent = [&](double aEventSample, bool haveValidBph, double bph) {
         if (!haveValidBph && ticTocHaveStartTime) {
             ticTocHaveStartTime = false;
         } else if (haveValidBph && !ticTocHaveStartTime) {
             ticTocHaveStartTime = true;
             ticTocBeatNumber = 0;
+            ticTocStartTime = aEventSample / (double)sampleRate;
+            ticTocHaveZeroOffset = false;
+            ticTocZeroOffsetValue = 0.0;
         }
         if (haveValidBph && ticTocHaveStartTime) {
             const double timeMeasured = aEventSample / (double)sampleRate;
+            const double expectedTimeTarget = 3600.0 / bph;
             ticTocBeatNumber++;
             const bool isTic = ((ticTocBeatNumber - 1) & 1) == 0;
-            (isTic ? ticTimes : tocTimes).push_back(timeMeasured);
+
+            double instTimingErrorMs =
+                ((ticTocStartTime + ticTocBeatNumber * expectedTimeTarget) - timeMeasured) * 1000.0;
+            if (!ticTocHaveZeroOffset) {
+                ticTocHaveZeroOffset = true;
+                ticTocZeroOffsetValue = -instTimingErrorMs;
+            }
+            instTimingErrorMs += ticTocZeroOffsetValue;
+
+            const double wrappedRateError =
+                wrapInToRange(instTimingErrorMs, -ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
+            (isTic ? ticRateError : tocRateError).push_back(wrappedRateError);
         }
     };
 
@@ -118,7 +147,7 @@ int main(int argc, char **argv)
             if (ev.type == TG_EVENT_A) {
                 aEventCount++;
                 const double aEventSample = ev.sample_index + ev.sub_sample_offset;
-                handleAEvent(aEventSample, r.sync_status == TG_SYNC_SYNCED);
+                handleAEvent(aEventSample, r.sync_status == TG_SYNC_SYNCED, r.detected_bph);
             } else if (ev.type == TG_EVENT_C) {
                 cEventCount++;
             }
@@ -142,13 +171,13 @@ int main(int argc, char **argv)
 
     tg_destroy(ctx);
 
-    // [TIC/TOC] 같은 행에 i번째 TIC, i번째 TOC 시각을 나란히 기록(개수가 다르면 남는 칸은 빈 칸).
+    // [TIC/TOC] 같은 행에 i번째 TIC, i번째 TOC 의 WrappedRateError(ms)를 나란히 기록(개수가 다르면 남는 칸은 빈 칸).
     std::fprintf(csv, "TIC,TOC\n");
-    const size_t rowCount = std::max(ticTimes.size(), tocTimes.size());
+    const size_t rowCount = std::max(ticRateError.size(), tocRateError.size());
     for (size_t i = 0; i < rowCount; i++) {
-        if (i < ticTimes.size()) std::fprintf(csv, "%.6f", ticTimes[i]);
+        if (i < ticRateError.size()) std::fprintf(csv, "%.6f", ticRateError[i]);
         std::fprintf(csv, ",");
-        if (i < tocTimes.size()) std::fprintf(csv, "%.6f", tocTimes[i]);
+        if (i < tocRateError.size()) std::fprintf(csv, "%.6f", tocRateError[i]);
         std::fprintf(csv, "\n");
     }
     std::fclose(csv);
