@@ -21,6 +21,7 @@
 
 #include <QObject>
 #include <QVector>
+#include <QPoint>
 #include "MeasurementModel.h"
 
 class QTabWidget;
@@ -33,6 +34,7 @@ class TabManager : public QObject
 public:
     // host = 탭이 부착될 기존 QTabWidget(ui->GraphicsTabWidget).
     explicit TabManager(QTabWidget *host, QObject *parent = nullptr);
+    ~TabManager() override;
 
     // 탭을 QTabWidget 에 추가하고 갱신 대상 목록에 등록. tab 소유권은 QTabWidget(부모)로.
     void registerTab(TabView *tab);
@@ -60,12 +62,20 @@ public:
 
     int count() const { return mTabs.size(); }
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
     QTabWidget         *mHost = nullptr;
     QVector<TabView *>  mTabs;
     QVector<WaveSink *> mWaveSinks;   // broadcastWave 시 함께 통지(소유 안 함)
     bool                mPaused = false;
     bool                mSeekedSincePause = false;   // 이번 정지 구간에서 seek 발생 여부(resume 정리용)
+
+    // Swipe/Gesture state variables
+    bool                mDragActive = false;
+    QPoint              mStartPos;
+    QPoint              mStartTabWidgetPos;
 };
 
 #endif // TABMANAGER_H
