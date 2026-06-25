@@ -12,7 +12,7 @@
 #
 #  의존성: 파이썬 표준 라이브러리만.  ※ 합격/미달은 '참고'이며 최종 판정은 가이드 기준으로.
 # =============================================================================
-import argparse, csv, sys
+import argparse, csv, sys, os, glob
 # Windows 한글 콘솔(cp949)에서도 '—'·한글 출력이 깨지거나 죽지 않도록 stdout 을 UTF-8 로 고정.
 try: sys.stdout.reconfigure(encoding='utf-8')
 except Exception: pass
@@ -62,6 +62,25 @@ def main():
     ap.add_argument('--resource', help='resource_ext.csv (발열/메모리 요약 + 클럭버킷)')
     ap.add_argument('--bucket', help='클럭대별로 쪼개 볼 지연 지표 (기본: e2e_full_ms 있으면 그것, 없으면 disp_paint_ms)')
     args=ap.parse_args()
+
+    # perf 경로가 없으면 traceback 대신 친절 안내 — cwd·프로젝트트리에서 perf_log.csv 를 찾아 제시.
+    if not os.path.isfile(args.perf):
+        roots = {os.getcwd(), os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))}
+        cands = sorted({c for root in roots for c in glob.glob(os.path.join(root, '**', 'perf_log.csv'), recursive=True)})
+        msg = [f"오류: perf 파일을 찾을 수 없습니다 → {os.path.abspath(args.perf)}"]
+        if cands:
+            msg.append("이 위치에 있습니다. 이 경로로 다시 실행하세요:")
+            msg += [f"   python {os.path.basename(__file__)} \"{c}\"" for c in cands[:8]]
+        else:
+            msg.append("팁: 절대경로로 주거나, 먼저  find ~ -name perf_log.csv  로 위치를 확인하세요.")
+        sys.exit("\n".join(msg))
+
+    # --resource 미지정 시 perf 파일과 같은 폴더의 resource_ext.csv 를 자동 사용.
+    if not args.resource:
+        cand = os.path.join(os.path.dirname(os.path.abspath(args.perf)), 'resource_ext.csv')
+        if os.path.isfile(cand):
+            args.resource = cand
+            print(f"(자동 발견: --resource {cand})")
 
     epoch_ms_t0, rows = read_perf(args.perf)
     if not rows: sys.exit(f"오류: {args.perf} 에 데이터 행이 없습니다.")
