@@ -5,11 +5,26 @@
 #include "TabView.h"
 #include "WaveSink.h"              // 비시각 청취자(8분 이력 버퍼 등)
 #include <QTabWidget>
+#include <QApplication>
+#include <QMouseEvent>
+#include <QTouchEvent>
+#include <QWheelEvent>
+#include <QTabBar>
 #include "PerfInstrumentation.h"   // [PERF 계측 · §F-1] 탭별 갱신시간 tab_update_ms
 
 TabManager::TabManager(QTabWidget *host, QObject *parent)
     : QObject(parent), mHost(host)
 {
+    if (mHost) {
+        qApp->installEventFilter(this);
+    }
+}
+
+TabManager::~TabManager()
+{
+    if (qApp) {
+        qApp->removeEventFilter(this);
+    }
 }
 
 void TabManager::registerTab(TabView *tab)
@@ -75,4 +90,132 @@ void TabManager::broadcastReset()
     mPaused = false;   // 새 세션 시작 = 정지 해제(전역).
     for (TabView *t : mTabs)
         if (t) t->onResetSession();
+}
+
+bool TabManager::eventFilter(QObject *watched, QEvent *event)
+{
+    if (!mHost) return QObject::eventFilter(watched, event);
+
+    // 1. Mouse Wheel Scroll on Tab Bar to switch tabs
+    if (event->type() == QEvent::Wheel) {
+        QWheelEvent *we = static_cast<QWheelEvent *>(event);
+        QTabBar *bar = mHost->findChild<QTabBar *>();
+        if (bar) {
+            QPoint localToBar = bar->mapFromGlobal(we->globalPosition().toPoint());
+            if (bar->rect().contains(localToBar)) {
+                int delta = we->angleDelta().y();
+                if (delta == 0) {
+                    delta = we->angleDelta().x();
+                }
+                if (delta > 0) {
+                    // Scroll up/left: previous tab (clamped to 0)
+                    int prevIndex = mHost->currentIndex() - 1;
+                    if (prevIndex >= 0) {
+                        mHost->setCurrentIndex(prevIndex);
+                    }
+                } else if (delta < 0) {
+                    // Scroll down/right: next tab (clamped to count - 1)
+                    int nextIndex = mHost->currentIndex() + 1;
+                    if (nextIndex < mHost->count()) {
+                        mHost->setCurrentIndex(nextIndex);
+                    }
+                }
+                event->accept();
+                return true;
+            }
+        }
+    }
+
+    // 2. Touch or Mouse Swipe/Drag Gesture to switch tabs
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin) {
+        QPoint pos;
+        if (event->type() == QEvent::MouseButtonPress) {
+            pos = static_cast<QMouseEvent *>(event)->globalPosition().toPoint();
+        } else {
+            QTouchEvent *te = static_cast<QTouchEvent *>(event);
+            if (!te->points().isEmpty()) {
+                pos = te->points().first().globalPosition().toPoint();
+            } else {
+                return QObject::eventFilter(watched, event);
+            }
+        }
+
+        QPoint localPos = mHost->mapFromGlobal(pos);
+        if (mHost->rect().contains(localPos)) {
+            mDragActive = true;
+            mStartPos = pos;
+            mStartTabWidgetPos = localPos;
+        } else {
+            mDragActive = false;
+        }
+    }
+    else if (event->type() == QEvent::MouseButtonRelease || event->type() == QEvent::TouchEnd) {
+        if (mDragActive) {
+            mDragActive = false;
+            QPoint pos;
+            if (event->type() == QEvent::MouseButtonRelease) {
+                pos = static_cast<QMouseEvent *>(event)->globalPosition().toPoint();
+            } else {
+                QTouchEvent *te = static_cast<QTouchEvent *>(event);
+                if (!te->points().isEmpty()) {
+                    pos = te->points().first().globalPosition().toPoint();
+                } else {
+                    return QObject::eventFilter(watched, event);
+                }
+            }
+
+            int dx = pos.x() - mStartPos.x();
+            int dy = pos.y() - mStartPos.y();
+
+            // Thresholds for swipe: Horizontal distance > 100px, Vertical deviation < 80px
+            if (qAbs(dx) > 100 && qAbs(dy) < 80) {
+                int w = mHost->width();
+                int edgeThreshold = 60; // Start swipe within 60px of the edge
+
+                bool isLeftEdge = (mStartTabWidgetPos.x() <= edgeThreshold);
+                bool isRightEdge = (mStartTabWidgetPos.x() >= w - edgeThreshold);
+
+                // Check if start position is in the tab bar area
+                QTabBar *bar = mHost->findChild<QTabBar *>();
+                bool isTabBar = false;
+                if (bar) {
+                    QPoint localToBar = bar->mapFromGlobal(mStartPos);
+                    isTabBar = bar->rect().contains(localToBar);
+                }
+
+                if (isLeftEdge && dx > 0) {
+                    // Swipe right from left edge -> previous tab
+                    int prevIndex = mHost->currentIndex() - 1;
+                    if (prevIndex < 0) prevIndex = mHost->count() - 1;
+                    mHost->setCurrentIndex(prevIndex);
+                    event->accept();
+                    return true;
+                }
+                else if (isRightEdge && dx < 0) {
+                    // Swipe left from right edge -> next tab
+                    int nextIndex = mHost->currentIndex() + 1;
+                    if (nextIndex >= mHost->count()) nextIndex = 0;
+                    mHost->setCurrentIndex(nextIndex);
+                    event->accept();
+                    return true;
+                }
+                else if (isTabBar) {
+                    // Drag/Swipe on the tab bar directly -> switch tab
+                    if (dx > 0) {
+                        int prevIndex = mHost->currentIndex() - 1;
+                        if (prevIndex < 0) prevIndex = mHost->count() - 1;
+                        mHost->setCurrentIndex(prevIndex);
+                    } else {
+                        int nextIndex = mHost->currentIndex() + 1;
+                        if (nextIndex >= mHost->count()) nextIndex = 0;
+                        mHost->setCurrentIndex(nextIndex);
+                    }
+                    event->accept();
+                    return true;
+                }
+            }
+        }
+    }
+
+    return QObject::eventFilter(watched, event);
 }

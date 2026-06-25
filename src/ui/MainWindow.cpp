@@ -236,6 +236,47 @@ void MainWindow::RegisterDisplayTabs(void)
     filterTab->setHistory(&mWaveHistory);
     mTabManager->registerTab(filterTab);
 
+    // Apply touch-friendly stylesheet and enable scrolling for GraphicsTabWidget
+    ui->GraphicsTabWidget->setUsesScrollButtons(true);
+    ui->GraphicsTabWidget->setElideMode(Qt::ElideNone);
+    ui->GraphicsTabWidget->setStyleSheet(QStringLiteral(
+        "QTabWidget::pane {"
+        "    border: 1px solid #2e2e3a;"
+        "    background: #18181f;"
+        "}"
+        "QTabBar::tab {"
+        "    background: #252530;"
+        "    color: #b0b0b0;"
+        "    border: 1px solid #2e2e3a;"
+        "    border-bottom: none;"
+        "    border-top-left-radius: 6px;"
+        "    border-top-right-radius: 6px;"
+        "    padding: 10px 18px;"
+        "    font-size: 12px;"
+        "    font-weight: bold;"
+        "    min-width: 80px;"
+        "}"
+        "QTabBar::tab:selected {"
+        "    background: #ab47bc;"
+        "    color: #ffffff;"
+        "    border-color: #ab47bc;"
+        "}"
+        "QTabBar::tab:hover:!selected {"
+        "    background: #323242;"
+        "    color: #ffffff;"
+        "}"
+        "QTabBar QToolButton {"
+        "    background-color: #252530;"
+        "    border: 1px solid #2e2e3a;"
+        "    border-radius: 4px;"
+        "    width: 28px;"
+        "    height: 28px;"
+        "}"
+        "QTabBar QToolButton:hover {"
+        "    background-color: #ab47bc;"
+        "}"
+    ));
+
     QWidget *corner = new QWidget(this);
     auto *cl = new QHBoxLayout(corner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
     mSeekLabel = new QLabel(this);
