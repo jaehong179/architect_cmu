@@ -183,6 +183,10 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->addWaveSink(&mWaveHistory);
 
     mSequenceDisplay = new TabSequenceDisplay(this);
+    mSequenceDisplay->setTimingModel(mPositionTiming);
+    connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
+        mSequenceDisplay->onRunningStateChanged(this->isRunning());
+    });
     mTabManager->registerTab(mSequenceDisplay);
 
     auto *ltpTab = new TabLongTermPerformance(this);
@@ -779,6 +783,8 @@ void MainWindow::PlaybackStart(void)
     pushCaptureConfig();
     mCapture->startPlayback(mPlaybackFileName, mCurrentSamplesPerSecond);
     SetGuiRunMode();
+    if (mPositionSequence)
+        mPositionSequence->start();
     statusBar()->showMessage("Running");
 }
 
@@ -804,6 +810,8 @@ void MainWindow::SimStart(void)
     pushCaptureConfig();
     mCapture->startSim(cfg, mCurrentSamplesPerSecond);
     SetGuiRunMode();
+    if (mPositionSequence)
+        mPositionSequence->start();
     statusBar()->showMessage("Running");
 }
 
@@ -1059,7 +1067,7 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
             dlg.exec();
         }
 
-        if (mPositionSequence)
+        if (mCurrentMode == LIVE && mPositionSequence)
             mPositionSequence->confirmPositionChange();
     }
 }

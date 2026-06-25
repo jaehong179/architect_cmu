@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "PerfInstrumentation.h"   // [PERF 계측] 성능 검증 로그 (docs/PERF_VERIFICATION_GUIDE.md)
+#include "VideoSplashScreen.h"
 
 #include <QApplication>
 #include <QGuiApplication>
@@ -80,32 +81,59 @@ int main(int argc, char *argv[])
  }
 #endif
 
- QPixmap Pixmap(":/images/Splash.png");
- if (Pixmap.isNull())
-  {
-     qInfo() << "Failed to load splash image!";
+  bool playedVideo = false;
+  QString videoPath = QCoreApplication::applicationDirPath() + "/Splash.mp4";
+  if (!QFileInfo::exists(videoPath)) {
+      videoPath = "Splash.mp4";
   }
- QPixmap scaledPixmap = Pixmap.scaled(1280, 750, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
- QSplashScreen splash(scaledPixmap,Qt::WindowStaysOnTopHint);
- splash.show();
+  if (QFileInfo::exists(videoPath)) {
+      VideoSplashScreen videoSplash(videoPath);
+      QRect screenGeometry = QGuiApplication::primaryScreen()->availableGeometry();
+      int x = (screenGeometry.width() - videoSplash.width()) / 2;
+      int y = (screenGeometry.height() - videoSplash.height()) / 2;
+      videoSplash.move(x, y);
 
- QRect screenGeometry = QGuiApplication::primaryScreen()->availableGeometry();
- int x = (screenGeometry.width() - splash.width()) / 2;
- int y = (screenGeometry.height() - splash.height()) / 2;
- splash.move(x, y);
+      videoSplash.show();
+      a.processEvents();
 
- QThread::msleep(100); //Needed for Linux.... not sure why
- a.processEvents();
+      QEventLoop loop;
+      QObject::connect(&videoSplash, &VideoSplashScreen::finished, &loop, &QEventLoop::quit);
+      videoSplash.play();
+      loop.exec();
+      playedVideo = true;
+  }
 
- QThread::sleep(4);
+  QSplashScreen* splash = nullptr;
+  if (!playedVideo) {
+      QPixmap Pixmap(":/images/Splash.png");
+      if (Pixmap.isNull()) {
+          qInfo() << "Failed to load splash image!";
+      }
+      QPixmap scaledPixmap = Pixmap.scaled(1280, 750, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+      splash = new QSplashScreen(scaledPixmap, Qt::WindowStaysOnTopHint);
+      splash->show();
 
- MainWindow w;
- w.show();
+      QRect screenGeometry = QGuiApplication::primaryScreen()->availableGeometry();
+      int x = (screenGeometry.width() - splash->width()) / 2;
+      int y = (screenGeometry.height() - splash->height()) / 2;
+      splash->move(x, y);
 
- splash.finish(&w);
+      QThread::msleep(100); // Needed for Linux.... not sure why
+      a.processEvents();
 
- result = a.exec();
+      QThread::sleep(4);
+  }
+
+  MainWindow w;
+  w.show();
+
+  if (splash) {
+      splash->finish(&w);
+      delete splash;
+  }
+
+  result = a.exec();
 
  // [PERF 계측] perf_log.csv 정상 종료(플러시/닫기) (PERF_ENABLE=0 이면 no-op)
  PERF_SHUTDOWN();

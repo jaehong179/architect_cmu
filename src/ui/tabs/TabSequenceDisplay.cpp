@@ -1,5 +1,6 @@
 #include "TabSequenceDisplay.h"
 #include "PositionNames.h"
+#include "PositionTimingModel.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -72,6 +73,33 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     mComplete = new QLabel(this);
     mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
     ctl->addWidget(mComplete);
+
+    auto *timeLabel = new QLabel(QStringLiteral("Meas Time:"), this);
+    timeLabel->setStyleSheet(QStringLiteral("font-weight: bold; color: #888888; margin-left: 15px;"));
+    ctl->addWidget(timeLabel);
+
+    mMeasTimeCombo = new QComboBox(this);
+    mMeasTimeCombo->addItems({
+        QStringLiteral("10 s"), QStringLiteral("15 s"), QStringLiteral("20 s"),
+        QStringLiteral("30 s"), QStringLiteral("45 s"), QStringLiteral("60 s"),
+        QStringLiteral("90 s"), QStringLiteral("120 s"), QStringLiteral("180 s"),
+        QStringLiteral("300 s")
+    });
+    mMeasTimeCombo->setStyleSheet(QStringLiteral(
+        "QComboBox { background-color: #222222; color: #FFFFFF; border: 1px solid #333333; padding: 4px 8px; border-radius: 4px; min-width: 80px; }"
+        "QComboBox::drop-down { border: none; }"
+        "QComboBox QAbstractItemView { background-color: #222222; color: #FFFFFF; selection-background-color: #007acc; }"
+    ));
+    ctl->addWidget(mMeasTimeCombo);
+
+    connect(mMeasTimeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        if (!mTiming) return;
+        QString txt = mMeasTimeCombo->itemText(idx);
+        int seconds = txt.split(QLatin1Char(' ')).first().toInt();
+        for (int i = 0; i < 10; ++i) {
+            mTiming->setMeasurementSec(i, seconds);
+        }
+    });
 
     ctl->addStretch(1);
     lay->addLayout(ctl);
@@ -385,3 +413,45 @@ void TabSequenceDisplay::updateRadarChart()
         mRadar->setPositionRate(posName, 0.0, false);
     }
 }
+
+void TabSequenceDisplay::setTimingModel(PositionTimingModel *model)
+{
+    if (mTiming) {
+        disconnect(mTiming, nullptr, this, nullptr);
+    }
+    mTiming = model;
+    if (mTiming) {
+        connect(mTiming, &QAbstractItemModel::dataChanged, this, &TabSequenceDisplay::onTimingDataChanged);
+        connect(mTiming, &QAbstractItemModel::modelReset, this, &TabSequenceDisplay::onTimingModelReset);
+        onTimingModelReset(); // Populate initial values
+    }
+}
+
+void TabSequenceDisplay::onTimingDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight)
+{
+    Q_UNUSED(topLeft);
+    Q_UNUSED(bottomRight);
+    if (!mTiming) return;
+    onTimingModelReset();
+}
+
+void TabSequenceDisplay::onTimingModelReset()
+{
+    if (!mTiming || !mMeasTimeCombo) return;
+    int currentSec = mTiming->measurementSecAt(0); // Use index 0 as representative
+    QString txt = QString::number(currentSec) + QStringLiteral(" s");
+    int idx = mMeasTimeCombo->findText(txt);
+    if (idx >= 0) {
+        mMeasTimeCombo->blockSignals(true);
+        mMeasTimeCombo->setCurrentIndex(idx);
+        mMeasTimeCombo->blockSignals(false);
+    }
+}
+
+void TabSequenceDisplay::onRunningStateChanged(bool isRunning)
+{
+    if (mMeasTimeCombo) {
+        mMeasTimeCombo->setEnabled(!isRunning);
+    }
+}
+

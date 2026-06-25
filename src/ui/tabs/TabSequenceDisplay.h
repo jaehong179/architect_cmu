@@ -10,6 +10,8 @@ class QTableWidget;
 class QComboBox;
 class QPushButton;
 class QLabel;
+class PositionTimingModel;
+class QModelIndex;
 
 class TabSequenceDisplay : public TabView
 {
@@ -19,11 +21,15 @@ public:
     QString tabTitle() const override { return QStringLiteral("Multi-Position Sequence Display"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+    void setTimingModel(PositionTimingModel *model);
 
 public slots:
     void setCurrentPositionByIndex(int index);
     void setPhaseStatus(const QString &phaseLabel, int remainingSec);
     void onPositionComboChanged(int index);
+    void onTimingDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
+    void onTimingModelReset();
+    void onRunningStateChanged(bool isRunning);
 
 private:
     void capture();
@@ -44,5 +50,8 @@ private:
     bool mHaveLast = false;
     QString mPrevPos;
     static constexpr double kUnbalanceSd = 10.0;   // 수직 rate 산포(Di) 불균형 경고 임계(s/d)
+
+    PositionTimingModel *mTiming = nullptr;
+    QComboBox           *mMeasTimeCombo = nullptr;
 };
 #endif // TABSEQUENCEDISPLAY_H
