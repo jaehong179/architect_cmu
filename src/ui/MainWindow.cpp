@@ -1054,8 +1054,10 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
                               .arg(positionName);
         QMessageBox::information(this, tr("Sequence Complete"), message);
     } else {
-        PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
-        dlg.exec();
+        if (ui && ui->GraphicsTabWidget && mSequenceDisplay && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay) {
+            PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
+            dlg.exec();
+        }
 
         if (mPositionSequence)
             mPositionSequence->confirmPositionChange();
