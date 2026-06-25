@@ -62,6 +62,6 @@ Accepted
 - `watch_id`-based history retrieval is fast, and it scales automatically as traffic grows.
 
 **Negative / Trade-offs**
-- **Network dependency:** Cloud storage requires an internet connection. Local-only storage would work offline, but at the cost of the benefits above (cross-device access, durability, centralized history). Handling of network instability is addressed in ADR-006 (transmission strategy).
-- Querying by an attribute that is not a key (partition/sort) or index requires a full Scan, which is slow (e.g. aggregating the full watch list). 
+- **Network dependency:** Cloud storage requires an internet connection. Local-only storage would work offline, but at the cost of the benefits above (cross-device access, durability, centralized history). 
+- Querying by an attribute that is not a key (partition/sort) or index requires a full Scan, which is slow (e.g. aggregating the full watch list or trend analysis over a watch's accumulated history).
 - The logic is distributed across multiple components such as API Gateway, Lambda, and IAM, making initial setup more complex than a single server.
