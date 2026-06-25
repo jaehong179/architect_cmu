@@ -8,30 +8,125 @@ TimeGrapher is a standalone desktop application with no network dependencies. Th
 ![Deployment View](../images/deploymentView.jpg)
 
 ## Element Catalog
+ Notation: UML. Based on the deployment view (Client Machine → AWS Cloud → Mobile Browser / Vercel).
 
-#### Windows PC x86-64
-- Target platform for primary development and end-user deployment. Runs Windows 10/11 with Qt 6 Runtime. Audio input via WASAPI, camera input via DirectShow.
+## Client Machine (Choose 1)
 
-#### Raspberry Pi arm64
-- Lightweight embedded deployment target. Runs Raspberry Pi OS with Qt6 and ALSA. Audio input via ALSA (`libasound.so`), camera input via V4L2.
+A logical grouping of the three interchangeable measurement platforms. A single physical client runs **one** of the three; they share the same codebase and behavior, differing only in OS, architecture, and audio/camera driver stack.
 
-#### macOS Apple Silicon
-- Additional desktop deployment target. Runs macOS with Qt 6 Framework. Audio input via CoreAudio, camera input via AVFoundation.
+### Windows PC x86-64
 
-#### USB Mic Device
-- External USB microphone that captures the mechanical watch's tick sound as a PCM audio stream. Platform-specific audio driver (WASAPI / ALSA / CoreAudio) provides the communication path to the application.
+* Target platform for primary development and end-user deployment. Runs Windows 10/11 with Qt 6 Runtime. Audio input via WASAPI, camera input via DirectShow.
 
-#### USB Camera
-- External USB camera that captures video frames of the watch for position detection.
+### Raspberry Pi arm64
 
-#### TimeGrapher.exe / TimeGrapher (ELF) / TimeGrapher.app Bundle
-- The main application artifact. Same codebase compiled for each platform's architecture (x86-64, arm64) and packaging format (.exe, ELF binary, .app bundle).
+* Lightweight embedded deployment target. Runs Raspberry Pi OS with Qt6 and ALSA. Audio input via ALSA (`libasound.so`), camera input via V4L2.
 
-#### Qt6*.dll / libQt6*.so / Qt6*.framework
-- Qt 6 runtime libraries. Packaging format differs per platform (DLL, shared object, framework).
+### macOS Apple Silicon
 
-#### libasound.so
-- ALSA audio library, present only on the Raspberry Pi deployment. Windows and macOS use OS-native audio APIs that do not require a separate shared library.
+* Additional desktop deployment target. Runs macOS with Qt 6 Framework. Audio input via CoreAudio, camera input via AVFoundation.
+
+### USB Mic Device
+
+* External USB microphone that captures the mechanical watch's tick sound as a PCM audio stream. Platform-specific audio driver (WASAPI / ALSA / CoreAudio) provides the communication path to the application.
+
+### USB Camera
+
+* External USB camera that captures video frames of the watch for position detection.
+
+### TimeGrapher.exe / TimeGrapher (ELF) / TimeGrapher.app Bundle
+
+* The main application artifact. Same codebase compiled for each platform's architecture (x86-64, arm64) and packaging format (.exe, ELF binary, .app bundle). After a measurement it generates a QR code embedding the Vercel URL plus the watch serial number, and uploads the measurement session to the cloud.
+
+### Qt6*.dll / libQt6*.so / Qt6*.framework
+
+* Qt 6 runtime libraries. Packaging format differs per platform (DLL, shared object, framework).
+
+### libasound.so
+
+* ALSA audio library, present only on the Raspberry Pi deployment. Windows and macOS use OS-native audio APIs that do not require a separate shared library.
+
+---
+
+## AWS Cloud (us-east-1)
+
+* Cloud node hosting the serverless backend that stores and serves watch measurement history. Contains the API/compute environment and the database environment.
+
+### API Gateway + Lambda (execution environment)
+
+* Serverless request-handling environment. API Gateway exposes the public REST endpoint (`GET /watch/{serial}`, CORS enabled) and routes requests to the Lambda function. No always-on server to manage.
+
+### timegrapher_api (artifact)
+
+* The API Gateway REST API definition — resources, methods, and the Lambda integration that fronts the backend.
+
+### getWatchHistory (Lambda)
+
+* Node.js 20.x Lambda function (`getWatchHistory.mjs`). Looks up a watch by serial via the GSI and returns its measurement sessions. Holds IAM permissions limited to `dynamodb:Query` / `GetItem` on the relevant tables.
+
+### DynamoDB (execution environment)
+
+* Managed NoSQL datastore (on-demand billing) holding watch and session records.
+
+### timegrapher_measurements (artifact)
+
+* The DynamoDB table(s) storing measurement records — rate, amplitude, beat error, positions, tags, and memos per session.
+
+### PK: watch_id / SK: measured_at (key schema)
+
+* Primary key design of the measurements table: partition key `watch_id` groups all sessions for one watch, sort key (`measured_at` / `session_id`) orders them chronologically. A GSI on `serial_number` (`serial-index`) lets the API resolve a scanned serial number to a `watch_id`.
+
+---
+
+## Mobile Browser
+
+* End-user smartphone (iOS / Android). The consumer-facing endpoint that scans the QR code and displays the watch's measurement history.
+
+### Camera (device)
+
+* Phone camera used to scan the QR code generated by the desktop app. Decoding the QR opens the embedded Vercel URL (with the watch serial) in the mobile browser.
+
+### Web Browser (execution environment)
+
+* Mobile browser runtime that loads and executes the single-page application and renders the results.
+
+### React App (artifact)
+
+* The React single-page application running in the browser. Reads the `serial` query parameter, calls the cloud API for that watch's history, and renders the measurement charts. Falls back to mock data if no API base URL is configured.
+
+---
+
+## Vercel (Edge CDN)
+
+* Cloud node providing static hosting for the front-end. Serves the built SPA assets from a global edge network; with an SPA rewrite rule, any request path returns `index.html` so deep links (e.g. `/?serial=…`) load correctly.
+
+### Static Hosting (execution environment)
+
+* Vercel's static file serving + edge environment. Delivers the pre-built front-end bundle; performs no per-request server rendering.
+
+### index.html (artifact)
+
+* The single HTML entry point of the SPA. All client-side routes resolve to this file via the rewrite rule.
+
+### JS bundle (artifact)
+
+* The compiled React build output (JavaScript/CSS) produced by `vite build`. Contains the application logic that runs in the mobile browser.
+
+---
+
+## Communication Paths
+
+### Client Machine → AWS Cloud (Http)
+
+* The desktop app uploads completed measurement sessions to the cloud backend over HTTPS, persisting them in DynamoDB for later retrieval.
+
+### Mobile Browser → AWS Cloud (Http)
+
+* The React app calls `GET /watch/{serial}` over HTTPS (CORS) to fetch a watch's measurement history, which is then displayed to the user.
+
+### Mobile Browser ↔ Vercel (SPA load)
+
+* On first load, the mobile browser downloads the static SPA (`index.html` + JS bundle) from Vercel's edge CDN over HTTPS before the app begins making API calls.
 
 ## Behavior
 - N/A
