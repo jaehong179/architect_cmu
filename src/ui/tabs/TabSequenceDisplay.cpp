@@ -139,6 +139,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
     connect(mPos, &QComboBox::currentIndexChanged, this, &TabSequenceDisplay::onPositionComboChanged);
 
+    mPrevPos = mPos->currentText();
     recomputeSummary();
 }
 
@@ -152,6 +153,28 @@ void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
         .arg(s.amplitudeValid ? QString::number(s.amplitudeDeg,'f',0) : QStringLiteral("--"))
         .arg(s.bphValid ? QString::number(s.bph) : QStringLiteral("--")));
 
+    // 실시간 측정 중인 포지션 행에 수치 실시간 업데이트
+    int r = getRowIndexForPosition(mPos->currentText());
+    if (r >= 0 && r < 6) {
+        mTable->item(r, 1)->setText(s.rateValid ? QString::asprintf("%+.1f", s.rate) : QStringLiteral("--"));
+        mTable->item(r, 2)->setText(s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
+        mTable->item(r, 3)->setText(s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2) : QStringLiteral("--"));
+
+        // 오차 한도 초과 시 실시간 빨간색 텍스트 경고
+        bool isCritical = false;
+        if (s.rateValid && std::abs(s.rate) > 20.0) isCritical = true;
+        if (s.beatErrorValid && s.beatErrorMs > 0.8) isCritical = true;
+        if (s.amplitudeValid && s.amplitudeDeg < 220.0) isCritical = true;
+
+        QColor textColor = isCritical ? QColor(255, 77, 77) : QColor(224, 224, 224);
+        for (int c = 0; c < 4; ++c) {
+            if (mTable->item(r, c)) {
+                mTable->item(r, c)->setForeground(QBrush(textColor));
+            }
+        }
+    }
+
+    recomputeSummary();
     updateRadarChart();
 }
 
@@ -162,12 +185,11 @@ void TabSequenceDisplay::capture()
     int r = getRowIndexForPosition(mPos->currentText());
     if (r < 0 || r >= 6) return;
 
-    // 테이블 셀 값 업데이트
+    // 수동 캡처: 현재 실시간 측정값(mLast)을 고정 기록
     mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
     mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
     mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
 
-    // 오차 한도 초과 시 빨간색 텍스트 경고 하이라이트
     bool isCritical = false;
     if (mLast.rateValid && std::abs(mLast.rate) > 20.0) isCritical = true;
     if (mLast.beatErrorValid && mLast.beatErrorMs > 0.8) isCritical = true;
@@ -180,10 +202,8 @@ void TabSequenceDisplay::capture()
         }
     }
 
-    // 레이더 차트 실시간 갱신 적용
-    updateRadarChart();
-
     recomputeSummary();
+    updateRadarChart();
 }
 
 void TabSequenceDisplay::recomputeSummary()
@@ -303,6 +323,9 @@ void TabSequenceDisplay::onResetSession()
         mRadar->clearData();
     }
 
+    mPrevPos = mPos->currentText(); // 포지션 리셋
+    mHaveLast = false;
+
     recomputeSummary();
     updateRadarChart();
 }
@@ -310,7 +333,35 @@ void TabSequenceDisplay::onResetSession()
 void TabSequenceDisplay::onPositionComboChanged(int index)
 {
     Q_UNUSED(index);
-    mHaveLast = false; // 이전 포지션의 실시간 측정값 만료 처리
+
+    // 1. 포지션이 변경되기 직전, 이전 포지션(mPrevPos)에 대하여 자동 캡처(고정) 수행
+    if (mHaveLast && !mPrevPos.isEmpty()) {
+        int r = getRowIndexForPosition(mPrevPos);
+        if (r >= 0 && r < 6) {
+            mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
+            mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
+            mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
+
+            // 이전 포지션의 색상 하이라이트 확정
+            bool isCritical = false;
+            if (mLast.rateValid && std::abs(mLast.rate) > 20.0) isCritical = true;
+            if (mLast.beatErrorValid && mLast.beatErrorMs > 0.8) isCritical = true;
+            if (mLast.amplitudeValid && mLast.amplitudeDeg < 220.0) isCritical = true;
+
+            QColor textColor = isCritical ? QColor(255, 77, 77) : QColor(224, 224, 224);
+            for (int c = 0; c < 4; ++c) {
+                if (mTable->item(r, c)) {
+                    mTable->item(r, c)->setForeground(QBrush(textColor));
+                }
+            }
+        }
+    }
+
+    // 2. 실시간 측정값 상태 초기화 (새로운 신호를 대기)
+    mHaveLast = false;
+    mPrevPos = mPos->currentText(); // 현재 선택된 포지션으로 전환
+
+    recomputeSummary();
     updateRadarChart();
 }
 
@@ -318,7 +369,7 @@ void TabSequenceDisplay::updateRadarChart()
 {
     if (!mRadar) return;
 
-    // 1. 테이블에 캡처된 정적 데이터 반영
+    // 테이블에 표시된 데이터를 정직하게 읽어서 레이더 차트 갱신
     for (int r = 0; r < 6; ++r) {
         QString posName = mTable->item(r, 0)->text();
         QTableWidgetItem *rateItem = mTable->item(r, 1);
@@ -330,12 +381,7 @@ void TabSequenceDisplay::updateRadarChart()
                 continue;
             }
         }
-        // 캡처되지 않은 데이터는 무효(invalid) 처리
+        // 미입력/유효하지 않은 데이터는 invalid 처리
         mRadar->setPositionRate(posName, 0.0, false);
-    }
-
-    // 2. 현재 실시간으로 들어오고 있는 라이브 측정값이 있으면 추가 덮어쓰기
-    if (mHaveLast && mLast.rateValid) {
-        mRadar->setPositionRate(mPos->currentText(), mLast.rate, true);
     }
 }
