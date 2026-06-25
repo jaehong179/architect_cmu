@@ -23,7 +23,7 @@ public:
         for (int i = 0; i < 4; ++i) {
             mCell[i] = new QLabel(this);
             mCell[i]->setAlignment(Qt::AlignCenter);
-            mCell[i]->setStyleSheet(QStringLiteral("background:#eef6ee; border:1px solid #bcd; border-radius:5px; padding:3px;"));
+            mCell[i]->setStyleSheet(QStringLiteral("background:#252530; border:1px solid #3a3a4a; border-radius:5px; padding:3px;"));
             mCell[i]->setMinimumWidth(120);
             lay->addWidget(mCell[i], 1);
         }
@@ -37,36 +37,36 @@ public:
         QString rateSymbol;
         if (s.rateValid) {
             if (std::fabs(s.rate) > 3.0) {
-                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#d01515'>&#10007;</span>");
+                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#ff4757'>&#10007;</span>");
             } else {
-                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>");
+                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>");
             }
         }
 
         QString beSymbol;
         if (s.beatErrorValid) {
             if (s.beatErrorMs > 0.5) {
-                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#d01515'>&#10007;</span>");
+                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#ff4757'>&#10007;</span>");
             } else {
-                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>");
+                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>");
             }
         }
 
-        const QString ampSymbol = ampOk ? QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>") : QString();
-        const QString bphSymbol = s.bphValid ? QStringLiteral(" <span style='font-size:16px;color:#1a9c1a'>&#10003;</span>") : QString();
+        const QString ampSymbol = ampOk ? QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>") : QString();
+        const QString bphSymbol = s.bphValid ? QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>") : QString();
 
         // 사양 readout 순서: RATE | BEAT ERROR | AMPLITUDE | BPH (Witschi Trace/Vario/Sequence 화면).
-        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    QStringLiteral("#1560d0"), rateSymbol);
-        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    QStringLiteral("#108040"), beSymbol);
-        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    QStringLiteral("#108040"), ampSymbol);
-        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), QStringLiteral("#333333"), bphSymbol);
+        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    QStringLiteral("#5cafff"), rateSymbol);
+        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    QStringLiteral("#81c784"), beSymbol);
+        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    QStringLiteral("#81c784"), ampSymbol);
+        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), QStringLiteral("#ffffff"), bphSymbol);
     }
 
 private:
     QLabel *mCell[4] = {nullptr, nullptr, nullptr, nullptr};
     void set(int i, const QString &title, const QString &val, const QString &color, const QString &symbol)
     {
-        mCell[i]->setText(QString("<div style='font-size:10px;color:#666'>%1</div>"
+        mCell[i]->setText(QString("<div style='font-size:10px;color:#9e9e9e'>%1</div>"
                                   "<div style='font-size:20px;font-weight:bold;color:%2'>%3%4</div>")
                               .arg(title, color, val, symbol));
     }

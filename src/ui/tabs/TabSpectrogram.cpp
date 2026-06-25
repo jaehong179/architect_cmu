@@ -133,8 +133,8 @@ void TabSpectrogram::recompute()
     const bool clip = peakDb > -0.1;              // 클리핑 근접 → 빨강 강조
     if (mPeak) {
         mPeak->setText(QString("%1 dBFS").arg(peakDb, 0, 'f', 1));
-        mPeak->setStyleSheet(clip ? QStringLiteral("font-family:monospace; font-weight:bold; color:#c00;")
-                                  : QStringLiteral("font-family:monospace; font-weight:bold; color:#063;"));
+        mPeak->setStyleSheet(clip ? QStringLiteral("font-family:monospace; font-weight:bold; color:#ff4757;")
+                                  : QStringLiteral("font-family:monospace; font-weight:bold; color:#2ed573;"));
     }
     if (mPeakBar) {                               // -70..0 dBFS → 0..100 녹색 레벨바
         const int pct = (int)std::max(0.0, std::min(100.0, (peakDb + 70.0) / 70.0 * 100.0));

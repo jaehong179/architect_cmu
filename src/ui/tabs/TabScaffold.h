@@ -25,12 +25,12 @@ static inline QLabel *tabScaffoldPlaceholder(QWidget *self,
     auto *t = new QLabel(QString("<b>%1</b>").arg(title), self);
     auto *s = new QLabel(subtitle, self);
     s->setWordWrap(true);
-    s->setStyleSheet("color:#666;");
+    s->setStyleSheet("color:#aaaaaa;");
     auto *status = new QLabel("측정 대기 중…", self);
     status->setStyleSheet("font-family:monospace;");
     auto *note = new QLabel(QString("스캐폴드: %1").arg(pendingNote), self);
     note->setWordWrap(true);
-    note->setStyleSheet("color:#a60; font-style:italic;");
+    note->setStyleSheet("color:#ff7043; font-style:italic;");
     lay->addWidget(t);
     lay->addWidget(s);
     lay->addWidget(status);

@@ -155,10 +155,10 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         if (warn.isEmpty()) {
             mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · slope %2° (≈ %3 s/d)")
                                 .arg(gapTxt).arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
-            mAlert->setStyleSheet(QStringLiteral("color:#080; font-weight:bold;"));
+            mAlert->setStyleSheet(QStringLiteral("color:#2ed573; font-weight:bold;"));
         } else {
             mAlert->setText(warn.join(QStringLiteral("    ")));
-            mAlert->setStyleSheet(QStringLiteral("color:#c00; font-weight:bold;"));
+            mAlert->setStyleSheet(QStringLiteral("color:#ff4757; font-weight:bold;"));
         }
     }
 
@@ -177,7 +177,7 @@ void TabBeatErrorTrace::onResetSession()
     mSeek.clear();
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
-    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#666; font-weight:bold;"));
+    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
     if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }

@@ -7,6 +7,8 @@
 #include <QSplashScreen>
 #include <QPixmap>
 #include <QThread>
+#include <QStyleFactory>
+#include <QPalette>
 #if PERF_ENABLE && defined(Q_OS_LINUX)
 #include <QProcess>
 #include <QFileInfo>
@@ -29,11 +31,35 @@ int main(int argc, char *argv[])
  SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &PowerThrottling, sizeof(PowerThrottling));
  timeBeginPeriod(1);
  if (SetPriorityClass(GetCurrentProcess(), REALTIME_PRIORITY_CLASS)) {
-     qInfo()<<"WINDOWS OS - Process successfully set to realtime";
- }
+      qInfo()<<"WINDOWS OS - Process successfully set to realtime";
+  }
 #endif
 
  QApplication a(argc, argv);
+
+ QApplication::setStyle(QStyleFactory::create("Fusion"));
+
+ QPalette darkPalette;
+ darkPalette.setColor(QPalette::Window, QColor(24, 24, 31)); // Matching #18181f in QML control panel
+ darkPalette.setColor(QPalette::WindowText, QColor(240, 240, 240));
+ darkPalette.setColor(QPalette::Base, QColor(30, 30, 38));
+ darkPalette.setColor(QPalette::AlternateBase, QColor(37, 37, 48));
+ darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
+ darkPalette.setColor(QPalette::ToolTipText, Qt::white);
+ darkPalette.setColor(QPalette::Text, QColor(240, 240, 240));
+ darkPalette.setColor(QPalette::Button, QColor(37, 37, 48));
+ darkPalette.setColor(QPalette::ButtonText, QColor(240, 240, 240));
+ darkPalette.setColor(QPalette::BrightText, Qt::red);
+ darkPalette.setColor(QPalette::Link, QColor(171, 71, 188)); // Purple Accent #ab47bc
+ darkPalette.setColor(QPalette::Highlight, QColor(171, 71, 188));
+ darkPalette.setColor(QPalette::HighlightedText, Qt::white);
+
+ // Disabled states
+ darkPalette.setColor(QPalette::Disabled, QPalette::WindowText, QColor(127, 127, 127));
+ darkPalette.setColor(QPalette::Disabled, QPalette::Text, QColor(127, 127, 127));
+ darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(127, 127, 127));
+
+ QApplication::setPalette(darkPalette);
 
  // [PERF 계측] perf_log.csv 열기 — 모든 측정값이 여기로 기록된다(PERF_ENABLE=0 이면 no-op).
  //   (docs/PERF_VERIFICATION_GUIDE.md 의 section/qa 태그로 문서와 1:1 연결)
@@ -53,8 +79,6 @@ int main(int argc, char *argv[])
                        "-o", dir.filePath("resource_ext.csv") });
  }
 #endif
-
- //QApplication::setStyle(QStyleFactory::create("Fusion"));
 
  QPixmap Pixmap(":/images/Splash.png");
  if (Pixmap.isNull())

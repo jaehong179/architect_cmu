@@ -23,8 +23,8 @@ TabSoundPrint::TabSoundPrint(QWidget *parent) : TabView(parent)
         "horizontal=successive beats · vertical=phase within beat (top to bottom) · "
         "wheel=zoom · drag=pan (locks follow) · dbl-click=reset/follow live</td></tr>"
         "<tr><td valign='top'><b>Envelope&nbsp;:</b></td><td>"
-        "<font color='#ff0000'><b>■ Rectified</b></font> folded |raw-DC| envelope (gamma), "
-        "darker=louder · same path as Rate/Scope scope <i>Rectified</i></td></tr>"
+        "<font color='#ff3333'><b>■ Rectified</b></font> folded |raw-DC| envelope (gamma), "
+        "brighter=louder · same path as Rate/Scope scope <i>Rectified</i></td></tr>"
         "<tr><td valign='top'><b>Onset&nbsp;:</b></td><td>"
         "<font color='#00ff00'><b>■ A (unlock)</b></font> beat-onset marker · each onset alternates "
         "<font color='#c82828'><b>Tic Rate</b></font> / "
@@ -45,8 +45,8 @@ SoundImageRenderer::Config TabSoundPrint::makeConfig(int sampleRateHz) const
     SoundImageRenderer::Config cfg;
     cfg.bph                     = 0.0;                 // 초기엔 미지(동기 후 setBph)
     cfg.sample_rate_hz          = sampleRateHz;
-    cfg.sound_color             = qRgba(255, 0, 0, 255);
-    cfg.background_color        = qRgba(255, 255, 255, 255);
+    cfg.sound_color             = qRgba(255, 51, 51, 255);
+    cfg.background_color        = qRgba(24, 24, 31, 255);
     cfg.vertical_time_direction = SoundImageRenderer::TimeStartsAtTopMovesDown;
     cfg.warmup_columns          = 2;
     cfg.anchor_columns          = 12;

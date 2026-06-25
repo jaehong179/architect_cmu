@@ -7865,9 +7865,9 @@ QCPGrid::QCPGrid(QCPAxis *parentAxis) :
 {
   // warning: this is called in QCPAxis constructor, so parentAxis members should not be accessed/called
   setParent(parentAxis);
-  setPen(QPen(QColor(200,200,200), 0, Qt::DotLine));
-  setSubGridPen(QPen(QColor(220,220,220), 0, Qt::DotLine));
-  setZeroLinePen(QPen(QColor(200,200,200), 0, Qt::SolidLine));
+  setPen(QPen(QColor(60, 60, 75), 0, Qt::DotLine));
+  setSubGridPen(QPen(QColor(45, 45, 55), 0, Qt::DotLine));
+  setZeroLinePen(QPen(QColor(90, 90, 110), 0, Qt::SolidLine));
   setSubGridVisible(false);
   setAntialiased(false);
   setAntialiasedSubGrid(false);
@@ -8206,19 +8206,19 @@ QCPAxis::QCPAxis(QCPAxisRect *parent, AxisType type) :
   mOrientation(orientation(type)),
   mSelectableParts(spAxis | spTickLabels | spAxisLabel),
   mSelectedParts(spNone),
-  mBasePen(QPen(Qt::black, 0, Qt::SolidLine, Qt::SquareCap)),
+  mBasePen(QPen(QColor(180, 180, 180), 0, Qt::SolidLine, Qt::SquareCap)),
   mSelectedBasePen(QPen(Qt::blue, 2)),
   // axis label:
   mLabel(),
   mLabelFont(mParentPlot->font()),
   mSelectedLabelFont(QFont(mLabelFont.family(), mLabelFont.pointSize(), QFont::Bold)),
-  mLabelColor(Qt::black),
+  mLabelColor(QColor(220, 220, 220)),
   mSelectedLabelColor(Qt::blue),
   // tick labels:
   mTickLabels(true),
   mTickLabelFont(mParentPlot->font()),
   mSelectedTickLabelFont(QFont(mTickLabelFont.family(), mTickLabelFont.pointSize(), QFont::Bold)),
-  mTickLabelColor(Qt::black),
+  mTickLabelColor(QColor(180, 180, 180)),
   mSelectedTickLabelColor(Qt::blue),
   mNumberPrecision(6),
   mNumberFormatChar('g'),
@@ -8226,9 +8226,9 @@ QCPAxis::QCPAxis(QCPAxisRect *parent, AxisType type) :
   // ticks and subticks:
   mTicks(true),
   mSubTicks(true),
-  mTickPen(QPen(Qt::black, 0, Qt::SolidLine, Qt::SquareCap)),
+  mTickPen(QPen(QColor(180, 180, 180), 0, Qt::SolidLine, Qt::SquareCap)),
   mSelectedTickPen(QPen(Qt::blue, 2)),
-  mSubTickPen(QPen(Qt::black, 0, Qt::SolidLine, Qt::SquareCap)),
+  mSubTickPen(QPen(QColor(140, 140, 140), 0, Qt::SolidLine, Qt::SquareCap)),
   mSelectedSubTickPen(QPen(Qt::blue, 2)),
   // scale and range:
   mRange(0, 5),
@@ -13609,7 +13609,7 @@ QCustomPlot::QCustomPlot(QWidget *parent) :
   mInteractions(QCP::iNone),
   mSelectionTolerance(8),
   mNoAntialiasingOnDrag(false),
-  mBackgroundBrush(Qt::white, Qt::SolidPattern),
+  mBackgroundBrush(QColor(24, 24, 31), Qt::SolidPattern),
   mBackgroundScaled(true),
   mBackgroundScaledMode(Qt::KeepAspectRatioByExpanding),
   mCurrentLayer(nullptr),
@@ -19087,13 +19087,13 @@ QCPLegend::QCPLegend() :
   setSelectableParts(spLegendBox | spItems);
   setSelectedParts(spNone);
   
-  setBorderPen(QPen(Qt::black, 0));
+  setBorderPen(QPen(QColor(60, 60, 75), 0));
   setSelectedBorderPen(QPen(Qt::blue, 2));
   setIconBorderPen(Qt::NoPen);
   setSelectedIconBorderPen(QPen(Qt::blue, 2));
-  setBrush(Qt::white);
-  setSelectedBrush(Qt::white);
-  setTextColor(Qt::black);
+  setBrush(QColor(30, 30, 38, 200));
+  setSelectedBrush(QColor(40, 40, 50, 200));
+  setTextColor(QColor(220, 220, 220));
   setSelectedTextColor(Qt::blue);
 }
 
