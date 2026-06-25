@@ -23,7 +23,7 @@ endif()
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia Widgets QuickWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia MultimediaWidgets Widgets QuickWidgets)
 
 #DP REMOVED NOT NEED IN THIS VERSION
 #IF(WIN32)
@@ -45,6 +45,7 @@ set(PROJECT_SOURCES
         src/ui/PositionSequenceController.cpp
         src/ui/PositionChangeDialog.h
         src/ui/PositionChangeDialog.cpp
+        src/ui/VideoSplashScreen.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -225,6 +226,7 @@ target_include_directories(TimeGrapher PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/u
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
 IF(WIN32)
 #DP REMOVED NOT NEED IN THIS VERSION
