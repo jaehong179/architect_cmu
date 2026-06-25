@@ -37,7 +37,7 @@ In actual production, API key or IAM authentication will be applied. This will n
 
 **Why DynamoDB (instead of RDS)**
 - No server management is required.
-- The core pattern of "retrieving a watch's history in chronological order" maps exactly to the partition key + sort key structure.
+- The core pattern of "retrieving a watch's history in chronological order" maps exactly to the partition key + sort key structure. This structure automatically manages a watch's measurements as a chronological collection, thereby supporting the Aggregate usability tactic of aggregating history into a trend (see QAS-12).
 - The data is simple and has no relational joins, so the simplicity of NoSQL is a good fit.
 
 **Why serverless (instead of an always-on server)**
