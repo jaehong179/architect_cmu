@@ -42,6 +42,7 @@ private:
     QLabel           *mComplete = nullptr;  // FR-MPS: 시퀀스 완료 시 녹색 "Ok"
     MeasurementSnapshot mLast;
     bool mHaveLast = false;
+    QString mPrevPos;
     static constexpr double kUnbalanceSd = 10.0;   // 수직 rate 산포(Di) 불균형 경고 임계(s/d)
 };
 #endif // TABSEQUENCEDISPLAY_H
