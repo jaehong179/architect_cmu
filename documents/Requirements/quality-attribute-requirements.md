@@ -337,3 +337,29 @@ Importance: High Difficulty: Medium
 
 - [EXP-07](../Experiments/EXP-07-cross-platform-build-deployment.md) (Cross-platform build·deployment)
 
+# QAS-12 / Measurement History Aggregation & Overhaul-Timing Provision
+
+**Usability → Aggregate**
+
+When a watch holder scans the watch's QR code, the system aggregates the watch's multiple measurement records into a single trend and presents an overhaul-timing assessment derived from that trend. Beyond the scan, the user does not manually collect or compare individual measurements. (See ADR-005 for the architectural decision that supports this aggregation.)
+
+| Type | Description |
+|------|-------------|
+| Stimulus | A watch holder scans the QR code to request the watch's condition |
+| Source of stimulus | Watch holder (repair engineer or watch owner) |
+| Artifact | History aggregation/storage (DynamoDB), aggregation/judgment logic (Lambda), delivery path (API → web) |
+| Environment | Normal operation; the watch has accumulated history from one or more prior measurements |
+| Response | The system aggregates multiple measurements into a trend and presents a trend-based overhaul-timing assessment with its supporting evidence |
+| Response measure | User performs 0 manual data-collection actions; the overhaul assessment is derived from the aggregated trend, not a single value |
+
+## Priority
+
+Importance: High  Difficulty: Medium
+
+## Risk
+
+N/A
+
+## Experiment
+
+N/A
