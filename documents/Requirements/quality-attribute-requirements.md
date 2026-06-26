@@ -256,32 +256,6 @@ Importance: Medium Difficulty: Medium
 
 - N/A
 
-### QAS-09 / Testability
-
-#### Modifiability → Testability
-
-When the CI pipeline runs the automated verification suite at build time on the CI server, the unit tests exercise the core calculation logic and return reproducible results, achieving ≥ 70% coverage with 100% deterministic outcomes.
-
-| **Type**               | **Description**                                                               |
-|------------------------|-------------------------------------------------------------------------------|
-| **Stimulus**           | CI pipeline runs automated verification suite                                 |
-| **Source of stimulus** | CI pipeline                                                                   |
-| **Artifact**           | Unit tests                                                                    |
-| **Environment**        | Development/Build time (CI server execution)                                  |
-| **Response**           | Automated tests cover core calculation logic, returning reproducible outcomes |
-| **Response measure**   | Unit test coverage ≥ 70%; 100% deterministic                                  |
-
-#### Priority
-
-Importance: Medium Difficulty: Medium
-
-#### Risk
-
-- N/A
-
-#### Experiment
-
-- N/A
 
 ### QAS-10 / PC ↔ Pi Platform Separation
 
