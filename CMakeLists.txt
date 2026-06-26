@@ -25,6 +25,9 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia MultimediaWidgets Widgets QuickWidgets)
 
+# [vision · TinyML] Watch-position 추론 기능
+option(ENABLE_VISION "Build vision (TinyML watch-position) inference feature" ON)
+
 #DP REMOVED NOT NEED IN THIS VERSION
 #IF(WIN32)
 #add_library(fftw SHARED IMPORTED)
@@ -228,6 +231,188 @@ target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# [vision · TinyML] Watch-position 추론 — TFLite C API 런타임 동적 로드.
+#   - Windows : prebuilt tensorflowlite_c.dll 자동 다운로드(공개된 ValYouW/tflite-dist package)
+#   - Linux/RPi5 : TensorFlow 소스(핀 v2.18.0)에서 libtensorflowlite_c.so 빌드(FetchContent)
+#   - 클래스 라벨은 VisionConfig.h 에 직접 정의 / model.tflite → .qrc 임베드 (런타임 외부파일 0)
+# ─────────────────────────────────────────────────────────────────────────
+if(ENABLE_VISION)
+    include(FetchContent)
+    set(_TFLITE_VERSION "2.18.0")
+
+    # ── 설정값 → VisionConfig.h 생성 (클래스 라벨은 헤더에 직접 정의됨) ──
+    set(VISION_IMG_SIZE       192)
+    set(VISION_CROP_X1        448)
+    set(VISION_CROP_Y1        168)
+    set(VISION_CROP_X2        832)
+    set(VISION_CROP_Y2        552)
+    set(VISION_CAM_WIDTH      1280)
+    set(VISION_CAM_HEIGHT     720)
+    set(VISION_CAMERA_ID      0)
+    set(VISION_CONF_THRESH    0.6)
+    set(VISION_NUM_THREADS    2)
+    set(VISION_CLAHE_CLIP     2.0)
+    set(VISION_CLAHE_TILES    8)
+    set(VISION_INTERVAL_MS    1000)
+    set(VISION_USE_INT8       TRUE)
+
+    # ── 모델 선택 토글 ────────────────────────────────────────────────────
+    #   TRUE  → int8 완전 정수 양자화 모델(model_int8.tflite) — 더 작고 빠름(엣지/RPi5 권장)
+    #   FALSE → fp32 모델(model.tflite)
+    #   추론 코드(TfliteApi)는 입력/출력 텐서 타입을 런타임 판별해 양자화/역양자화를
+    #   자동 처리하므로, 이 토글만 바꾸면 양쪽 모두 그대로 동작한다.
+
+    if(VISION_USE_INT8)
+        set(VISION_MODEL_FILE "model_int8.tflite")
+        set(VISION_USE_INT8_CPP "true")
+    else()
+        set(VISION_MODEL_FILE "model.tflite")
+        set(VISION_USE_INT8_CPP "false")
+    endif()
+    set(VISION_MODEL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/vision/${VISION_MODEL_FILE}")
+    set(VISION_MODEL_RESOURCE ":/vision/model.tflite")   # qrc alias 고정 → 런타임 경로 불변
+    message(STATUS "[vision] model = ${VISION_MODEL_FILE} (VISION_USE_INT8=${VISION_USE_INT8})")
+
+    set(_vision_gen_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/vision")
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vision/VisionConfig.h.in"
+        "${_vision_gen_dir}/VisionConfig.h"
+        @ONLY)
+    # 선택된 모델 파일을 임베드하도록 qrc 를 설정 시점에 생성(절대경로 사용).
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vision/vision.qrc.in"
+        "${_vision_gen_dir}/vision.qrc"
+        @ONLY)
+
+    # ── TFLite C 라이브러리/헤더 확보 (플랫폼 분기) ──
+    if(WIN32)
+        FetchContent_Declare(tflite_dist
+            URL      "https://github.com/ValYouW/tflite-dist/releases/download/v${_TFLITE_VERSION}/tflite-dist-${_TFLITE_VERSION}.zip"
+            URL_HASH SHA256=ae6530c64e4e161fc46c97e2d1d3beb0518d42ab230ac560721a2719c0f2a1cc
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+        FetchContent_MakeAvailable(tflite_dist)
+        set(VISION_TFLITE_INCLUDE_DIR "${tflite_dist_SOURCE_DIR}/include")
+        set(VISION_TFLITE_RUNTIME     "${tflite_dist_SOURCE_DIR}/libs/windows_x86_64/tensorflowlite_c.dll")
+    else()
+        # [vision · KleidiAI] XNNPACK(TFLite 의존)은 빌드 중 gitlab.arm.com에서 KleidiAI
+        #  archive zip을 받아 SHA256을 검증한다. 그러나 GitLab archive zip은 바이트 재현이
+        #  보장되지 않아 시간이 지나면 해시가 바뀌고(기대 88233e42… ↔ 실제 5d4fe6b1…),
+        #  검증이 실패하면 압축을 풀지 않아 build/kleidiai-source 가 비어 add_subdirectory 가
+        #  깨진다. XNNPACK 은 KLEIDIAI_SOURCE_DIR 가 정의돼 있으면 다운로드 단계를 건너뛰므로
+        #  (xnnpack/CMakeLists.txt: "NOT DEFINED KLEIDIAI_SOURCE_DIR"), 저장소에 동결해 둔
+        #  로컬 소스(third_party/kleidiai-source, XNNPACK 핀 커밋 cddf991)를 지정한다.
+        #  → Qt Creator·CLI(build_run.sh) 어느 쪽으로 configure 해도 동일하게 동작한다.
+        set(_KLEIDIAI_VENDORED "${CMAKE_CURRENT_SOURCE_DIR}/third_party/kleidiai-source")
+        if(EXISTS "${_KLEIDIAI_VENDORED}/CMakeLists.txt")
+            set(KLEIDIAI_SOURCE_DIR "${_KLEIDIAI_VENDORED}"
+                CACHE STRING "Vendored KleidiAI source (skip XNNPACK gitlab download)" FORCE)
+        endif()
+
+        # [vision · FlatBuffers] TFLite 는 flatbuffers 소스를 ${CMAKE_BINARY_DIR}/flatbuffers 로
+        #  내려받은 뒤, flatbuffers.cmake 가 CMAKE_MODULE_PATH 맨 앞에 ${소스}/CMake 를 끼워넣는다.
+        #  그 안의 flatbuffers 자체 FindFlatBuffers.cmake 가 이후 find_package(FlatBuffers REQUIRED)
+        #  에서 잡히는데, 이 모듈은 find_path(FLATBUFFERS_INCLUDE_DIR NAMES flatbuffers/flatbuffers.h)
+        #  를 '시스템 경로'에서만 찾는다. 라즈베리파이처럼 libflatbuffers-dev 가 없는 호스트에서는
+        #  NOTFOUND → "Could NOT find FlatBuffers (missing: FLATBUFFERS_INCLUDE_DIR)" 로 configure 실패
+        #  (헤더가 설치된 x86 데스크톱에서는 우연히 통과). find_path 는 캐시에 값이 이미 있으면 재탐색하지
+        #  않으므로, fetch 될 소스의 include 경로를 미리 지정해 시스템 탐색을 건너뛴다(Qt Creator·CLI 공통).
+        set(FLATBUFFERS_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/flatbuffers/include"
+            CACHE PATH "Fetched FlatBuffers headers (avoid system find_path on hosts w/o libflatbuffers-dev)" FORCE)
+
+        FetchContent_Declare(tensorflow
+            GIT_REPOSITORY https://github.com/tensorflow/tensorflow.git
+            GIT_TAG        "v${_TFLITE_VERSION}"
+            GIT_SHALLOW    TRUE)
+        FetchContent_GetProperties(tensorflow)
+        if(NOT tensorflow_POPULATED)
+            FetchContent_Populate(tensorflow)
+
+            # [vision · Protobuf] TFLite 의 protobuf.cmake 는 flatbuffers.cmake 와 달리 재진입
+            #  가드가 없다. find_package(Protobuf) 호출자는 두 곳인데(core/example 는 NOT TARGET
+            #  가드가 있지만 lite/profiling/proto 는 무가드), 무가드 경로가 protobuf.cmake 를 다시
+            #  include → 같은 소스(${BINARY}/protobuf)를 _deps/protobuf-build 로 add_subdirectory
+            #  두 번째로 시도 → "binary directory ... is already used to build a source directory"
+            #  로 configure 실패한다. fetched 모듈 맨 앞에 멱등 재진입 가드를 주입한다(이미 주입돼
+            #  있으면 건너뜀 — clean 빌드마다 재적용되므로 Qt Creator·CLI 모두 동일하게 동작).
+            set(_pb_module
+                "${tensorflow_SOURCE_DIR}/tensorflow/lite/tools/cmake/modules/protobuf.cmake")
+            if(EXISTS "${_pb_module}")
+                file(READ "${_pb_module}" _pb_contents)
+                if(NOT _pb_contents MATCHES "TimeGrapher protobuf re-entry guard")
+                    file(WRITE "${_pb_module}"
+"# [TimeGrapher protobuf re-entry guard] 같은 protobuf 소스를 두 번 add_subdirectory 하는 것을 막는다.\nif(TARGET protobuf::libprotobuf)\n  set(Protobuf_FOUND TRUE)\n  return()\nendif()\n${_pb_contents}")
+                endif()
+            endif()
+
+            # [vision · abseil/cctz] 이 프로젝트는 위쪽에서 CMAKE_INCLUDE_CURRENT_DIR 를 전역 ON 으로
+            #  켜는데(Qt 편의), 이 값이 add_subdirectory 로 들어가는 abseil 하위 디렉토리까지 전파된다.
+            #  abseil 의 time 라이브러리(cctz 포함)는 ${...}/abseil-cpp/absl/time/CMakeLists.txt 에서
+            #  정의되므로, INCLUDE_CURRENT_DIR 가 -I.../absl/time 를 추가한다. 그 디렉토리에는 abseil 의
+            #  absl/time/time.h 가 있어, cctz 소스의 #include <ctime> → <time.h> 가 시스템 헤더 대신
+            #  absl/time/time.h 를 잡는다 → clock/time/mktime 등 표준 심볼 누락:
+            #  "'clock' has not been declared in '::'". 따라서 TFLite/abseil 를 add_subdirectory 하는
+            #  동안만 INCLUDE_CURRENT_DIR 를 끄고(서드파티는 target_include_directories 로 자급) 복원한다.
+            set(_saved_include_current_dir ${CMAKE_INCLUDE_CURRENT_DIR})
+            set(CMAKE_INCLUDE_CURRENT_DIR OFF)
+
+            # [vision · XNNPACK / ARM FP16 vector] 타깃 Pi 5(Cortex-A76, ARMv8.2-A)는 네이티브 fp16
+            #  연산을 지원하므로 XNNPACK_ENABLE_ARM_FP16_VECTOR 를 'ON'(기본값)으로 유지한다.
+            #  ※ 이 옵션을 OFF 로 내리면 오히려 빌드가 깨진다: TFLite 2.18 이 핀한 XNNPACK 의
+            #    src/configs/cmul-config.c 는 fp16 복소수곱 커널 xnn_f16_vcmul_ukernel__neonfp16arith_u16
+            #    을 '#if XNN_ARCH_ARM || XNN_ARCH_ARM64'(아키텍처)로만 참조하는데, 그 '선언'
+            #    (src/f16-vbinary/f16-vcmul.h)은 '#if XNN_ENABLE_ARM_FP16_VECTOR && ARM/ARM64' 로
+            #    가드돼 있다(XNNPACK 의 가드 불일치 버그). 옵션을 끄면 선언만 사라지고 참조는 남아
+            #    "'xnn_f16_vcmul_ukernel__neonfp16arith_u16' undeclared" 하드 에러가 난다. 따라서 ON 유지가
+            #    정답이며, 아래 GCC14 진단 완화로 fp16 커널 소스의 컴파일 에러만 잡으면 빌드가 통과한다.
+            #    (직전 시도에서 캐시에 OFF 가 FORCE 로 박혔을 수 있어, 잔존 캐시를 확실히 덮도록 ON 을 FORCE.)
+            set(XNNPACK_ENABLE_ARM_FP16_VECTOR ON CACHE BOOL "Keep ON: XNNPACK v2.18 cmul-config refs f16 vcmul unguarded" FORCE)
+            set(XNNPACK_ENABLE_ARM_FP16_SCALAR ON CACHE BOOL "Keep ON for ARMv8.2 native fp16 (Pi 5)" FORCE)
+
+            # [vision · XNNPACK / GCC 14] GCC 14 는 과거 '경고'였던 -Wincompatible-pointer-types /
+            #  -Wint-conversion 등을 기본 '에러'로 승격했는데, XNNPACK v2.18 의 fp16 커널이 fp16 값을
+            #  uint16_t* 로 다루는 부분에서 "passing argument 1 of 'vld1q_dup_u16' from incompatible
+            #  pointer type" 류 에러가 난다(XNNPACK 자체엔 -Werror 없음 → 순수 GCC14 기본동작).
+            #  XNNPACK 은 fetch 되는 서드파티라 소스를 고치지 않고, TFLite/XNNPACK add_subdirectory
+            #  구간에서만 이 진단을 다시 '경고'로 되돌린다(C 한정). 이후 복원하므로 본체에는 영향 없다.
+            set(_saved_c_flags "${CMAKE_C_FLAGS}")
+            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=incompatible-pointer-types -Wno-error=int-conversion")
+
+            add_subdirectory(
+                "${tensorflow_SOURCE_DIR}/tensorflow/lite/c"
+                "${CMAKE_CURRENT_BINARY_DIR}/tflite-c-build")
+
+            set(CMAKE_C_FLAGS "${_saved_c_flags}")
+            set(CMAKE_INCLUDE_CURRENT_DIR ${_saved_include_current_dir})
+        endif()
+        set(VISION_TFLITE_INCLUDE_DIR "${tensorflow_SOURCE_DIR}")
+        set(VISION_TFLITE_RUNTIME     "$<TARGET_FILE:tensorflowlite_c>")
+        add_dependencies(TimeGrapher tensorflowlite_c)   # 빌드 의존성만(링크 X — 런타임 dlopen)
+    endif()
+
+    target_sources(TimeGrapher PRIVATE
+        src/vision/TfliteApi.h
+        src/vision/TfliteApi.cpp
+        src/vision/VisionPreprocess.h
+        src/vision/VisionPreprocess.cpp
+        src/vision/VisionWorker.h
+        src/vision/VisionWorker.cpp
+        "${_vision_gen_dir}/vision.qrc")
+    target_include_directories(TimeGrapher PRIVATE
+        "${_vision_gen_dir}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/vision"
+        "${VISION_TFLITE_INCLUDE_DIR}")
+    target_compile_definitions(TimeGrapher PRIVATE ENABLE_VISION=1)
+    target_link_libraries(TimeGrapher PRIVATE ${CMAKE_DL_LIBS})
+
+    # 런타임 라이브러리를 실행파일 옆에 복사(dlopen 탐색 경로).
+    add_custom_command(TARGET TimeGrapher POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${VISION_TFLITE_RUNTIME}" "$<TARGET_FILE_DIR:TimeGrapher>"
+        COMMENT "[vision] copy TFLite runtime next to executable")
+endif()
+
 IF(WIN32)
 #DP REMOVED NOT NEED IN THIS VERSION
 #target_link_libraries(TimeGrapher PRIVATE fftw)

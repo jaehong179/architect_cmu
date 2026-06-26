@@ -44,6 +44,11 @@
 #include "WindowsAudio.h"
 #endif
 
+#ifdef ENABLE_VISION
+#include <QThread>
+#include "VisionWorker.h"          // [vision] 웹캠 1Hz watch-position 추론 워커
+#endif
+
 #define  LIVE     0
 #define  PLAYBACK 1
 #define  SIM      2
@@ -170,10 +175,43 @@ MainWindow::MainWindow(QWidget *parent)
 #if PERF_ENABLE
     if (mRateScope) connect(mRateScope, &TabRateScope::scopeReplotted, mCapture, &CaptureController::onScopeReplotted);
 #endif
+
+#ifdef ENABLE_VISION
+    // [vision] 웹캠 watch-position 추론을 전용 스레드에서 병렬 실행(초당 1회 → 결과 print).
+    //  기존 오디오 워커와 동일한 QObject+QThread 패턴. UI/측정 핫패스와 독립.
+    mVisionThread = new QThread(this);
+    mVisionWorker = new vision::VisionWorker();
+    mVisionWorker->moveToThread(mVisionThread);
+    connect(mVisionThread, &QThread::started,  mVisionWorker, &vision::VisionWorker::start);
+    connect(mVisionThread, &QThread::finished, mVisionWorker, &QObject::deleteLater);
+
+    // [vision · UI] release 빌드에서 시계 방향을 눈으로 바로 확인하기 위한 최소 표시.
+    //  상태바 우측에 permanent QLabel 하나만 추가(캡처 statusMessage 영역과 겹치지 않음).
+    //  결과 시그널(resultReady)은 워커 스레드 → 큐 연결로 메인 스레드에서 안전하게 갱신.
+    auto *visionLabel = new QLabel(QStringLiteral("watch: --"), this);
+    statusBar()->addPermanentWidget(visionLabel);
+    connect(mVisionWorker, &vision::VisionWorker::resultReady, this,
+            [visionLabel](const QString &label, float conf) {
+                visionLabel->setText(QStringLiteral("watch: %1 (%2%)")
+                                         .arg(label)
+                                         .arg(QString::number(conf * 100.0f, 'f', 0)));
+            });
+
+    mVisionThread->start();
+#endif
 }
 
 MainWindow::~MainWindow()
 {
+#ifdef ENABLE_VISION
+    if (mVisionThread) {
+        // 워커 stop() 을 워커 스레드에서 동기 실행 후 스레드 종료(카메라/타이머 정리).
+        if (mVisionWorker)
+            QMetaObject::invokeMethod(mVisionWorker, "stop", Qt::BlockingQueuedConnection);
+        mVisionThread->quit();
+        mVisionThread->wait();
+    }
+#endif
     delete ui;
 }
 

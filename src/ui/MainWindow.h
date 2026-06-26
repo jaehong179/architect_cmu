@@ -27,6 +27,11 @@ class TabRateScope;
 class TabSequenceDisplay;
 class ReadoutBar;   
 
+#ifdef ENABLE_VISION
+class QThread;                                  // [vision] 추론 워커 전용 스레드
+namespace vision { class VisionWorker; }        // [vision] 웹캠 1Hz watch-position 추론
+#endif
+
 #define AUDIO_OUTPUT 0
 #define DEBUG_OUTPUT 0
 
@@ -251,5 +256,9 @@ private:
     QString                    mPlaybackFileName;
     int                        mLastMode = -1;
     ReadoutBar                *mReadoutBar = nullptr;
+#ifdef ENABLE_VISION
+    QThread              *mVisionThread = nullptr;   // [vision] 추론 워커 스레드(병렬 실행)
+    vision::VisionWorker *mVisionWorker = nullptr;   // [vision] 웹캠 1Hz watch-position 추론
+#endif
 };
 #endif // MAINWINDOW_H

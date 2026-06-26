@@ -1,0 +1,8 @@
+<!-- vision.qrc — AUTO-GENERATED from src/vision/vision.qrc.in by CMake. DO NOT EDIT.
+     임베드할 모델 파일은 CMake 의 VISION_USE_INT8 설정에 따라 결정된다.
+     alias 는 항상 model.tflite 로 고정 → 런타임 리소스 경로(:/vision/model.tflite) 불변. -->
+<RCC>
+    <qresource prefix="/vision">
+        <file alias="model.tflite">@VISION_MODEL_PATH@</file>
+    </qresource>
+</RCC>
