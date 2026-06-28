@@ -4,11 +4,12 @@
 #include "./ui_MainWindow.h"
 #include <QMediaDevices>
 #include <QAudioDevice>
-#include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QToolButton>
+#include <QTabBar>
 #include <QQuickWidget>
 #include <QQmlContext>
 #include <QFileDialog>
@@ -117,6 +118,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowTitle("TimeGrapher");
+    statusBar()->hide();
 
     // Hide legacy Results label and setup styled ReadoutBar
     ui->Results->hide();
@@ -319,8 +321,8 @@ void MainWindow::RegisterDisplayTabs(void)
     filterTab->setHistory(&mWaveHistory);
     mTabManager->registerTab(filterTab);
 
-    // Apply touch-friendly stylesheet and enable scrolling for GraphicsTabWidget
-    ui->GraphicsTabWidget->setUsesScrollButtons(true);
+    // Apply touch-friendly stylesheet and use custom corner navigation buttons.
+    ui->GraphicsTabWidget->setUsesScrollButtons(false);
     ui->GraphicsTabWidget->setElideMode(Qt::ElideNone);
     ui->GraphicsTabWidget->setStyleSheet(QStringLiteral(
         "QTabWidget::pane {"
@@ -348,45 +350,55 @@ void MainWindow::RegisterDisplayTabs(void)
         "    background: #323242;"
         "    color: #ffffff;"
         "}"
-        "QTabBar QToolButton {"
+        "QTabWidget QToolButton {"
         "    background-color: #252530;"
         "    border: 1px solid #2e2e3a;"
-        "    border-radius: 4px;"
-        "    width: 28px;"
-        "    height: 28px;"
+        "    border-radius: 6px;"
+        "    width: 32px;"
+        "    height: 36px;"
+        "    color: #ffffff;"
+        "    font-weight: bold;"
         "}"
-        "QTabBar QToolButton:hover {"
+        "QTabWidget QToolButton:hover {"
         "    background-color: #ab47bc;"
         "}"
     ));
 
-    QWidget *corner = new QWidget(this);
-    auto *cl = new QHBoxLayout(corner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
-    mSeekLabel = new QLabel(this);
+    auto *tabBar = ui->GraphicsTabWidget->tabBar();
+    auto shiftTab = [tabBar](int step) {
+        if (!tabBar) return;
+        const int count = tabBar->count();
+        if (count <= 0) return;
+        const int next = qBound(0, tabBar->currentIndex() + step, count - 1);
+        tabBar->setCurrentIndex(next);
+    };
+
+    QWidget *leftCorner = new QWidget(this);
+    auto *ll = new QHBoxLayout(leftCorner); ll->setContentsMargins(6, 0, 0, 0); ll->setSpacing(0);
+    auto *leftBtn = new QToolButton(leftCorner);
+    leftBtn->setText(QStringLiteral("◀"));
+    leftBtn->setToolTip(QStringLiteral("Move tabs left"));
+    ll->addWidget(leftBtn);
+    ui->GraphicsTabWidget->setCornerWidget(leftCorner, Qt::TopLeftCorner);
+
+    QWidget *rightCorner = new QWidget(this);
+    auto *cl = new QHBoxLayout(rightCorner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
+    mSeekLabel = new QLabel(rightCorner);
     mSeekLabel->setStyleSheet(QStringLiteral("color:#960096; font-weight:bold;"));
-    mPauseBtn = new QPushButton(QStringLiteral("⏸ Pause"), this);
-    mPauseBtn->setCheckable(true);
-    cl->addWidget(mSeekLabel); cl->addWidget(mPauseBtn);
-    ui->GraphicsTabWidget->setCornerWidget(corner, Qt::TopRightCorner);
-    
-    connect(mPauseBtn, &QPushButton::toggled, this, [this](bool p) {
-        if (p && !mWaveHistory.hasData()) {
-            mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false); mPauseBtn->blockSignals(false);
-            return;
-        }
-        mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
-        if (p) updateSeekLabel((double)mWaveHistory.latestAbs());
-        else if (mSeekLabel) mSeekLabel->clear();
-        if (mCapture)    mCapture->setPaused(p);
-        if (mTabManager) mTabManager->setPaused(p);
-        if (mRateScope)  mRateScope->setPaused(p);
-    });
+    auto *rightBtn = new QToolButton(rightCorner);
+    rightBtn->setText(QStringLiteral("▶"));
+    rightBtn->setToolTip(QStringLiteral("Move tabs right"));
+    cl->addWidget(mSeekLabel);
+    cl->addWidget(rightBtn);
+    ui->GraphicsTabWidget->setCornerWidget(rightCorner, Qt::TopRightCorner);
+
+    connect(leftBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(-1); });
+    connect(rightBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(1); });
 }
 
 void MainWindow::updateSeekLabel(double absSample)
 {
     if (!mSeekLabel) return;
-    if (mPauseBtn && !mPauseBtn->isChecked()) return;                  // [③] 선택은 정지 중에만 — 라이브 클릭은 라벨도 무시
     const int sr = mWaveHistory.sampleRate();
     const double t = sr > 0 ? absSample / (double)sr : 0.0;
     mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
@@ -972,10 +984,6 @@ void MainWindow::Reset(void)
     qInfo()<<"RESET";
     if (mTabManager) mTabManager->broadcastReset();
     mWaveHistory.clear();
-    if (mPauseBtn && mPauseBtn->isChecked()) {
-        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
-        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
-    }
     if (mCapture)    mCapture->setPaused(false);
     if (mTabManager) mTabManager->setPaused(false);
     if (mSeekLabel)  mSeekLabel->clear();
@@ -1102,10 +1110,6 @@ void MainWindow::SetGuiRunMode(void)
 
 void MainWindow::SetGuiStopMode(void)
 {
-    if (mPauseBtn && mPauseBtn->isChecked()) {
-        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
-        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
-    }
     if (mCapture)    mCapture->setPaused(false);
     if (mTabManager) mTabManager->setPaused(false);
     if (mSeekLabel)  mSeekLabel->clear();
