@@ -32,34 +32,26 @@ public:
 
     void update(const MeasurementSnapshot &s)
     {
+        // 정상 범위 판정: 정상이면 수치를 green(#2ed573), 벗어나면 red(#ff4757),
+        //  측정 전(invalid)이면 중립 gray(#9e9e9e) 로 표시한다. (✓/✗ 마커는 사용 안 함)
+        static const QString kGreen = QStringLiteral("#2ed573");
+        static const QString kRed   = QStringLiteral("#ff4757");
+        static const QString kGray  = QStringLiteral("#9e9e9e");
+
+        const bool rateOk = s.rateValid      && std::fabs(s.rate) <= 3.0;
+        const bool beOk   = s.beatErrorValid && s.beatErrorMs <= 0.5;
         const bool ampOk  = s.amplitudeValid && s.amplitudeDeg >= 270.0 && s.amplitudeDeg <= 300.0;
 
-        QString rateSymbol;
-        if (s.rateValid) {
-            if (std::fabs(s.rate) > 3.0) {
-                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#ff4757'>&#10007;</span>");
-            } else {
-                rateSymbol = QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>");
-            }
-        }
-
-        QString beSymbol;
-        if (s.beatErrorValid) {
-            if (s.beatErrorMs > 0.5) {
-                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#ff4757'>&#10007;</span>");
-            } else {
-                beSymbol = QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>");
-            }
-        }
-
-        const QString ampSymbol = ampOk ? QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>") : QString();
-        const QString bphSymbol = s.bphValid ? QStringLiteral(" <span style='font-size:16px;color:#2ed573'>&#10003;</span>") : QString();
+        const QString rateColor = s.rateValid      ? (rateOk ? kGreen : kRed) : kGray;
+        const QString beColor   = s.beatErrorValid ? (beOk   ? kGreen : kRed) : kGray;
+        const QString ampColor  = s.amplitudeValid ? (ampOk  ? kGreen : kRed) : kGray;
+        const QString bphColor  = s.bphValid ? kGreen : kGray;
 
         // 사양 readout 순서: RATE | BEAT ERROR | AMPLITUDE | BPH (Witschi Trace/Vario/Sequence 화면).
-        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    QStringLiteral("#5cafff"), rateSymbol);
-        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    QStringLiteral("#81c784"), beSymbol);
-        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    QStringLiteral("#81c784"), ampSymbol);
-        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), QStringLiteral("#ffffff"), bphSymbol);
+        set(0, QStringLiteral("RATE  s/d"),       s.rateValid      ? QString::asprintf("%+.1f", s.rate)       : QStringLiteral("--"),    rateColor, QString());
+        set(1, QStringLiteral("BEAT ERROR  ms"),  s.beatErrorValid ? QString::number(s.beatErrorMs, 'f', 2)   : QStringLiteral("--"),    beColor,   QString());
+        set(2, QStringLiteral("AMPLITUDE  °"),    s.amplitudeValid ? QString::number(s.amplitudeDeg, 'f', 0)  : QStringLiteral("--"),    ampColor,  QString());
+        set(3, QStringLiteral("BPH"),             s.bphValid       ? QString::number(s.bph)                   : QStringLiteral("-----"), bphColor,  QString());
     }
 
 private:
