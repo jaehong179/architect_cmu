@@ -21,6 +21,81 @@ Rectangle {
     // ─── helper: mode label → short icon text ───────────────────────────────
     readonly property var modeIcons: ["●", "▶", "⚙"]  // Live / Playback / Sim
 
+    readonly property var currentPositionInfo: getPositionInfo(cppBackend.detectedPosition)
+
+    function getPositionInfo(dp) {
+        if (!dp || dp === "" || dp === "?") {
+            return {
+                "name": "N/A",
+                "status": "Camera Disconnected",
+                "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
+                "colorBg": "#1f1d24", 
+                "colorBorder": "#3a3a4a", 
+                "colorText": "#9e9e9e", 
+                "statusColor": "#ff7043" 
+            };
+        }
+
+        var isWatch = dp.startsWith("W_");
+        var suffix = dp.substring(2); 
+        var name = "";
+        var icon = "";
+        var iconEmpty = "";
+
+        switch (suffix) {
+            case "DU":
+                name = "Dial Up";
+                icon = "qrc:/images/src/ui/images/pos_du.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_du_empty.svg";
+                break;
+            case "DD":
+                name = "Dial Down";
+                icon = "qrc:/images/src/ui/images/pos_dd.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_dd_empty.svg";
+                break;
+            case "CR":
+                name = "Crown Right";
+                icon = "qrc:/images/src/ui/images/pos_cr.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_cr_empty.svg";
+                break;
+            case "CL":
+                name = "Crown Left";
+                icon = "qrc:/images/src/ui/images/pos_cl.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_cl_empty.svg";
+                break;
+            case "CU":
+                name = "Crown Up";
+                icon = "qrc:/images/src/ui/images/pos_cu.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_cu_empty.svg";
+                break;
+            case "CD":
+                name = "Crown Down";
+                icon = "qrc:/images/src/ui/images/pos_cd.svg";
+                iconEmpty = "qrc:/images/src/ui/images/pos_cd_empty.svg";
+                break;
+            default:
+                return {
+                    "name": "N/A",
+                    "status": "Unknown Position",
+                    "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
+                    "colorBg": "#1e1e26",
+                    "colorBorder": root.colorBorder,
+                    "colorText": root.colorTextMain,
+                    "statusColor": root.colorTextSub
+                };
+        }
+
+        return {
+            "name": name,
+            "status": isWatch ? "Watch Present" : "Empty Holder",
+            "icon": isWatch ? icon : iconEmpty,
+            "colorBg": isWatch ? "#1e3822" : "#382c1e",
+            "colorBorder": isWatch ? "#4caf50" : "#ff7043",
+            "colorText": isWatch ? "#4caf50" : "#ff7043",
+            "statusColor": isWatch ? "#81c784" : "#ffb74d"
+        };
+    }
+
     // ─── Header Bar ──────────────────────────────────────────────────────────
     Rectangle {
         id: headerBar
@@ -178,23 +253,14 @@ Rectangle {
                 width: 24
                 height: 24
                 fillMode: Image.PreserveAspectFit
-                source: {
-                    var p = cppBackend.detectedPosition
-                    switch (p) {
-                        case "DU":  return "qrc:/images/src/ui/images/pos_du.svg"
-                        case "DD":  return "qrc:/images/src/ui/images/pos_dd.svg"
-                        case "CR":  return "qrc:/images/src/ui/images/pos_cr.svg"
-                        case "CL":  return "qrc:/images/src/ui/images/pos_cl.svg"
-                        case "CU":  return "qrc:/images/src/ui/images/pos_cu.svg"
-                        case "CD":  return "qrc:/images/src/ui/images/pos_cd.svg"
-                        default:    return "qrc:/images/src/ui/images/pos_camera_disconnected.svg"
-                    }
-                }
+                source: root.currentPositionInfo.icon
             }
 
             // Tooltip: position label
             ToolTip.visible: posHover.containsMouse
-            ToolTip.text: cppBackend.detectedPosition !== "" ? cppBackend.detectedPosition : "Unknown"
+            ToolTip.text: root.currentPositionInfo.name !== "N/A"
+                ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
+                : "Unknown"
             ToolTip.delay: 400
 
             HoverHandler { id: posHover }
@@ -1038,80 +1104,7 @@ Rectangle {
                 radius: 8
                 border.color: root.colorBorder
 
-                function getPositionInfo(dp) {
-                    if (!dp || dp === "" || dp === "?") {
-                        return {
-                            "name": "N/A",
-                            "status": "Camera Disconnected",
-                            "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
-                            "colorBg": "#1f1d24", 
-                            "colorBorder": "#3a3a4a", 
-                            "colorText": "#9e9e9e", 
-                            "statusColor": "#ff7043" 
-                        };
-                    }
-
-                    var isWatch = dp.startsWith("W_");
-                    var suffix = dp.substring(2); 
-                    var name = "";
-                    var icon = "";
-                    var iconEmpty = "";
-
-                    switch (suffix) {
-                        case "DU":
-                            name = "Dial Up";
-                            icon = "qrc:/images/src/ui/images/pos_du.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_du_empty.svg";
-                            break;
-                        case "DD":
-                            name = "Dial Down";
-                            icon = "qrc:/images/src/ui/images/pos_dd.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_dd_empty.svg";
-                            break;
-                        case "CR":
-                            name = "Crown Right";
-                            icon = "qrc:/images/src/ui/images/pos_cr.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_cr_empty.svg";
-                            break;
-                        case "CL":
-                            name = "Crown Left";
-                            icon = "qrc:/images/src/ui/images/pos_cl.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_cl_empty.svg";
-                            break;
-                        case "CU":
-                            name = "Crown Up";
-                            icon = "qrc:/images/src/ui/images/pos_cu.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_cu_empty.svg";
-                            break;
-                        case "CD":
-                            name = "Crown Down";
-                            icon = "qrc:/images/src/ui/images/pos_cd.svg";
-                            iconEmpty = "qrc:/images/src/ui/images/pos_cd_empty.svg";
-                            break;
-                        default:
-                            return {
-                                "name": "N/A",
-                                "status": "Unknown Position",
-                                "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
-                                "colorBg": "#1e1e26",
-                                "colorBorder": root.colorBorder,
-                                "colorText": root.colorTextMain,
-                                "statusColor": root.colorTextSub
-                            };
-                    }
-
-                    return {
-                        "name": name,
-                        "status": isWatch ? "Watch Present" : "Empty Holder",
-                        "icon": isWatch ? icon : iconEmpty,
-                        "colorBg": isWatch ? "#1e3822" : "#382c1e",
-                        "colorBorder": isWatch ? "#4caf50" : "#ff7043",
-                        "colorText": isWatch ? "#4caf50" : "#ff7043",
-                        "statusColor": isWatch ? "#81c784" : "#ffb74d"
-                    };
-                }
-
-                readonly property var currentInfo: getPositionInfo(cppBackend.detectedPosition)
+                readonly property var currentInfo: root.currentPositionInfo
 
                 ColumnLayout {
                     anchors.fill: parent
