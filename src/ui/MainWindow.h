@@ -24,6 +24,7 @@ class QLabel;
 class QQuickWidget;
 class TabManager;   
 class TabRateScope; 
+class TabBeatErrorTrace;
 class TabSequenceDisplay;
 class ReadoutBar;   
 class PositionChangeDialog;
@@ -198,6 +199,7 @@ private:
     Ui::MainWindow *ui;
     TabManager     *mTabManager = nullptr;
     TabRateScope   *mRateScope  = nullptr;
+    TabBeatErrorTrace *mBedTab = nullptr;
     TabSequenceDisplay *mSequenceDisplay = nullptr;
     QLabel         *mSeekLabel  = nullptr;
     WaveLodHistory  mWaveHistory;
@@ -245,6 +247,9 @@ private:
     bool   SetPlaybackFile(const QString &fileName);
     void   SetGuiRunMode(void);
     void   SetGuiStopMode(void);
+    // 세션 종료 공통 정리(수동 Stop·Playback/Sim 자동 종료). wasRunning==false 면 no-op(중복 호출 방지).
+    void   finishSession(bool runDiag);
+    void   triggerDiagnosis();
 
     WavStreamWriter           *mWavWriter= nullptr;
     MeasurementEngine          mEngine;
@@ -266,7 +271,7 @@ private:
     QStringList                mSimBphList;
     QStringList                mAveragingPeriodList;
     QStringList                mWarmupDelayList;
-    int                        mWarmupDelayIndex = 2;   // 기본 15초 (5/10/15/20)
+    int                        mWarmupDelayIndex = 3;   // 기본 15초 (0/5/10/15/20)
     bool                       mInWarmup = false;
     WarmupOverlay             *mWarmupOverlay = nullptr;
 
