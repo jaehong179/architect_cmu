@@ -34,3 +34,5 @@ Accepted
 - Small extension needed: track last block time, a deadline timer, and wire the device signal to the GUI.
 
 - The deadline must be tuned to avoid false alarms during brief stalls.
+
+- The watchdog is cross-cutting: all layers depend on it (Presentation receives events, Engine owns it, Processing feeds liveness), so an interface change propagates widely. Mitigated by exposing only narrow interfaces (IWatchdogCheck, IEventSink, WatchdogEvent) — modules depend on these abstractions, not the implementation (DIP); a new check is one IWatchdogCheck + one addCheck() with no change to existing code (OCP).
