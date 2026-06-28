@@ -1,4 +1,4 @@
-# TimeGrapher Module View (Package Diagram)
+# Top-Level Module Uses View (Package Diagram)
 
 The scope is the static code structure of the TimeGrapher application.
 The diagram shows seven top-level packages and their `«uses»` dependencies.
