@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Case -->
+  <rect x="20" y="45" width="60" height="14" rx="2" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <!-- Dial Glass (Top Arc) -->
+  <path d="M 24 45 A 32 32 0 0 1 76 45" fill="none" stroke="#ffffff" stroke-width="3"/>
+  <!-- Crown -->
+  <rect x="80" y="48" width="5" height="8" rx="1" fill="#ffffff"/>
+  <!-- Arrow indicating UP direction of Dial -->
+  <path d="M 50 30 L 50 15 M 45 22 L 50 15 L 55 22" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -191,10 +191,14 @@ MainWindow::MainWindow(QWidget *parent)
     auto *visionLabel = new QLabel(QStringLiteral("watch: --"), this);
     statusBar()->addPermanentWidget(visionLabel);
     connect(mVisionWorker, &vision::VisionWorker::resultReady, this,
-            [visionLabel](const QString &label, float conf) {
+            [this, visionLabel](const QString &label, float conf) {
                 visionLabel->setText(QStringLiteral("watch: %1 (%2%)")
                                          .arg(label)
                                          .arg(QString::number(conf * 100.0f, 'f', 0)));
+                if (mDetectedPosition != label) {
+                    mDetectedPosition = label;
+                    emit detectedPositionChanged();
+                }
             });
 
     mVisionThread->start();
@@ -453,6 +457,11 @@ QString MainWindow::selectedWavFile() const
 bool MainWindow::isRunning() const 
 { 
     return mIsRunning; 
+}
+
+QString MainWindow::detectedPosition() const
+{
+    return mDetectedPosition;
 }
 
 bool MainWindow::recordSessionEnabled() const 

@@ -52,6 +52,7 @@ class MainWindow : public QMainWindow
     Q_PROPERTY(QString selectedWavFile READ selectedWavFile NOTIFY selectedWavFileChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
     Q_PROPERTY(bool recordSessionEnabled READ recordSessionEnabled WRITE setRecordSessionEnabled NOTIFY recordSessionEnabledChanged)
+    Q_PROPERTY(QString detectedPosition READ detectedPosition NOTIFY detectedPositionChanged)
     
     Q_PROPERTY(int detectorBphIndex READ detectorBphIndex WRITE setDetectorBphIndex NOTIFY detectorBphIndexChanged)
     Q_PROPERTY(int liftAngle READ liftAngle WRITE setLiftAngle NOTIFY liftAngleChanged)
@@ -103,6 +104,7 @@ public:
 
     QString selectedWavFile() const;
     bool isRunning() const;
+    QString detectedPosition() const;
 
     bool recordSessionEnabled() const;
     void setRecordSessionEnabled(bool enabled);
@@ -150,6 +152,7 @@ signals:
     void averagingPeriodIndexChanged();
     void selectedWavFileChanged();
     void isRunningChanged();
+    void detectedPositionChanged();
     void recordSessionEnabledChanged();
     void detectorBphIndexChanged();
     void liftAngleChanged();
@@ -246,6 +249,7 @@ private:
 
     bool                       mIsRunning = false;
     bool                       mRecordSessionEnabled = false;
+    QString                    mDetectedPosition;
 
     double                     mLiftAngle;
     int                        mAveragingPeriod;
