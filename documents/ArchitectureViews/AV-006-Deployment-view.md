@@ -1,6 +1,6 @@
 # Deployment View
 
-The opening paragraph contradicts the diagram — it says "standalone desktop application with no network dependencies," but the diagram shows the desktop app uploading over HTTP to AWS Cloud, plus a mobile browser loading an SPA from Vercel. Let me fix that first description.
+This view shows the physical deployment of the TimeGrapher system. A **client machine** (x86-64 PC *or* Raspberry Pi 5) runs the measurement app and uploads each session to an **AWS serverless backend**; a **mobile browser** scans the generated QR to view the watch history as an SPA served from **Vercel**.
 
 ![Deployment View](../images/deploymentView.jpg)
 
