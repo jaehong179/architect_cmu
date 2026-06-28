@@ -64,6 +64,8 @@ public:
 
     uint64_t totalSamples() const { return mLocalTotalSamplesWritten; }  // 탭 스냅샷 게시용
 
+    WatchdogState *watchdogState() { return &mWatchdogState; }
+
 public slots:
     void onScopeReplotted();   // 탭 ScopePlot afterReplot → disp_paint_ms·e2e_full_ms·paint_fps
 

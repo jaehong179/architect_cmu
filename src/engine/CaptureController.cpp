@@ -11,6 +11,7 @@
 #include "DevicePresenceMonitor.h"
 #include "AudioDeviceTimeoutCheck.h"
 #include "NoSignalTimeoutCheck.h"
+#include "CameraDisconnectCheck.h"
 #include <QThread>
 #include <QVarLengthArray>
 #include <QString>
@@ -38,6 +39,7 @@ void CaptureController::startWatchdog()
     // 체크 등록 = 단일 OCP 지점. 새 이벤트는 여기 한 줄 + Check 구현으로 추가.
     mWatchdogWorker->addCheck(std::make_unique<AudioDeviceTimeoutCheck>());
     mWatchdogWorker->addCheck(std::make_unique<NoSignalTimeoutCheck>());
+    mWatchdogWorker->addCheck(std::make_unique<CameraDisconnectCheck>());
     mWatchdogWorker->moveToThread(mWatchdogThread);
     connect(mWatchdogThread, &QThread::started,  mWatchdogWorker, &WatchdogWorker::start);
     connect(mWatchdogWorker, &WatchdogWorker::eventRaised, this, &CaptureController::watchdogEvent);  // 시그널 릴레이

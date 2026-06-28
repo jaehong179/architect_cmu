@@ -16,6 +16,9 @@
 #include <QTimer>
 #include <QVideoSink>
 
+#include "WatchdogState.h"   // liveness publish 대상
+#include "WatchdogClock.h"   // wdNowMs() — 워치독과 동일 단조 시계
+
 #include <algorithm>
 
 namespace vision {
@@ -63,6 +66,7 @@ void VisionWorker::start()
     }
     const int camIdx = (kCameraId >= 0 && kCameraId < cams.size()) ? kCameraId : 0;
     const QCameraDevice dev = cams.at(camIdx);
+    mActiveCamId = dev.id();   // ② 이 카메라의 분리를 추적
 
     mCamera  = new QCamera(dev, this);
     mSession = new QMediaCaptureSession(this);
@@ -89,6 +93,10 @@ void VisionWorker::start()
 
     connect(mSink, &QVideoSink::videoFrameChanged, this, &VisionWorker::onFrame);
 
+    // ② videoInputs 목록 변화 구독 — USB 카메라 분리를 즉시 감지(오디오 DevicePresenceMonitor 동일 패턴).
+    mDevices = new QMediaDevices(this);
+    connect(mDevices, &QMediaDevices::videoInputsChanged, this, &VisionWorker::onVideoInputsChanged);
+
     mTimer = new QTimer(this);
     mTimer->setInterval(kInferIntervalMs);
     connect(mTimer, &QTimer::timeout, this, &VisionWorker::onTick);
@@ -96,6 +104,13 @@ void VisionWorker::start()
     mReady = true;
     mCamera->start();
     mTimer->start();
+
+    if (mWatchdog) {
+        const double now = wdNowMs();
+        mWatchdog->lastCameraFrameMs.store(now, std::memory_order_relaxed);
+        mWatchdog->cameraAlive.store(true, std::memory_order_relaxed);
+        mWatchdog->cameraActive.store(true, std::memory_order_relaxed);
+    }
     qInfo() << "[vision] webcam started:" << dev.description();
 }
 
@@ -104,11 +119,33 @@ void VisionWorker::stop()
     if (mTimer) { mTimer->stop(); }
     if (mCamera) { mCamera->stop(); }
     mReady = false;
+    if (mWatchdog) mWatchdog->cameraActive.store(false, std::memory_order_relaxed);  // 감시 해제
+}
+
+// ② 카메라 열거 변화 → 활성 카메라가 목록에 아직 있는지 검사해 cameraAlive 갱신.
+void VisionWorker::onVideoInputsChanged()
+{
+    refreshCameraPresence();
+}
+
+void VisionWorker::refreshCameraPresence()
+{
+    if (!mWatchdog || mActiveCamId.isEmpty()) return;
+    bool present = false;
+    const QList<QCameraDevice> cams = QMediaDevices::videoInputs();
+    for (const QCameraDevice &d : cams)
+        if (d.id() == mActiveCamId) { present = true; break; }
+    mWatchdog->cameraAlive.store(present, std::memory_order_relaxed);
 }
 
 void VisionWorker::onFrame(const QVideoFrame &frame)
 {
     if (!frame.isValid()) return;
+    // ① 프레임 도착 = 카메라 liveness — 오디오가 블록당 lastBlockMs 를 publish 하는 것과 동일.
+    if (mWatchdog) {
+        mWatchdog->lastCameraFrameMs.store(wdNowMs(), std::memory_order_relaxed);
+        mWatchdog->cameraAlive.store(true, std::memory_order_relaxed);
+    }
     QImage img = frame.toImage();
     if (img.isNull()) return;
     if (img.format() != QImage::Format_RGB888)

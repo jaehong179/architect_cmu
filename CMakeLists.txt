@@ -128,6 +128,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/engine/watchdog/checks/AudioDeviceTimeoutCheck.cpp
         src/engine/watchdog/checks/NoSignalTimeoutCheck.h
         src/engine/watchdog/checks/NoSignalTimeoutCheck.cpp
+        src/engine/watchdog/checks/CameraDisconnectCheck.h
+        src/engine/watchdog/checks/CameraDisconnectCheck.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h
