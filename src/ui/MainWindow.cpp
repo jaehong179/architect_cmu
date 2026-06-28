@@ -112,10 +112,6 @@ int MainWindow::sequenceIndexFromDetectedPosition(const QString &detectedLabel)
     if (raw.isEmpty() || raw == QStringLiteral("?"))
         return -1;
 
-    // Reflect only when watch is present.
-    if (!raw.startsWith(QStringLiteral("W_")))
-        return -1;
-
     const int underscore = raw.indexOf(QLatin1Char('_'));
     const QString suffix = (underscore >= 0 && (underscore + 1) < raw.size())
         ? raw.mid(underscore + 1)
@@ -135,10 +131,16 @@ void MainWindow::updateDetectedPositionUiSync(const QString &detectedLabel)
     if (!mSequenceDisplay)
         return;
 
+    const QString normalizedLabel = detectedLabel.trimmed().toUpper();
+
     const int detectedIndex = sequenceIndexFromDetectedPosition(detectedLabel);
     if (detectedIndex < 0) {
         mDetectedStableCandidateIndex = -1;
         mDetectedStableTimer = QElapsedTimer();
+        if (mDetectedPosition != normalizedLabel) {
+            mDetectedPosition = normalizedLabel;
+            emit detectedPositionChanged();
+        }
         return;
     }
 
@@ -151,8 +153,32 @@ void MainWindow::updateDetectedPositionUiSync(const QString &detectedLabel)
     if (!mDetectedStableTimer.isValid() || mDetectedStableTimer.elapsed() < kDetectedPositionHoldMs)
         return;
 
+    // Treat as a real position change only when the stable candidate differs
+    // from the last confirmed position.
+    if (mDetectedConfirmedIndex == detectedIndex) {
+        if (mDetectedPosition != normalizedLabel) {
+            mDetectedPosition = normalizedLabel;
+            emit detectedPositionChanged();
+        }
+        return;
+    }
+
+    mDetectedConfirmedIndex = detectedIndex;
+
+    if (mDetectedPosition != normalizedLabel) {
+        mDetectedPosition = normalizedLabel;
+        emit detectedPositionChanged();
+    }
+
     // Apply only after the same detected position is held for >= 3 seconds.
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=vision confirmedLabel=%1 confirmedIndex=%2")
+                             .arg(normalizedLabel)
+                             .arg(detectedIndex);
     mSequenceDisplay->setCurrentPositionByIndex(detectedIndex);
+
+    if (mActivePositionDialog && mActivePositionDialog->isVisible()) {
+        mActivePositionDialog->accept();
+    }
 }
 
 MainWindow::MainWindow(QWidget *parent)
@@ -201,8 +227,9 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onPositionMeasurementEnded);
     connect(mPositionSequence, &PositionSequenceController::currentPositionIndexChanged,
             this, [this](int idx) {
-        if (mSequenceDisplay)
-            mSequenceDisplay->setCurrentPositionByIndex(idx);
+        qInfo().noquote() << QStringLiteral("[pos-sync] source=sequence targetIndex=%1")
+                                 .arg(idx);
+        qInfo().noquote() << QStringLiteral("[pos-sync] source=sequence dropdownOverrideIgnored=true");
     });
 
     QVBoxLayout *cpLayout = new QVBoxLayout(ui->ControlPanelPlaceholder);
@@ -254,10 +281,6 @@ MainWindow::MainWindow(QWidget *parent)
                 visionLabel->setText(QStringLiteral("watch: %1 (%2%)")
                                          .arg(label)
                                          .arg(QString::number(conf * 100.0f, 'f', 0)));
-                if (mDetectedPosition != label) {
-                    mDetectedPosition = label;
-                    emit detectedPositionChanged();
-                }
                 updateDetectedPositionUiSync(label);
             });
 
@@ -1217,10 +1240,12 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
     } else {
         if (ui && ui->GraphicsTabWidget && mSequenceDisplay && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay) {
             PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
+            mActivePositionDialog = &dlg;
             dlg.exec();
+            mActivePositionDialog = nullptr;
         }
 
-        if (mCurrentMode == LIVE && mPositionSequence)
+        if (mPositionSequence)
             mPositionSequence->confirmPositionChange();
     }
 }

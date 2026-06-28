@@ -51,7 +51,7 @@ inline int corePositionSequenceLength()
     return 6;
 }
 
-inline int defaultStabilizationSec() { return 15; }
-inline int defaultMeasurementSec()    { return 60; }
+inline int defaultStabilizationSec() { return 10; }
+inline int defaultMeasurementSec()    { return 10; }
 
 #endif // POSITIONNAMES_H
