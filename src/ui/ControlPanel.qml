@@ -1044,32 +1044,32 @@ Rectangle {
 
                     switch (suffix) {
                         case "DU":
-                            name = "DU (Dial Up)";
+                            name = "Dial Up";
                             icon = "qrc:/images/src/ui/images/pos_du.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_du_empty.svg";
                             break;
                         case "DD":
-                            name = "DD (Dial Down)";
+                            name = "Dial Down";
                             icon = "qrc:/images/src/ui/images/pos_dd.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_dd_empty.svg";
                             break;
                         case "CR":
-                            name = "12H (Crown Right)";
+                            name = "Crown Right";
                             icon = "qrc:/images/src/ui/images/pos_cr.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_cr_empty.svg";
                             break;
                         case "CL":
-                            name = "6H (Crown Left)";
+                            name = "Crown Left";
                             icon = "qrc:/images/src/ui/images/pos_cl.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_cl_empty.svg";
                             break;
                         case "CU":
-                            name = "3H (Crown Up)";
+                            name = "Crown Up";
                             icon = "qrc:/images/src/ui/images/pos_cu.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_cu_empty.svg";
                             break;
                         case "CD":
-                            name = "9H (Crown Down)";
+                            name = "Crown Down";
                             icon = "qrc:/images/src/ui/images/pos_cd.svg";
                             iconEmpty = "qrc:/images/src/ui/images/pos_cd_empty.svg";
                             break;

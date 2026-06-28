@@ -1,4 +1,5 @@
 #include "RadarChartWidget.h"
+#include "../PositionNames.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <cmath>
@@ -16,10 +17,10 @@ RadarChartWidget::RadarChartWidget(QWidget *parent) : QWidget(parent)
 
 void RadarChartWidget::setPositionRate(const QString &position, double rate, bool valid)
 {
-    // 포지션 이름에서 괄호 등 세부설명 제거하여 매핑 일치시킴 (예: "CH (dial up)" -> "CH")
-    QString cleanPos = position.split(QLatin1Char(' ')).first();
-    mRates[cleanPos] = rate;
-    mValids[cleanPos] = valid;
+    const QString key = canonicalCorePositionKey(position);
+    if (key.isEmpty()) return;
+    mRates[key] = rate;
+    mValids[key] = valid;
     update(); // 위젯 다시 그리기
 }
 
@@ -155,7 +156,15 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
             // 수평 방향 (9H, 12H)
             align = Qt::AlignVCenter | (dir.x() > 0 ? Qt::AlignLeft : Qt::AlignRight);
         }
-        painter.drawText(rect, align, pos);
+        QString label;
+        if (pos == QStringLiteral("CH")) label = QStringLiteral("Dial Up");
+        else if (pos == QStringLiteral("CB")) label = QStringLiteral("Dial Down");
+        else if (pos == QStringLiteral("9H")) label = QStringLiteral("Crown Right");
+        else if (pos == QStringLiteral("6H")) label = QStringLiteral("Crown Left");
+        else if (pos == QStringLiteral("3H")) label = QStringLiteral("Crown Up");
+        else if (pos == QStringLiteral("12H")) label = QStringLiteral("Crown Down");
+        else label = pos;
+        painter.drawText(rect, align, label);
     }
 
     // 5. 측정 데이터 플로팅 및 폐곡선 그리기

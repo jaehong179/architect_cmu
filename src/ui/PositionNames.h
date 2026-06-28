@@ -8,17 +8,35 @@
 inline QStringList standardPositionNames()
 {
     return {
-        QStringLiteral("CH (dial up)"),
-        QStringLiteral("CB (dial down)"),
-        QStringLiteral("9H"),
-        QStringLiteral("6H"),
-        QStringLiteral("3H"),
-        QStringLiteral("12H"),
-        QStringLiteral("10H30 (int.)"),
-        QStringLiteral("7H30 (int.)"),
-        QStringLiteral("4H30 (int.)"),
-        QStringLiteral("1H30 (int.)")
+        QStringLiteral("Dial Up"),
+        QStringLiteral("Dial Down"),
+        QStringLiteral("Crown Right"),
+        QStringLiteral("Crown Left"),
+        QStringLiteral("Crown Up"),
+        QStringLiteral("Crown Down")
+        // QStringLiteral("10H30 (int.)"),
+        // QStringLiteral("7H30 (int.)"),
+        // QStringLiteral("4H30 (int.)"),
+        // QStringLiteral("1H30 (int.)")
     };
+}
+
+inline QString canonicalCorePositionKey(const QString &name)
+{
+    const QString n = name.trimmed();
+    if (n.startsWith(QStringLiteral("CH"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Dial Up"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("CH");
+    if (n.startsWith(QStringLiteral("CB"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Dial Down"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("CB");
+    if (n.startsWith(QStringLiteral("9H"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Crown Right"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("9H");
+    if (n.startsWith(QStringLiteral("6H"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Crown Left"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("6H");
+    if (n.startsWith(QStringLiteral("3H"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Crown Up"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("3H");
+    if (n.startsWith(QStringLiteral("12H"), Qt::CaseInsensitive) || n.compare(QStringLiteral("Crown Down"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("12H");
+    return QString();
 }
 
 // ADR-004: 6개 핵심 포지션 측정 시퀀스 (CH→CB→9H→6H→3H→12H).
