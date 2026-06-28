@@ -5,3 +5,15 @@ The goal of this context diagram is to show the **scope** of the TimeGrapher sys
 In the architecture views we find a description of the external entities in the diagram, along with an explanation of their interaction with the system.
 
 ![Context Diagram](../images/contextDiagram.jpg)
+
+## Element Catalog
+
+
+## Behavior
+- N/A
+
+## Related ADRs
+
+
+## Related Views
+- TBD
