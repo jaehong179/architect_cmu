@@ -1,6 +1,7 @@
 #include "TabSequenceDisplay.h"
 #include "PositionNames.h"
 #include "PositionTimingModel.h"
+#include "SequenceResultSaveDialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -8,6 +9,9 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QFile>
+#include <QMessageBox>
+#include <QTextStream>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -70,6 +74,15 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
         "QPushButton:pressed { background-color: #222222; }"
     ));
     ctl->addWidget(mClear);
+
+    mSave = new QPushButton(QStringLiteral("Save"), this);
+    mSave->setStyleSheet(QStringLiteral(
+        "QPushButton { background-color: #1e6f46; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #258b58; }"
+        "QPushButton:pressed { background-color: #175637; }"
+    ));
+    mSave->setVisible(false);
+    ctl->addWidget(mSave);
 
     mComplete = new QLabel(this);
     mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
@@ -166,6 +179,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     connect(mCapture, &QPushButton::clicked, this, &TabSequenceDisplay::capture);
     connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
+    connect(mSave,    &QPushButton::clicked, this, &TabSequenceDisplay::onSaveRequested);
     connect(mPos, &QComboBox::currentIndexChanged, this, &TabSequenceDisplay::onPositionComboChanged);
 
     mPrevPos = mPos->currentText();
@@ -301,10 +315,62 @@ void TabSequenceDisplay::updateComplete()
     if (haveAll) {
         mComplete->setText(QStringLiteral("✓ Sequence complete (Ok)"));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#00FF66;"));
+        if (mSave) mSave->setVisible(true);
     } else {
         mComplete->setText(QStringLiteral("Progress %1/6 positions").arg(n));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888888;"));
+        if (mSave) mSave->setVisible(false);
     }
+}
+
+void TabSequenceDisplay::onSaveRequested()
+{
+    SequenceResultSaveDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QString path = dlg.selectedPath();
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Save"), QStringLiteral("Please select a file path."));
+        return;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this,
+                              QStringLiteral("Save failed"),
+                              QStringLiteral("Could not write file:\n%1").arg(path));
+        return;
+    }
+
+    QTextStream out(&file);
+    out << buildCurrentSequenceCsv();
+    file.close();
+
+    QMessageBox::information(this,
+                             QStringLiteral("Saved"),
+                             QStringLiteral("Sequence result saved to:\n%1").arg(path));
+}
+
+QString TabSequenceDisplay::buildCurrentSequenceCsv() const
+{
+    if (!mTable) return QString();
+
+    QString csv;
+    QTextStream stream(&csv);
+    stream << QStringLiteral("Position,Rate,Amplitude,Beat error\n");
+
+    for (int r = 0; r < 8; ++r) {
+        const QString pos = mTable->item(r, 0) ? mTable->item(r, 0)->text() : QStringLiteral("");
+        const QString rate = mTable->item(r, 1) ? mTable->item(r, 1)->text() : QStringLiteral("--");
+        const QString amp = mTable->item(r, 2) ? mTable->item(r, 2)->text() : QStringLiteral("--");
+        const QString beat = mTable->item(r, 3) ? mTable->item(r, 3)->text() : QStringLiteral("--");
+        stream << QStringLiteral("\"") << pos << QStringLiteral("\",\"")
+               << rate << QStringLiteral("\",\"")
+               << amp << QStringLiteral("\",\"")
+               << beat << QStringLiteral("\"\n");
+    }
+    return csv;
 }
 
 void TabSequenceDisplay::setCurrentPositionByIndex(int index)
