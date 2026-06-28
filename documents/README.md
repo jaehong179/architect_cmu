@@ -136,9 +136,6 @@ Lessons Learned<br /></td>
 
 The task-level schedule below breaks each sprint into concrete tasks with an assigned owner (by role) and start/end dates, and includes the technical experiments (spikes) as scheduled tasks. Day-to-day progress is tracked on the team Kanban board, where each backlog card carries an assignee: [Kanban Board](https://miro.com/app/board/uXjVHFnTVy0=/?share_link_id=685489384283)
 
-*Figure 2-1. Project plan — task schedule by owner, with technical experiments included as spikes.*
-
-<img src="images/image1.png" style="width:6.21875in;height:6.5in" />
 
 ## **2.2 Roles**
 
