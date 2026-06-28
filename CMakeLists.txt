@@ -50,6 +50,8 @@ set(PROJECT_SOURCES
         src/ui/PositionSequenceController.cpp
         src/ui/PositionChangeDialog.h
         src/ui/PositionChangeDialog.cpp
+        src/ui/SequenceResultSaveDialog.h
+        src/ui/SequenceResultSaveDialog.cpp
         src/ui/VideoSplashScreen.h
 )
 
