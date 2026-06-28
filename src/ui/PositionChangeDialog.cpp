@@ -38,6 +38,7 @@ QString PositionChangeDialog::getKoreanName(const QString &fullName) const
 void PositionChangeDialog::setupUi(const QString &completedName, const QString &nextName, int completedIndex)
 {
     setObjectName(QStringLiteral("PositionChangeDialog"));
+    Q_UNUSED(nextName);
 
     // Main layout
     auto *mainLayout = new QVBoxLayout(this);
@@ -53,7 +54,7 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
 
     auto *titleIcon = new QLabel(QStringLiteral("⟳"), this);
     titleIcon->setObjectName(QStringLiteral("TitleIcon"));
-    auto *titleLabel = new QLabel(QStringLiteral("NEXT POSITION"), this);
+    auto *titleLabel = new QLabel(QStringLiteral("CHANGE POSITION"), this);
     titleLabel->setObjectName(QStringLiteral("TitleLabel"));
 
     headerLayout->addWidget(titleIcon);
@@ -91,13 +92,13 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
     arrowLabel->setObjectName(QStringLiteral("ArrowIcon"));
     arrowLabel->setAlignment(Qt::AlignCenter);
 
-    // Right position (Next)
+    // Right position (generic instruction)
     auto *rightCol = new QVBoxLayout();
     rightCol->setAlignment(Qt::AlignCenter);
-    auto *rightCode = new QLabel(getShortCode(nextName), this);
+    auto *rightCode = new QLabel(QStringLiteral("OTHER"), this);
     rightCode->setObjectName(QStringLiteral("NextCode"));
     rightCode->setAlignment(Qt::AlignCenter);
-    auto *rightDesc = new QLabel(getKoreanName(nextName), this);
+    auto *rightDesc = new QLabel(QStringLiteral("다른 위치로 변경"), this);
     rightDesc->setObjectName(QStringLiteral("NextDesc"));
     rightDesc->setAlignment(Qt::AlignCenter);
     rightCol->addWidget(rightCode);
@@ -128,7 +129,7 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
     bodyLayout->addLayout(progressLayout);
 
     // 4. Confirm Button
-    auto *confirmButton = new QPushButton(QStringLiteral("✓ 확인  –  %1 시작").arg(getShortCode(nextName)), this);
+    auto *confirmButton = new QPushButton(QStringLiteral("✓ 확인  –  다른 위치로 변경"), this);
     confirmButton->setObjectName(QStringLiteral("ConfirmButton"));
     confirmButton->setFixedHeight(48);
     connect(confirmButton, &QPushButton::clicked, this, &QDialog::accept);
