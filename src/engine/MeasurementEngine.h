@@ -36,6 +36,11 @@ public:
     void setConfig(int sampleRateHz, int averagingPeriodSec, int liftAngleDeg);
     void reset();                                                  // 측정 상태/시리즈 비움(UI 무관)
 
+    // [측정 대기] 워밍업 종료 전용: 수렴된 추정치(RLS·롤링평균·baseline)는 보존하고
+    //  플롯 시리즈(tic/toc 점)만 비운다. 워밍업 동안 이미 수렴한 값을 버리지 않아
+    //  종료 직후 안정된 값부터 그래프가 시작된다(콜드 재시작 transient 스파이크 방지).
+    void clearPlotsKeepState();
+
     // [측정 대기] rate 그래프 x축 원점(초). 웜업 종료 시 그 시점을 0으로 만들어 갭 제거.
     void setPlotTimeOrigin(double sec) { mPlotTimeOriginSec = sec; }
 

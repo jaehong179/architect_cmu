@@ -95,6 +95,22 @@ void MeasurementEngine::reset()
     mPlotTimeOriginSec = 0.0;   // [측정 대기] 원점 초기화(웜업 종료 시 별도 설정)
 }
 
+void MeasurementEngine::clearPlotsKeepState()
+{
+    // [측정 대기] 워밍업 종료 시 호출: 플롯에 그려지는 tic/toc 시리즈만 비우고
+    //  인덱스를 0으로 되돌린다. RLS(rate 회귀)·롤링평균(amp/beat error)·StartTime·
+    //  ZeroOffset·BPH 등 '수렴된 추정 상태'는 그대로 둬서, 종료 직후 첫 점부터
+    //  안정된 값이 그려지게 한다(reset() 처럼 전부 비우면 재수렴 동안 스파이크가 생김).
+    mRate.xTic.clear();
+    mRate.xToc.clear();
+    mRate.yTic.clear();
+    mRate.yToc.clear();
+    mRate.yTicOut.clear();
+    mRate.yTocOut.clear();
+    mRate.xTicIndex = 0;
+    mRate.xTocIndex = 0;
+}
+
 void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec, QVector<double>& ovec,
                                        double xValue, double yValue, double outlierValue, int maxS, int& index)
 {
