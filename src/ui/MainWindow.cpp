@@ -212,7 +212,7 @@ MainWindow::MainWindow(QWidget *parent)
     LoadAudioDevices();
 
     // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
-    mWarmupDelayList << "Off" << "5s" << "10s" << "15s" << "20s" << "30s" << "60s";
+    mWarmupDelayList << "5s" << "10s" << "15s" << "20s";
 
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
@@ -790,7 +790,7 @@ void MainWindow::stopSession()
 // =========================================================================
 // [측정 대기] Warm-up Delay 로직
 // =========================================================================
-static const int kWarmupSecs[] = {0, 5, 10, 15, 20, 30, 60};
+static const int kWarmupSecs[] = {5, 10, 15, 20};
 
 void MainWindow::startWarmup(int seconds)
 {
