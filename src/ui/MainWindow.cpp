@@ -272,6 +272,9 @@ MainWindow::MainWindow(QWidget *parent)
     mVisionThread = new QThread(this);
     mVisionWorker = new vision::VisionWorker();
     mVisionWorker->moveToThread(mVisionThread);
+    // [vision · 워치독] 카메라 liveness 를 워치독 공유상태에 publish → USB 카메라 분리 시 모달 알림
+    //  (오디오 장치 분리와 동일 동작). 워커 스레드 이동 직후·start 전에 주입.
+    if (mCapture) mVisionWorker->setWatchdogState(mCapture->watchdogState());
     connect(mVisionThread, &QThread::started,  mVisionWorker, &vision::VisionWorker::start);
     connect(mVisionThread, &QThread::finished, mVisionWorker, &QObject::deleteLater);
 

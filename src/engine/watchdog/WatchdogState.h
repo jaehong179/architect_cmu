@@ -21,6 +21,9 @@ struct WatchdogState {
     std::atomic<double>   lastBeatMs{0.0};     // 최근 A(비트) 이벤트 시각 = 시계 신호 liveness
     std::atomic<double>   sessionStartMs{0.0};
     std::atomic<bool>     deviceAlive{true};   // ②QMediaDevices: 활성 캡처 장치가 목록에 존재?
+    std::atomic<bool>     cameraActive{false};      // vision 워커가 카메라를 연 상태?(감시 대상)
+    std::atomic<bool>     cameraAlive{true};        // ②QMediaDevices: 활성 카메라가 목록에 존재?
+    std::atomic<double>   lastCameraFrameMs{0.0};   // ①최근 비디오 프레임 도착 시각 = 카메라 liveness
 };
 
 #endif // WATCHDOGSTATE_H

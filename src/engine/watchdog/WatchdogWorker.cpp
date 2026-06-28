@@ -40,6 +40,9 @@ void WatchdogWorker::tick()
     ctx.lastBlockMs    = mState->lastBlockMs.load(std::memory_order_relaxed);
     ctx.lastBeatMs     = mState->lastBeatMs.load(std::memory_order_relaxed);
     ctx.sessionStartMs = mState->sessionStartMs.load(std::memory_order_relaxed);
+    ctx.cameraActive      = mState->cameraActive.load(std::memory_order_relaxed);
+    ctx.cameraAlive       = mState->cameraAlive.load(std::memory_order_relaxed);
+    ctx.lastCameraFrameMs = mState->lastCameraFrameMs.load(std::memory_order_relaxed);
     ctx.nowMs          = wdNowMs();
 
     for (auto &c : mChecks)
