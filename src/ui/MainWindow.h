@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QMainWindow>
 #include <QComboBox>
 #include <QStringList>
@@ -214,6 +215,8 @@ private:
     void   PopulateSampleRates(const QAudioDevice &device);
     void   pushCaptureConfig(void);
     void   DisplayResults(void);
+    void   updateDetectedPositionUiSync(const QString &detectedLabel);
+    static int sequenceIndexFromDetectedPosition(const QString &detectedLabel);
     void   LoadBPH(void);
     void   LoadSimBPH(void);
     void   LoadMode(void);
@@ -263,6 +266,8 @@ private:
     bool                       mIsRunning = false;
     bool                       mRecordSessionEnabled = false;
     QString                    mDetectedPosition;
+    int                        mDetectedStableCandidateIndex = -1;
+    QElapsedTimer              mDetectedStableTimer;
     bool                       mControlPanelCollapsed = false;
 
     double                     mLiftAngle;

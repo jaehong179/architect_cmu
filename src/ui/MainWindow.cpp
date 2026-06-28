@@ -104,6 +104,56 @@ static int SimBPH[]={3600,  6000,  7200,  7380,  7440,  7800,  9000,  9100, 1080
                      21600, 25200, 28800, 32400, 36000, 43200};
 
 static int AveragingPeriodList[]={2,4,8,10,12,20,20,30,40,50,60,120,240};
+static constexpr qint64 kDetectedPositionHoldMs = 3000;
+
+int MainWindow::sequenceIndexFromDetectedPosition(const QString &detectedLabel)
+{
+    const QString raw = detectedLabel.trimmed().toUpper();
+    if (raw.isEmpty() || raw == QStringLiteral("?"))
+        return -1;
+
+    // Reflect only when watch is present.
+    if (!raw.startsWith(QStringLiteral("W_")))
+        return -1;
+
+    const int underscore = raw.indexOf(QLatin1Char('_'));
+    const QString suffix = (underscore >= 0 && (underscore + 1) < raw.size())
+        ? raw.mid(underscore + 1)
+        : raw;
+
+    if (suffix == QStringLiteral("DU") || suffix == QStringLiteral("CH")) return 0;
+    if (suffix == QStringLiteral("DD") || suffix == QStringLiteral("CB")) return 1;
+    if (suffix == QStringLiteral("CR") || suffix == QStringLiteral("9H")) return 2;
+    if (suffix == QStringLiteral("CL") || suffix == QStringLiteral("6H")) return 3;
+    if (suffix == QStringLiteral("CU") || suffix == QStringLiteral("3H")) return 4;
+    if (suffix == QStringLiteral("CD") || suffix == QStringLiteral("12H")) return 5;
+    return -1;
+}
+
+void MainWindow::updateDetectedPositionUiSync(const QString &detectedLabel)
+{
+    if (!mSequenceDisplay)
+        return;
+
+    const int detectedIndex = sequenceIndexFromDetectedPosition(detectedLabel);
+    if (detectedIndex < 0) {
+        mDetectedStableCandidateIndex = -1;
+        mDetectedStableTimer = QElapsedTimer();
+        return;
+    }
+
+    if (mDetectedStableCandidateIndex != detectedIndex) {
+        mDetectedStableCandidateIndex = detectedIndex;
+        mDetectedStableTimer.restart();
+        return;
+    }
+
+    if (!mDetectedStableTimer.isValid() || mDetectedStableTimer.elapsed() < kDetectedPositionHoldMs)
+        return;
+
+    // Apply only after the same detected position is held for >= 3 seconds.
+    mSequenceDisplay->setCurrentPositionByIndex(detectedIndex);
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -208,6 +258,7 @@ MainWindow::MainWindow(QWidget *parent)
                     mDetectedPosition = label;
                     emit detectedPositionChanged();
                 }
+                updateDetectedPositionUiSync(label);
             });
 
     mVisionThread->start();
