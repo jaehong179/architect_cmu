@@ -61,13 +61,59 @@ Rectangle {
                 border.color: root.colorBorder
                 border.width: 1
             }
-            contentItem: Text {
-                text: cppBackend.controlPanelCollapsed ? "▶" : "◀"
-                color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                font.bold: true
-                font.pixelSize: 14
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            contentItem: Item {
+                id: hamburgerIcon
+                implicitWidth: 32
+                implicitHeight: 32
+
+                readonly property bool collapsed: cppBackend.controlPanelCollapsed
+
+                Rectangle {
+                    id: bar1
+                    width: 14
+                    height: 2
+                    radius: 1
+                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
+                    x: (parent.width - width) / 2
+                    y: hamburgerIcon.collapsed ? 11 : 15
+                    transformOrigin: Item.Center
+                    rotation: hamburgerIcon.collapsed ? 0 : 45
+
+                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                }
+
+                Rectangle {
+                    id: bar2
+                    width: 14
+                    height: 2
+                    radius: 1
+                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
+                    x: (parent.width - width) / 2
+                    y: 15
+                    opacity: hamburgerIcon.collapsed ? 1 : 0
+                    transformOrigin: Item.Center
+
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                }
+
+                Rectangle {
+                    id: bar3
+                    width: 14
+                    height: 2
+                    radius: 1
+                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
+                    x: (parent.width - width) / 2
+                    y: hamburgerIcon.collapsed ? 19 : 15
+                    transformOrigin: Item.Center
+                    rotation: hamburgerIcon.collapsed ? 0 : -45
+
+                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on color { ColorAnimation { duration: 100 } }
+                }
             }
             onClicked: { cppBackend.controlPanelCollapsed = !cppBackend.controlPanelCollapsed }
         }
