@@ -111,7 +111,8 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     connect(mScopeScale, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
         const double windowSec = kScopeWindowBaseSec / v;
         mWindowLabel->setText(QString("Window: %1 s").arg(windowSec, 0, 'f', 2));
-        syncScopeXAxis(sampleToTime(mGraphTicks));
+        mSweepArmed = false;   // 창 폭 변경 → 트리거락 재무장
+        frameScope();
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     });
 
@@ -276,13 +277,8 @@ void TabRateScope::onWave(const WaveBlock &wave)
     mGraphTicks = wave.startSample;
 
     const double threshold = wave.onsetThreshold;
-    // 고샘플레이트(예: 384kHz)에서 스코프 점이 레이트×시간으로 폭증(384만 점) → QCustomPlot 렌더가 멈춘다.
-    //  검출은 풀 레이트 그대로(정확도 보존)이고, '그리기'만 줄인다:
-    //  min/max 데시메이션 — decim 샘플 구간마다 최저·최고점 2개만 찍어 점 수는 줄이되 '피크'는 보존한다.
-    //  x(키)는 세션 기준 초 단위 시각이라 A/C 마커 정렬도 유지. 48k(decim=1)는 샘플마다 1점(원동작 동일).
-    // 성능 최적화: 48kHz에서도 최소 16배 데시메이션을 적용하여 실시간 데이터 포인트 누적을 제어하고 FPS 저하를 차단합니다.
-    // Peak-Hold 방식의 min/max 보존 드로잉이므로 해상도는 여전히 날카롭게 유지됩니다.
-    const int decim = qMax(16, (mSampleRateHz / 48000) * 16);   // 48k→16, 96k→32, 192k→64, 384k→128
+    // min/max 데시메이션 — decim 구간마다 최저·최고 2점만 찍어 점 수↓·피크 보존(고레이트 FPS 보호).
+    const int decim = qMax(16, (mSampleRateHz / 48000) * 16);
     if (wave.env) {
         if (decim == 1) {
             for (int i = 0; i < wave.n; ++i) {
@@ -301,7 +297,6 @@ void TabRateScope::onWave(const WaveBlock &wave)
                 }
                 mGraphTicks++;
                 if (++mDecimCount >= decim) {
-                    // 구간의 최저·최고를 x(시간) 순서로 2점 추가 → 피크 보존.
                     if (mDecimMinTick <= mDecimMaxTick) {
                         mScopePlot->graph(0)->addData(sampleToTime(mDecimMinTick), mDecimMin);
                         mScopePlot->graph(0)->addData(sampleToTime(mDecimMaxTick), mDecimMax);
@@ -317,38 +312,41 @@ void TabRateScope::onWave(const WaveBlock &wave)
     }
 
     const double inwardLenSec = (500.0 * (mSampleRateHz / 48000.0)) / mSampleRateHz;
+    // 마커 높이는 비트별 peak 가 아니라 '현재 y축 범위' 기준 고정 비율 → 모든 비트가 같은 높이.
+    const double H = mScopePlot->yAxis->range().upper;
+    const double Htop = H * 0.85;   // 세로선·진폭 브래킷(상단)
+    const double Hmid = H * 0.45;   // A 간격(125ms) 브래킷(중단)
     for (int i = 0; i < wave.numEvents; ++i) {
         const WaveEvent &e = wave.events[i];
-        const double val = sampleToTime(e.markSample);   // 표시 해상 위치(A=검출, C=onset/peak)
+        const double val = sampleToTime(e.markSample);
         if (e.type == kEventA) {
-            addVerticalMarker(val, e.peak, Theme::kMarkerA, true);
+            addVerticalMarker(val, Htop, Theme::kMarkerA, true);
             if (mHaveLastA) {
                 double delta = val - mLastA;
-                addHorizontalMarkerOutward(mLastA, val, e.peak / 2.0, Theme::kBracket);
-                QString text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
-                addText(mLastA + (delta / 2.0), e.peak / 2.0, text, Theme::kBracket, Qt::AlignHCenter | Qt::AlignTop);
+                addHorizontalMarkerOutward(mLastA, val, Hmid, Theme::kBracket);
+                addText(mLastA + (delta / 2.0), Hmid, QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1),
+                        Theme::kBracket, Qt::AlignHCenter | Qt::AlignTop);
             }
+            if (!mHaveFirstTick) { mFirstTickTime = val; mHaveFirstTick = true; }   // 첫 검출 시각 기록
             mLastA = val; mHaveLastA = true;
         } else if (e.type == kEventC) {
             double delta = val - mLastA;
             QString text;
             if (wave.synced) {
                 int Amp = qRound(amplitudeOf(mLiftAngle, delta, wave.bph));
-                if (Amp < 360)
-                    text = QString("%1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp);
-                else
-                    text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
+                text = (Amp < 360) ? QString("%1 ms\n%2°").arg(delta * 1000.0, 0, 'f', 1).arg(Amp)
+                                   : QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
             } else {
                 text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
             }
-            addVerticalMarker(val, e.peak, Theme::kMarkerC, false);
-            addHorizontalMarkerInward(mLastA, val, inwardLenSec, e.peak, Theme::kBracket);
-            addText(val + inwardLenSec, e.peak, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
+            addVerticalMarker(val, Htop, Theme::kMarkerC, false);
+            addHorizontalMarkerInward(mLastA, val, inwardLenSec, Htop, Theme::kBracket);
+            addText(val + inwardLenSec, Htop, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
         }
     }
 
     purgeHistory();
-    syncScopeXAxis(sampleToTime(mGraphTicks));
+    frameScope();   // roll(미검출 시 흐름) → 검출되면 트리거락(정지)
 
     // Scope Y축: purgeHistory 후 남은 그래프 데이터 전체의 실제 max를 기반으로 smoothPeak 적용.
     //  block 단위 max(beat 사이 무음 시 0으로 급강) 대신 누적 데이터 max를 쓰면 Y축이 안정적이다.
@@ -390,7 +388,7 @@ void TabRateScope::setPaused(bool paused)
         // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
         mHistActive = false;
         if (mRateCursor) mRateCursor->setVisible(false);   // 상단 클릭 커서 숨김
-        mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0;
+        mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0; mSweepArmed = false; mHaveFirstTick = false;   // 재무장
         mScopePlot->graph(0)->data()->clear();
         mScopePlot->graph(1)->data()->clear();
         mScopePlot->clearItems();
@@ -433,21 +431,23 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
     if (!mHistory) return;
     const QVector<WaveEvent> evs = mHistory->eventsInRange(fromAbs, toAbs);
     const double inwardLenSec = (500.0 * (mSampleRateHz / 48000.0)) / mSampleRateHz;
+    // 마커 높이 고정(라이브와 동일) — 비트별 peak 대신 y축 범위 비율.
+    const double H = mScopePlot->yAxis->range().upper, Htop = H * 0.85, Hmid = H * 0.45;
     double lastA = 0.0; bool haveA = false;
     for (const WaveEvent &e : evs) {
         const double x = ((double)e.markSample - mHistOffset) / mSampleRateHz;       // 라이브 좌표(초)
         if (e.type == kEventA) {
-            addVerticalMarker(x, e.peak, Theme::kMarkerA, true);
+            addVerticalMarker(x, Htop, Theme::kMarkerA, true);
             if (haveA) {                                           // A→A 비트-투-비트 간격(예: 125 ms)
                 const double delta = x - lastA;
-                addHorizontalMarkerOutward(lastA, x, e.peak / 2.0, Theme::kBracket);
-                addText(lastA + delta / 2.0, e.peak / 2.0,
+                addHorizontalMarkerOutward(lastA, x, Hmid, Theme::kBracket);
+                addText(lastA + delta / 2.0, Hmid,
                         QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1),
                         Theme::kBracket, Qt::AlignHCenter | Qt::AlignTop);
             }
             lastA = x; haveA = true;
         } else if (e.type == kEventC) {                            // A→C 진폭(6.9 ms / 303°)
-            addVerticalMarker(x, e.peak, Theme::kMarkerC, false);
+            addVerticalMarker(x, Htop, Theme::kMarkerC, false);
             if (haveA) {                                           // 선행 A 있을 때만 간격/진폭 라벨
                 const double delta = x - lastA;
                 QString text;
@@ -458,8 +458,8 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
                 } else {
                     text = QString("%1 ms").arg(delta * 1000.0, 0, 'f', 1);
                 }
-                addHorizontalMarkerInward(lastA, x, inwardLenSec, e.peak, Theme::kBracket);
-                addText(x + inwardLenSec, e.peak, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
+                addHorizontalMarkerInward(lastA, x, inwardLenSec, Htop, Theme::kBracket);
+                addText(x + inwardLenSec, Htop, text, Theme::kBracket, Qt::AlignLeft | Qt::AlignTop);
             }
         }
     }
@@ -512,6 +512,7 @@ void TabRateScope::onResetSession()
 
     mGraphTicks = 0; mLastA = 0.0; mHaveLastA = false; mDecimCount = 0;
     mScopePeakNorm = 0.0;
+    mSweepArmed = false; mHaveFirstTick = false;   // 트리거락 고정창 초기화
 
     for (int i = 0; i < mScopePlot->graphCount(); ++i) mScopePlot->graph(i)->data()->clear();
     mScopePlot->clearItems();
@@ -648,6 +649,29 @@ void TabRateScope::purgeHistory()
 double TabRateScope::sampleToTime(uint64_t sample) const
 {
     return sample / (double)mSampleRateHz;
+}
+
+// 스코프 x창 프레이밍.
+//  · roll(검출 전): 우측 끝 = 최신 샘플 → 매 블록 전진 = 좌측 스크롤(흐름).
+//  · 트리거락(검출 후): 고정창 [mSweepEnd−win, mSweepEnd] 을 win 동안 그대로 고정 → 절대-x 데이터·마커가
+//    멈춘다(정지). 최신이 win 만큼 더 쌓이면(latest≥mSweepEnd+win) 다음 틱(mLastA)으로 재무장 → 다음
+//    구간으로. 위상이 같은 틱 경계라 패턴이 동일 → 화면 정지. 첫 검출 시 mSweepEnd≈최신이라 공백 없이 정지.
+void TabRateScope::frameScope()
+{
+    const double winSec = kScopeWindowBaseSec / mScopeScale->value();
+    const double latest = sampleToTime(mGraphTicks);
+    double anchorEnd;
+    // 검출(첫 틱) 후에도 '한 창(win)이 좋은 비트로 다 찰 때까지' roll 을 유지 → 비트가 왼→오로 하나하나 채워짐.
+    //  그 뒤에야 잠금 → pre-sync 구간이 담긴 창에 얼거나 통째 점프(빈 화면)하는 일이 없다.
+    const bool readyToLock = mTriggerLock && mHaveFirstTick && (latest >= mFirstTickTime + winSec);
+    if (readyToLock) {
+        if (!mSweepArmed || latest >= mSweepEnd + winSec) { mSweepEnd = mLastA; mSweepArmed = true; }
+        anchorEnd = mSweepEnd;
+    } else {
+        mSweepArmed = false;
+        anchorEnd = latest;   // roll(검출 전 + 검출 후 첫 win 동안)
+    }
+    syncScopeXAxis(anchorEnd);
 }
 
 void TabRateScope::syncScopeXAxis(double timeEndSec)
