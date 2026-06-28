@@ -13,6 +13,7 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QAudioOutput>
+#include <QMediaDevices>
 #include <QVideoSink>
 #include <QVideoFrame>
 #include <QPainter>
@@ -58,7 +59,7 @@ public:
                     }
                 });
 
-        m_audioOutput = new QAudioOutput(this);
+        m_audioOutput = new QAudioOutput(preferredVideoAudioOutput(), this);
         m_player->setAudioOutput(m_audioOutput);
         m_player->setSource(QUrl::fromLocalFile(filePath));
 #else
@@ -131,6 +132,23 @@ private slots:
     }
 
 private:
+    // Prefer HDMI output for video audio so that connecting a USB mic does not
+    // silently redirect sound to the USB adapter's unplugged headphone jack.
+    static QAudioDevice preferredVideoAudioOutput()
+    {
+        QAudioDevice hdmi, nonUsb;
+        for (const QAudioDevice &dev : QMediaDevices::audioOutputs()) {
+            const QString desc = dev.description();
+            if (desc.contains(QLatin1String("HDMI"), Qt::CaseInsensitive) && hdmi.isNull())
+                hdmi = dev;
+            if (!desc.contains(QLatin1String("USB"), Qt::CaseInsensitive) && nonUsb.isNull())
+                nonUsb = dev;
+        }
+        if (!hdmi.isNull())  return hdmi;
+        if (!nonUsb.isNull()) return nonUsb;
+        return QMediaDevices::defaultAudioOutput();
+    }
+
     void closeAndExit()
     {
         if (m_finished)
