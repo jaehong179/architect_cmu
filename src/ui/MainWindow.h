@@ -72,6 +72,9 @@ class MainWindow : public QMainWindow
     Q_PROPERTY(QStringList bphList READ bphList CONSTANT)
     Q_PROPERTY(QStringList simBphList READ simBphList CONSTANT)
 
+    // Control Panel collapse state (QML ↔ C++ two-way binding)
+    Q_PROPERTY(bool controlPanelCollapsed READ controlPanelCollapsed WRITE setControlPanelCollapsed NOTIFY controlPanelCollapsedChanged)
+
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
@@ -83,6 +86,7 @@ public:
     Q_INVOKABLE void stopSession();
     Q_INVOKABLE void refreshDevices();
     Q_INVOKABLE bool choosePlaybackFile();
+    Q_INVOKABLE void onControlPanelToggled(bool collapsed);
 
     // Getters & Setters for Q_PROPERTY
     int currentMode() const;
@@ -142,6 +146,9 @@ public:
     QStringList bphList() const { return mBphList; }
     QStringList simBphList() const { return mSimBphList; }
 
+    bool controlPanelCollapsed() const { return mControlPanelCollapsed; }
+    void setControlPanelCollapsed(bool collapsed);
+
 signals:
     void currentModeChanged();
     void gainChanged();
@@ -163,6 +170,7 @@ signals:
     void simRealisticChanged();
     void highPassCutoffChanged();
     void useConsetChanged();
+    void controlPanelCollapsedChanged();
 
 public slots:
     void HandlePlaybackDoneReadingFile();
@@ -250,6 +258,7 @@ private:
     bool                       mIsRunning = false;
     bool                       mRecordSessionEnabled = false;
     QString                    mDetectedPosition;
+    bool                       mControlPanelCollapsed = false;
 
     double                     mLiftAngle;
     int                        mAveragingPeriod;
