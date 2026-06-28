@@ -1005,6 +1005,12 @@ void MainWindow::pushCaptureConfig(void)
 
 void MainWindow::LiveStart(void)
 {
+    if (mDeviceIndex < 0 || mDeviceIndex >= mAudioInputDevices.size()) {
+        QMessageBox::warning(this, "No Audio Input Device",
+            "No audio input device is available.\n\n"
+            "Please connect the USB microphone and try again.");
+        return;
+    }
     if (mRecordSessionEnabled && !RecordSessionCheck()) return;
     Reset();
     pushCaptureConfig();
