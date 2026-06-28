@@ -59,6 +59,7 @@ using PFN_InterpreterCreate    = TfLiteInterpreter *(*)(const TfLiteModel *, con
 using PFN_InterpreterDelete    = void (*)(TfLiteInterpreter *);
 using PFN_AllocateTensors      = TfLiteStatus (*)(TfLiteInterpreter *);
 using PFN_GetInputTensor       = TfLiteTensor *(*)(const TfLiteInterpreter *, int32_t);
+using PFN_GetInputTensorCount  = int32_t (*)(const TfLiteInterpreter *);
 using PFN_CopyFromBuffer       = TfLiteStatus (*)(TfLiteTensor *, const void *, size_t);
 using PFN_Invoke               = TfLiteStatus (*)(TfLiteInterpreter *);
 using PFN_GetOutputTensor      = const TfLiteTensor *(*)(const TfLiteInterpreter *, int32_t);
@@ -97,6 +98,7 @@ struct TfliteApi::Impl
     PFN_InterpreterDelete    interpreterDelete    = nullptr;
     PFN_AllocateTensors      allocateTensors      = nullptr;
     PFN_GetInputTensor       getInputTensor       = nullptr;
+    PFN_GetInputTensorCount  getInputTensorCount  = nullptr;
     PFN_CopyFromBuffer       copyFromBuffer       = nullptr;
     PFN_Invoke               invoke               = nullptr;
     PFN_GetOutputTensor      getOutputTensor      = nullptr;
@@ -142,6 +144,7 @@ bool TfliteApi::loadLibrary(const std::string &libraryName)
         { reinterpret_cast<void **>(&d->interpreterDelete),    "TfLiteInterpreterDelete" },
         { reinterpret_cast<void **>(&d->allocateTensors),      "TfLiteInterpreterAllocateTensors" },
         { reinterpret_cast<void **>(&d->getInputTensor),       "TfLiteInterpreterGetInputTensor" },
+        { reinterpret_cast<void **>(&d->getInputTensorCount),  "TfLiteInterpreterGetInputTensorCount" },
         { reinterpret_cast<void **>(&d->copyFromBuffer),       "TfLiteTensorCopyFromBuffer" },
         { reinterpret_cast<void **>(&d->invoke),               "TfLiteInterpreterInvoke" },
         { reinterpret_cast<void **>(&d->getOutputTensor),      "TfLiteInterpreterGetOutputTensor" },
@@ -214,17 +217,9 @@ int TfliteApi::outputElementCount() const
     return static_cast<int>(d->tensorByteSize(t) / typeElemSize(d->tensorType(t)));
 }
 
-bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<float> &output)
+bool TfliteApi::writeInput(void *tensor, const float *input, std::size_t inputCount)
 {
-    if (!d->interpreter) {
-        mError = "Interpreter not initialized";
-        return false;
-    }
-    TfLiteTensor *in = d->getInputTensor(d->interpreter, 0);
-    if (!in) {
-        mError = "No input tensor";
-        return false;
-    }
+    TfLiteTensor *in = reinterpret_cast<TfLiteTensor *>(tensor);
 
     // ── 입력 주입(타입별) ─────────────────────────────────────────────────
     //   float32 모델: float 버퍼를 그대로 복사.
@@ -262,6 +257,23 @@ bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<f
         mError = "Unsupported input tensor type";
         return false;
     }
+    return true;
+}
+
+bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<float> &output)
+{
+    if (!d->interpreter) {
+        mError = "Interpreter not initialized";
+        return false;
+    }
+    TfLiteTensor *in = d->getInputTensor(d->interpreter, 0);
+    if (!in) {
+        mError = "No input tensor";
+        return false;
+    }
+
+    if (!writeInput(in, input, inputCount))
+        return false;
 
     if (d->invoke(d->interpreter) != kTfLiteOk) {
         mError = "TfLiteInterpreterInvoke failed";
@@ -272,6 +284,67 @@ bool TfliteApi::invoke(const float *input, std::size_t inputCount, std::vector<f
         mError = "No output tensor";
         return false;
     }
+
+    return readOutput(out, output);
+}
+
+bool TfliteApi::invoke(const std::vector<std::vector<float>> &inputs, std::vector<float> &output)
+{
+    if (!d->interpreter) {
+        mError = "Interpreter not initialized";
+        return false;
+    }
+    if (!d->getInputTensorCount) {
+        mError = "GetInputTensorCount unavailable";
+        return false;
+    }
+    const int nTensors = d->getInputTensorCount(d->interpreter);
+    if (nTensors != static_cast<int>(inputs.size())) {
+        mError = "Input count mismatch (model expects "
+                 + std::to_string(nTensors) + ")";
+        return false;
+    }
+
+    // 각 모델 입력 텐서를 '원소 수'가 일치하는 제공 버퍼에 매칭(인덱스 순서 비의존).
+    //   diag 모델은 signal(192=64*3) 과 features(14) 로 원소 수가 달라 모호함이 없다.
+    std::vector<bool> used(inputs.size(), false);
+    for (int ti = 0; ti < nTensors; ++ti) {
+        TfLiteTensor *in = d->getInputTensor(d->interpreter, ti);
+        if (!in) {
+            mError = "No input tensor at index " + std::to_string(ti);
+            return false;
+        }
+        const std::size_t want =
+            d->tensorByteSize(in) / typeElemSize(d->tensorType(in));
+        int match = -1;
+        for (int k = 0; k < static_cast<int>(inputs.size()); ++k) {
+            if (!used[k] && inputs[k].size() == want) { match = k; break; }
+        }
+        if (match < 0) {
+            mError = "No provided input matches model tensor (elems="
+                     + std::to_string(want) + ")";
+            return false;
+        }
+        used[match] = true;
+        if (!writeInput(in, inputs[match].data(), inputs[match].size()))
+            return false;
+    }
+
+    if (d->invoke(d->interpreter) != kTfLiteOk) {
+        mError = "TfLiteInterpreterInvoke failed";
+        return false;
+    }
+    const TfLiteTensor *out = d->getOutputTensor(d->interpreter, 0);
+    if (!out) {
+        mError = "No output tensor";
+        return false;
+    }
+    return readOutput(out, output);
+}
+
+bool TfliteApi::readOutput(const void *tensor, std::vector<float> &output)
+{
+    const TfLiteTensor *out = reinterpret_cast<const TfLiteTensor *>(tensor);
 
     // ── 출력 읽기(타입별) ─────────────────────────────────────────────────
     //   int8/uint8 모델: real = (q - zero_point) * scale 로 역양자화해 float 확률로 복원.

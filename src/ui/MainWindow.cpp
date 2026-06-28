@@ -49,6 +49,11 @@
 #include "VisionWorker.h"          // [vision] 웹캠 1Hz watch-position 추론 워커
 #endif
 
+#ifdef ENABLE_DIAG
+#include <QThread>
+#include "DiagWorker.h"            // [diag] Stop 시 t1/t3 고장유형 진단 워커
+#endif
+
 #define  LIVE     0
 #define  PLAYBACK 1
 #define  SIM      2
@@ -203,6 +208,32 @@ MainWindow::MainWindow(QWidget *parent)
 
     mVisionThread->start();
 #endif
+
+#ifdef ENABLE_DIAG
+    // [diag] Stop 시 t1/t3(rateTicY/rateTocY) 로 고장유형을 진단하는 전용 스레드.
+    //  슬라이딩 윈도우 보팅 추론을 워커 스레드에서 수행 → UI/측정 핫패스 비차단.
+    //  큐 연결로 QVector<double> 를 넘기므로 메타타입 등록이 필요하다.
+    qRegisterMetaType<QVector<double>>("QVector<double>");
+    mDiagThread = new QThread(this);
+    mDiagWorker = new diag::DiagWorker();
+    mDiagWorker->moveToThread(mDiagThread);
+    connect(mDiagThread, &QThread::started,  mDiagWorker, &diag::DiagWorker::init);
+    connect(mDiagThread, &QThread::finished, mDiagWorker, &QObject::deleteLater);
+
+    // 결과/에러는 워커 스레드 → 큐 연결로 메인 스레드 상태바에 단순 print.
+    connect(mDiagWorker, &diag::DiagWorker::resultReady, this,
+            [this](const QString &label, float conf, int windows) {
+                statusBar()->showMessage(
+                    QStringLiteral("Diagnosis: %1 (%2%, %3 windows)")
+                        .arg(label)
+                        .arg(QString::number(conf * 100.0f, 'f', 0))
+                        .arg(windows));
+            });
+    connect(mDiagWorker, &diag::DiagWorker::error, this,
+            [this](const QString &message) { statusBar()->showMessage(message); });
+
+    mDiagThread->start();
+#endif
 }
 
 MainWindow::~MainWindow()
@@ -214,6 +245,12 @@ MainWindow::~MainWindow()
             QMetaObject::invokeMethod(mVisionWorker, "stop", Qt::BlockingQueuedConnection);
         mVisionThread->quit();
         mVisionThread->wait();
+    }
+#endif
+#ifdef ENABLE_DIAG
+    if (mDiagThread) {
+        mDiagThread->quit();
+        mDiagThread->wait();
     }
 #endif
     delete ui;
@@ -631,6 +668,18 @@ void MainWindow::stopSession()
     }
 
     statusBar()->showMessage("Stopped");
+
+#ifdef ENABLE_DIAG
+    // [diag] 정지 시점의 t1(rateTicY)/t3(rateTocY) 시계열로 고장유형 진단을 비동기 실행.
+    //  데이터 부족(<64)·미수행 사유는 워커가 error() 로 상태바에 통지한다.
+    if (mDiagWorker) {
+        const QVector<double> t1 = mEngine.ticY();
+        const QVector<double> t3 = mEngine.tocY();
+        QMetaObject::invokeMethod(mDiagWorker, "runDiagnosis", Qt::QueuedConnection,
+                                  Q_ARG(QVector<double>, t1),
+                                  Q_ARG(QVector<double>, t3));
+    }
+#endif
 }
 
 void MainWindow::refreshDevices()

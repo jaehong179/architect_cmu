@@ -1,0 +1,8 @@
+<!-- diag.qrc — AUTO-GENERATED from src/tinyml/diag.qrc.in by CMake. DO NOT EDIT.
+     진단 모델(model_diag.tflite, fp32)을 바이너리 임베드한다(외부 파일 0).
+     alias 는 항상 model_diag.tflite 로 고정 → 런타임 리소스 경로(:/tinyml/model_diag.tflite) 불변. -->
+<RCC>
+    <qresource prefix="/tinyml">
+        <file alias="model_diag.tflite">@DIAG_MODEL_PATH@</file>
+    </qresource>
+</RCC>

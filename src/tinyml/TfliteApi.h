@@ -35,6 +35,11 @@ public:
     // 입력(NHWC float, inputCount 개)을 넣고 추론 → output 채움. 성공 시 true.
     bool invoke(const float *input, std::size_t inputCount, std::vector<float> &output);
 
+    // 다중 입력 추론(예: diag 모델 = signal + features). 각 입력 버퍼는 '원소 수'가
+    //   일치하는 모델 입력 텐서에 자동 매칭된다(텐서 인덱스 순서에 의존하지 않음 —
+    //   inference_diag.py 가 rank 로 매칭하는 것과 동일한 효과). 성공 시 output(출력0) 채움.
+    bool invoke(const std::vector<std::vector<float>> &inputs, std::vector<float> &output);
+
     bool isReady() const;
     int  inputElementCount() const;   // 모델 입력 텐서 원소 수(검증용), 실패 시 -1
     int  outputElementCount() const;  // 모델 출력 텐서 원소 수, 실패 시 -1
@@ -45,6 +50,12 @@ private:
     struct Impl;
     std::unique_ptr<Impl> d;
     std::string           mError;
+
+    // 단일 입력 텐서에 float 버퍼를 주입(fp32 그대로 / int8·uint8 양자화). 실패 시 false.
+    bool writeInput(void *tensor, const float *input, std::size_t inputCount);
+
+    // 출력 텐서(출력0)를 float 확률로 읽는다(fp32 그대로 / int8·uint8 역양자화). 실패 시 false.
+    bool readOutput(const void *tensor, std::vector<float> &output);
 };
 
 } // namespace vision

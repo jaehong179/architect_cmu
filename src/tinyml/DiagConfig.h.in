@@ -1,0 +1,82 @@
+// DiagConfig.h — AUTO-GENERATED from src/tinyml/DiagConfig.h.in by CMake.
+//   DO NOT EDIT. Edit src/tinyml/DiagConfig.h.in and the CMake DIAG_* vars instead.
+//   (클래스 라벨 / feature 정규화 통계는 이 템플릿에 직접 임베드된다 — 외부 json 불필요.)
+//
+//   진단(diagnosis) 모델: t1(rateTicY)/t3(rateTocY) 64쌍 → 고장 유형 12-클래스 분류.
+//   전처리/추론 파이프라인은 src/tinyml/inference_diag.py 와 1:1 동일하다.
+#ifndef DIAG_CONFIG_H
+#define DIAG_CONFIG_H
+
+#include <array>
+#include <string_view>
+
+namespace diag {
+
+// ── 추론/전처리 설정 (inference_diag.py 와 동일 값) ───────────────────────────
+inline constexpr int   kSampleRate     = @DIAG_SAMPLE_RATE@;    // 비트 시계열 가정 샘플레이트(Hz)
+inline constexpr int   kSequenceLength = @DIAG_SEQUENCE_LENGTH@; // 모델 입력 beat 길이(=윈도우 크기)
+inline constexpr int   kNumFeatures    = @DIAG_NUM_FEATURES@;   // feature 분기 입력 차원
+inline constexpr int   kWindow         = @DIAG_WINDOW@;         // 분석 윈도우(beat 수) — 64 미만이면 진단 불가
+inline constexpr int   kHop            = @DIAG_HOP@;            // 윈도우 stride — 32(=윈도우 절반, 반씩 겹침)
+inline constexpr float kConfThresh     = @DIAG_CONF_THRESH@f;   // 이 값 미만은 "uncertain"
+inline constexpr int   kNumThreads     = @DIAG_NUM_THREADS@;    // TFLite 인터프리터 스레드 수
+
+// 모델은 .qrc 로 임베드된다(외부 파일 불필요). fp32 모델 사용.
+inline constexpr const char* kModelResource = "@DIAG_MODEL_RESOURCE@";
+
+// ── 클래스 라벨 (인덱스 = 모델 출력 클래스 순서, label_map.json 임베드) ───────────
+//   라벨을 추가/변경하려면 아래 배열만 수정하면 된다(kNumClasses 는 자동 추론).
+inline constexpr std::array<std::string_view, 12> kLabels = {{
+    "normal",
+    "beat_error_high",
+    "rate_fast",
+    "rate_slow",
+    "gear_train_defect",
+    "irregular_insufficient_amplitude",
+    "balance_knock_occasional",
+    "balance_knock_continuous",
+    "escape_wheel_untrue",
+    "entry_pallet_poor",
+    "hairspring_touches",
+    "slow_oscillating_after_position_change",
+}};
+inline constexpr int kNumClasses = static_cast<int>(kLabels.size());
+
+// ── feature 표준화 통계 (feature_norm.json 임베드) ────────────────────────────
+//   추론 시 standardized = (feature - mean) / std. inference_diag.py 와 byte-단위 동일.
+inline constexpr std::array<float, 14> kFeatureMean = {{
+    3.170201301574707f,
+    3.387211322784424f,
+    4.844095230102539f,
+    1.8161555528640747f,
+    0.028112540021538734f,
+    2.4497861862182617f,
+    740.826416015625f,
+    973.6484375f,
+    66.62010955810547f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.0f,
+    0.915295422077179f,
+}};
+inline constexpr std::array<float, 14> kFeatureStd = {{
+    3.0630297660827637f,
+    2.973785877227783f,
+    3.8441596031188965f,
+    0.8140589594841003f,
+    0.03845399618148804f,
+    3.0072572231292725f,
+    352.4862060546875f,
+    186.0863494873047f,
+    210.71469116210938f,
+    9.999999974752427e-07f,
+    9.999999974752427e-07f,
+    9.999999974752427e-07f,
+    9.999999974752427e-07f,
+    0.19103823602199554f,
+}};
+
+} // namespace diag
+
+#endif // DIAG_CONFIG_H
