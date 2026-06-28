@@ -49,6 +49,7 @@ Rectangle {
             id: toggleBtn
             width: 32
             height: 32
+            padding: 0
             anchors.verticalCenter: parent.verticalCenter
             x: cppBackend.controlPanelCollapsed
                ? (parent.width - width) / 2
@@ -61,10 +62,9 @@ Rectangle {
                 border.color: root.colorBorder
                 border.width: 1
             }
-            contentItem: Item {
+            Item {
                 id: hamburgerIcon
-                implicitWidth: 32
-                implicitHeight: 32
+                anchors.fill: parent
 
                 readonly property bool collapsed: cppBackend.controlPanelCollapsed
 
