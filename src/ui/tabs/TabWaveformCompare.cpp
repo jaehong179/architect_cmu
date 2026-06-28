@@ -22,9 +22,6 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
         "<font color='#00b400'>┊ green</font>=A(T1, impulse pin→pallet fork strike) · "
         "<font color='#dc2828'>┊ red</font>=C(T3, escape-wheel lock·fork→banking pin) · "
         "<font color='#2840c8'>▮ blue shaded</font>=A(T1)→C(T3) span</td></tr>"
-        "<tr><td valign='top'><b>Paperstrip&nbsp;:</b></td><td>"
-        "<font color='#5080ff'>● blue</font>=tic · <font color='#dc4646'>● red</font>=tac · gap between the two dot rows=beat error · slope=rate · "
-        "<font color='#00b400'>┊ green</font>=wrap boundary</td></tr>"
         "</table>"), this);
     key->setWordWrap(true);
     key->setStyleSheet(QStringLiteral("QLabel{ background:#1e1e26; border:1px solid #3a3a4a; border-radius:4px; padding:5px; color:#e0e0e0; }"));
@@ -56,18 +53,14 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
     mPaper->xAxis->setTickLabels(false); mPaper->xAxis->setRange(0, 1);
     mPaper->xAxis->setLabel(QStringLiteral("Paperstrip"));   // 그래프 이름
     mPaper->yAxis->setLabel(QStringLiteral("time(s) ↑latest"));   // 세로 = 시간
-    mPaper->addGraph();   // graph0 = tic(파랑) — Rate/Scope·Beat Error 관례와 통일
+    mPaper->addGraph();   // graph0 = onset 점 (tic·tac 합산 — beat error 표시 제거)
     mPaper->graph(0)->setLineStyle(QCPGraph::lsNone);
-    mPaper->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(80, 140, 255), 4.5));
-    mPaper->graph(0)->setName(QStringLiteral("tic"));
-    mPaper->addGraph();   // graph1 = tac(빨강)
+    mPaper->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(200, 200, 200), 3.5));
+    mPaper->graph(0)->setName(QStringLiteral("onset"));
+    mPaper->addGraph();   // graph1 = rate 이상치(주황)
     mPaper->graph(1)->setLineStyle(QCPGraph::lsNone);
-    mPaper->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(235, 70, 70), 4.5));
-    mPaper->graph(1)->setName(QStringLiteral("tac"));
-    mPaper->addGraph();   // graph2 = rate 이상치(주황) — RateScope 와 통일
-    mPaper->graph(2)->setLineStyle(QCPGraph::lsNone);
-    mPaper->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(255, 140, 0), 6));
-    mPaper->graph(2)->setName(QStringLiteral("outlier"));
+    mPaper->graph(1)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(255, 140, 0), 6));
+    mPaper->graph(1)->setName(QStringLiteral("outlier"));
     mPaper->legend->setVisible(true);
     mPaper->legend->setBrush(QBrush(QColor(0, 0, 0, 190)));
     mPaper->legend->setBorderPen(QPen(QColor(120, 120, 120)));
@@ -82,13 +75,14 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
     mPeriod->xAxis->setLabel(QStringLiteral("ms (0=Tick T1)"));
     mPeriod->xAxis->setTicker(QSharedPointer<QCPAxisTicker>(new QCPAxisTicker));
 
-    auto *body = new QHBoxLayout();
-    body->addWidget(mPaper, 0);
-    auto *right = new QVBoxLayout();
-    right->addWidget(mTic, 2);
-    right->addWidget(mToc, 2);
-    right->addWidget(mPeriod, 2);
-    body->addLayout(right, 1);
+    // ── paperstrip 데이터 누적은 유지하되 패널은 숨김 (beat error 표시 제거로 UI에서는 불표시)
+    mPaper->hide();
+
+    // 3개 패널 수직 열: Tic 평균 / Toc 평균 / Period
+    auto *body = new QVBoxLayout();
+    body->addWidget(mTic, 1);
+    body->addWidget(mToc, 1);
+    body->addWidget(mPeriod, 1);
     lay->addLayout(body, 1);
 }
 
@@ -318,23 +312,20 @@ void TabWaveformCompare::drawPaperstrip()
     // 처음부터 1분 폭 고정: 경과<60s 면 [0,60], 그 이후엔 [현재−60s, 현재]로 스크롤.
     const double yLo = (latestSec <= kPaperSecs) ? 0.0 : (latestSec - kPaperSecs);
     const double yHi = yLo + kPaperSecs;
-    QVector<double> ticX, ticY, tacX, tacY, outX, outY;
+    QVector<double> dotX, dotY, outX, outY;
     for (int idx = 0; idx < mAOnsetHist.size(); ++idx) {
         const uint64_t aSample = mAOnsetHist[idx];
         const double tSec = (double)aSample / sr;
         if (tSec < yLo) continue;
-        const long beatIndex = (long)llround((double)((int64_t)aSample - (int64_t)mAnchor) / (double)beat);
         double foldRemainder = std::fmod((double)((int64_t)aSample - (int64_t)mAnchor), foldWidth);
         if (foldRemainder < 0) foldRemainder += foldWidth;
         double phase = foldRemainder / foldWidth + 0.5;          // 고정 앵커·오프셋 → x 안 흔들림
         phase -= std::floor(phase);                              // [0,1) wrap
         if (idx < mAOnsetOutlier.size() && mAOnsetOutlier[idx]) { outX.push_back(phase); outY.push_back(tSec); }  // [이상치] 주황
-        else if (beatIndex % 2 == 0) { ticX.push_back(phase); ticY.push_back(tSec); }
-        else                         { tacX.push_back(phase); tacY.push_back(tSec); }
+        else { dotX.push_back(phase); dotY.push_back(tSec); }   // tic·tac 합산 — beat error 구분 제거
     }
-    mPaper->graph(0)->setData(ticX, ticY, false);
-    mPaper->graph(1)->setData(tacX, tacY, false);
-    mPaper->graph(2)->setData(outX, outY, false);
+    mPaper->graph(0)->setData(dotX, dotY, false);
+    mPaper->graph(1)->setData(outX, outY, false);
     mPaper->clearItems();
     auto drawVLine = [&](double xPos, const QColor &color){
         auto *line = new QCPItemLine(mPaper); line->start->setCoords(xPos, yLo); line->end->setCoords(xPos, latestSec);
