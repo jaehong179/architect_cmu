@@ -836,17 +836,21 @@ void MainWindow::cancelWarmup()
 void MainWindow::onWarmupFinished()
 {
     mInWarmup = false;
-    EventsReset();                        // 엔진 롤링 버퍼 전체 초기화 (origin도 0으로 리셋)
     // [측정 대기] 워밍업 종료 시점을 rate 그래프 x축 원점(0)으로 → 워밍업 시간 갭 제거
     if (mCapture && mCurrentSamplesPerSecond > 0) {
         const double originSec = (double)mCapture->totalSamples() / (double)mCurrentSamplesPerSecond;
         mEngine.setPlotTimeOrigin(originSec);
     }
+    // [측정 대기] 워밍업 동안 엔진은 이미 신호를 처리해 RLS·롤링평균이 수렴된 상태다.
+    //  그 수렴 상태를 버리지 않고(=reset() 금지), 화면에 그려질 플롯 시리즈만 비운다.
+    //  → 종료 직후 첫 점부터 안정된 값이 그려져 long-term 그래프가 튀지 않는다.
+    mEngine.clearPlotsKeepState();
     if (mTabManager) {
         mTabManager->setWarmup(false);    // 게이트 해제 (이후에 broadcastReset이 탭에 도달함)
-        mTabManager->broadcastReset();    // 모든 탭 디스플레이 취캠
+        mTabManager->broadcastReset();    // 모든 탭 디스플레이 취소(누적 히스토리 비움)
     }
-    mWaveHistory.clear();                 // 스크롤백 이력 취캠
+    mWaveHistory.clear();                 // 스크롤백 이력 취소
+    DisplayResults();                     // 수렴된 readout/그래프를 즉시 1회 반영
     statusBar()->showMessage("Running");
 }
 
