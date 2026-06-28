@@ -22,6 +22,7 @@
 #include "WavFileReader.h"
 #include "PerfInstrumentation.h"
 #include "UiResponsivenessSampler.h"
+#include <QResizeEvent>
 
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
@@ -123,11 +124,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Hide legacy Results label and setup styled ReadoutBar
     ui->Results->hide();
     mReadoutBar = new ReadoutBar(ui->CentralWidget);
-    mReadoutBar->setGeometry(250, 0, 1020, 50);
     mReadoutBar->show();
 
     // Reposition GraphicsTabWidget to make room for ReadoutBar
-    ui->GraphicsTabWidget->setGeometry(250, 53, 1025, 661);
 
     // Load static lists for models
     LoadBPH();
@@ -159,6 +158,9 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *cpLayout = new QVBoxLayout(ui->ControlPanelPlaceholder);
     cpLayout->setContentsMargins(0, 0, 0, 0);
     cpLayout->addWidget(mControlPanelQuickWidget);
+
+    // Initial geometry sync: use the whole available central area (no fixed tab height).
+    onControlPanelToggled(mControlPanelCollapsed);
 
     DisplayResults();
 
@@ -1183,9 +1185,9 @@ static constexpr int CONTENT_EXPANDED_X  = 250;
 static constexpr int CONTENT_COLLAPSED_X = 48;   // 40px panel + 8px gap
 static constexpr int READOUT_H           = 50;
 static constexpr int TAB_Y               = 53;
-static constexpr int TAB_H              = 661;
 static constexpr int WINDOW_W           = 1280;
 static constexpr int RIGHT_MARGIN        = 8;
+static constexpr int BOTTOM_MARGIN       = 4;
 
 void MainWindow::setControlPanelCollapsed(bool collapsed)
 {
@@ -1200,9 +1202,22 @@ void MainWindow::onControlPanelToggled(bool collapsed)
 {
     const int panelW   = collapsed ? PANEL_COLLAPSED_W  : PANEL_EXPANDED_W;
     const int contentX = collapsed ? CONTENT_COLLAPSED_X : CONTENT_EXPANDED_X;
-    const int contentW = WINDOW_W - contentX - RIGHT_MARGIN;
 
     ui->ControlPanelPlaceholder->setFixedWidth(panelW);
+
+    QWidget *host = ui && ui->CentralWidget ? static_cast<QWidget *>(ui->CentralWidget) : this;
+    const int hostW = host ? host->width() : width();
+    const int hostH = host ? host->height() : height();
+
+    const int contentW = qMax(200, hostW - contentX - RIGHT_MARGIN);
+    const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
+
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
-    ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, TAB_H);
+    ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    onControlPanelToggled(mControlPanelCollapsed);
 }
