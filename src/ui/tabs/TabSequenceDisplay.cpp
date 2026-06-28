@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QDebug>
 #include <algorithm>
 #include <cmath>
 
@@ -310,7 +311,16 @@ void TabSequenceDisplay::setCurrentPositionByIndex(int index)
 {
     if (!mPos || index < 0 || index >= mPos->count())
         return;
+    if (mPos->currentIndex() == index)
+        return;
+
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=programmatic targetIndex=%1 targetName=%2")
+                             .arg(index)
+                             .arg(mPos->itemText(index));
+
+    mProgrammaticPositionChange = true;
     mPos->setCurrentIndex(index);
+    mProgrammaticPositionChange = false;
 }
 
 void TabSequenceDisplay::setPhaseStatus(const QString &phaseLabel, int remainingSec)
@@ -360,7 +370,11 @@ void TabSequenceDisplay::onResetSession()
 
 void TabSequenceDisplay::onPositionComboChanged(int index)
 {
-    Q_UNUSED(index);
+    const QString source = mProgrammaticPositionChange ? QStringLiteral("programmatic") : QStringLiteral("manual");
+    const QString newPos = (mPos && index >= 0 && index < mPos->count()) ? mPos->itemText(index) : QStringLiteral("<invalid>");
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=%1 prev=%2 new=%3 index=%4")
+                             .arg(source, mPrevPos, newPos)
+                             .arg(index);
 
     // 1. 포지션이 변경되기 직전, 이전 포지션(mPrevPos)에 대하여 자동 캡처(고정) 수행
     if (mHaveLast && !mPrevPos.isEmpty()) {

@@ -53,5 +53,6 @@ private:
 
     PositionTimingModel *mTiming = nullptr;
     QComboBox           *mMeasTimeCombo = nullptr;
+    bool                 mProgrammaticPositionChange = false;
 };
 #endif // TABSEQUENCEDISPLAY_H

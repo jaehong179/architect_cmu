@@ -26,6 +26,7 @@ class TabManager;
 class TabRateScope; 
 class TabSequenceDisplay;
 class ReadoutBar;   
+class PositionChangeDialog;
 
 #ifdef ENABLE_VISION
 class QThread;                                  // [vision] 추론 워커 전용 스레드
@@ -267,7 +268,9 @@ private:
     bool                       mRecordSessionEnabled = false;
     QString                    mDetectedPosition;
     int                        mDetectedStableCandidateIndex = -1;
+    int                        mDetectedConfirmedIndex = -1;
     QElapsedTimer              mDetectedStableTimer;
+    PositionChangeDialog      *mActivePositionDialog = nullptr;
     bool                       mControlPanelCollapsed = false;
 
     double                     mLiftAngle;
