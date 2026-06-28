@@ -41,6 +41,8 @@ signals:
 private:
     QAudioSource *mAudioInput = nullptr;
     QIODevice    *mAudioInputDevice = nullptr;
+    QAudioSink   *mAudioOutput = nullptr;
+    QIODevice    *mAudioOutputDevice = nullptr;
     bool          TimerStarted=false;
     double        LastTime=0.0;
     uint64_t      FrameCount=0;
