@@ -179,6 +179,9 @@ public slots:
     void HandlePlaybackDoneReadingFile();
     void HandleSimDone();
 
+protected:
+    void resizeEvent(QResizeEvent *event) override;
+
 private:
     Ui::MainWindow *ui;
     TabManager     *mTabManager = nullptr;
