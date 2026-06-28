@@ -27,6 +27,7 @@ class TabRateScope;
 class TabSequenceDisplay;
 class ReadoutBar;   
 class PositionChangeDialog;
+class WarmupOverlay;
 
 #ifdef ENABLE_VISION
 class QThread;                                  // [vision] 추론 워커 전용 스레드
@@ -76,6 +77,10 @@ class MainWindow : public QMainWindow
     Q_PROPERTY(QStringList averagingPeriodList READ averagingPeriodList CONSTANT)
     Q_PROPERTY(QStringList bphList READ bphList CONSTANT)
     Q_PROPERTY(QStringList simBphList READ simBphList CONSTANT)
+
+    // [측정 대기] Warm-up delay setting
+    Q_PROPERTY(int warmupDelayIndex READ warmupDelayIndex WRITE setWarmupDelayIndex NOTIFY warmupDelayIndexChanged)
+    Q_PROPERTY(QStringList warmupDelayList READ warmupDelayList CONSTANT)
 
     // Control Panel collapse state (QML ↔ C++ two-way binding)
     Q_PROPERTY(bool controlPanelCollapsed READ controlPanelCollapsed WRITE setControlPanelCollapsed NOTIFY controlPanelCollapsedChanged)
@@ -151,6 +156,10 @@ public:
     QStringList bphList() const { return mBphList; }
     QStringList simBphList() const { return mSimBphList; }
 
+    int warmupDelayIndex() const { return mWarmupDelayIndex; }
+    void setWarmupDelayIndex(int idx);
+    QStringList warmupDelayList() const { return mWarmupDelayList; }
+
     bool controlPanelCollapsed() const { return mControlPanelCollapsed; }
     void setControlPanelCollapsed(bool collapsed);
 
@@ -176,6 +185,7 @@ signals:
     void highPassCutoffChanged();
     void useConsetChanged();
     void controlPanelCollapsedChanged();
+    void warmupDelayIndexChanged();
 
 public slots:
     void HandlePlaybackDoneReadingFile();
@@ -226,6 +236,10 @@ private:
     void   LiveStart(void);
     void   PlaybackStart(void);
     void   SimStart(void);
+
+    void   startWarmup(int seconds);
+    void   cancelWarmup();
+    void   onWarmupFinished();
     
     void   SyncDetectorBphToSimBph(void);
     bool   SetPlaybackFile(const QString &fileName);
@@ -251,6 +265,10 @@ private:
     QStringList                mBphList;
     QStringList                mSimBphList;
     QStringList                mAveragingPeriodList;
+    QStringList                mWarmupDelayList;
+    int                        mWarmupDelayIndex = 0;
+    bool                       mInWarmup = false;
+    WarmupOverlay             *mWarmupOverlay = nullptr;
 
     int                        mDeviceIndex = -1;
     int                        mSampleRateIndex = -1;

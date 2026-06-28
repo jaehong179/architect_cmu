@@ -170,6 +170,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabSoundPrint.cpp
         src/ui/tabs/TabRateScope.h
         src/ui/tabs/TabRateScope.cpp
+        src/ui/WarmupOverlay.h
+        src/ui/WarmupOverlay.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h

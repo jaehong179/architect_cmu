@@ -39,6 +39,7 @@
 #include "tabs/TabSyncSweepScope.h"
 #include "tabs/TabFilterViews.h"
 #include "tabs/ReadoutBar.h"
+#include "WarmupOverlay.h"
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -209,6 +210,9 @@ MainWindow::MainWindow(QWidget *parent)
     LoadSimBPH();
     LoadAverageingPeriod();
     LoadAudioDevices();
+
+    // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
+    mWarmupDelayList << "Off" << "5s" << "10s" << "15s" << "20s" << "30s" << "60s";
 
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
@@ -470,6 +474,11 @@ void MainWindow::RegisterDisplayTabs(void)
 
     connect(leftBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(-1); });
     connect(rightBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(1); });
+
+    // [측정 대기] WarmupOverlay 생성 (탭 위에 오버레이)
+    mWarmupOverlay = new WarmupOverlay(ui->GraphicsTabWidget);
+    connect(mWarmupOverlay, &WarmupOverlay::warmupFinished,
+            this, &MainWindow::onWarmupFinished);
 }
 
 void MainWindow::updateSeekLabel(double absSample)
@@ -572,6 +581,13 @@ void MainWindow::setAveragingPeriodIndex(int idx)
     if (mCapture) {
         mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
     }
+}
+
+void MainWindow::setWarmupDelayIndex(int idx)
+{
+    if (mWarmupDelayIndex == idx || idx < 0 || idx >= mWarmupDelayList.size()) return;
+    mWarmupDelayIndex = idx;
+    emit warmupDelayIndexChanged();
 }
 
 QString MainWindow::selectedWavFile() const 
@@ -733,6 +749,7 @@ void MainWindow::startSession()
 
 void MainWindow::stopSession()
 {
+    cancelWarmup();   // [측정 대기] 워밍업 중이라면 취소 (아니라면 no-op)
     if (mPositionSequence)
         mPositionSequence->stop();
     if (mSequenceDisplay)
@@ -768,6 +785,44 @@ void MainWindow::stopSession()
                                   Q_ARG(QVector<double>, t3));
     }
 #endif
+}
+
+// =========================================================================
+// [측정 대기] Warm-up Delay 로직
+// =========================================================================
+static const int kWarmupSecs[] = {0, 5, 10, 15, 20, 30, 60};
+
+void MainWindow::startWarmup(int seconds)
+{
+    mInWarmup = true;
+    if (mTabManager) mTabManager->setWarmup(true);
+    mWarmupOverlay->startCountdown(seconds);
+    statusBar()->showMessage("Warming up...");
+}
+
+void MainWindow::cancelWarmup()
+{
+    if (!mInWarmup) return;
+    mInWarmup = false;
+    if (mWarmupOverlay) mWarmupOverlay->cancel();
+    if (mTabManager) mTabManager->setWarmup(false);
+}
+
+void MainWindow::onWarmupFinished()
+{
+    mInWarmup = false;
+    EventsReset();                        // 엔진 롤링 버퍼 전체 초기화 (origin도 0으로 리셋)
+    // [측정 대기] 워밍업 종료 시점을 rate 그래프 x축 원점(0)으로 → 워밍업 시간 갭 제거
+    if (mCapture && mCurrentSamplesPerSecond > 0) {
+        const double originSec = (double)mCapture->totalSamples() / (double)mCurrentSamplesPerSecond;
+        mEngine.setPlotTimeOrigin(originSec);
+    }
+    if (mTabManager) {
+        mTabManager->setWarmup(false);    // 게이트 해제 (이후에 broadcastReset이 탭에 도달함)
+        mTabManager->broadcastReset();    // 모든 탭 디스플레이 취캠
+    }
+    mWaveHistory.clear();                 // 스크롤백 이력 취캠
+    statusBar()->showMessage("Running");
 }
 
 void MainWindow::refreshDevices()
@@ -955,7 +1010,9 @@ void MainWindow::LiveStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::PlaybackStart(void)
@@ -969,7 +1026,9 @@ void MainWindow::PlaybackStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::SimStart(void)
@@ -996,11 +1055,14 @@ void MainWindow::SimStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::DisplayResults(void)
 {
+    if (mInWarmup) return;   // [측정 대기] 웜업 중에는 readout/그래프 갱신 차단
     MeasurementEngine::Results res = mEngine.results();
     QString BeatsPerHour,RateError,BeatError,Amplitude, Results;
     if (res.bphValid) {

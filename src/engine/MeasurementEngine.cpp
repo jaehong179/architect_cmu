@@ -92,6 +92,7 @@ void MeasurementEngine::reset()
     mRate.DetrendTic->Reset();
     mRate.DetrendToc->Reset();
     mRate.RlsRateValid = false;
+    mPlotTimeOriginSec = 0.0;   // [측정 대기] 원점 초기화(웜업 종료 시 별도 설정)
 }
 
 void MeasurementEngine::addOrOverwrite(QVector<double>& xvec, QVector<double>& yvec, QVector<double>& ovec,
@@ -181,12 +182,12 @@ MeasurementEngine::computeRateError(double A_EventTime, bool haveValidBPH, doubl
         if (!mRate.LastOutlier) detr->AddPoint(TimeMeasured, InstTimingError);        // 정상값만 추세에 반영
         if (TicOrToc == TIC) {
             if (!mRate.LastOutlier) mRate.RlsTicRate->AddPoint(TimeMeasured, InstTimingError);   // [이상치] 이상치는 회귀 제외
-            addOrOverwrite(mRate.xTic, mRate.yTic, mRate.yTicOut, TimeMeasured, WrappedRateError, outMark,
+            addOrOverwrite(mRate.xTic, mRate.yTic, mRate.yTicOut, TimeMeasured - mPlotTimeOriginSec, WrappedRateError, outMark,
                            mRate.MaxTicTocDataPoints, mRate.xTicIndex);
             upd = TicUpdated;
         } else {
             if (!mRate.LastOutlier) mRate.RlsTocRate->AddPoint(TimeMeasured, InstTimingError);
-            addOrOverwrite(mRate.xToc, mRate.yToc, mRate.yTocOut, TimeMeasured, WrappedRateError, outMark,
+            addOrOverwrite(mRate.xToc, mRate.yToc, mRate.yTocOut, TimeMeasured - mPlotTimeOriginSec, WrappedRateError, outMark,
                            mRate.MaxTicTocDataPoints, mRate.xTocIndex);
             upd = TocUpdated;
         }

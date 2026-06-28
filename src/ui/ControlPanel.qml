@@ -832,6 +832,21 @@ Rectangle {
                             }
                         }
 
+                        // Warm-up Delay
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+                            Text { text: "Warm-up Delay"; color: root.colorTextSub; font.pixelSize: 11 }
+                            ComboBox {
+                                id: warmupCombo
+                                Layout.fillWidth: true
+                                model: cppBackend.warmupDelayList
+                                currentIndex: cppBackend.warmupDelayIndex
+                                onActivated: (index) => { cppBackend.warmupDelayIndex = index }
+                                enabled: !cppBackend.isRunning
+                            }
+                        }
+
                     }
                 }
             }

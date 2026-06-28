@@ -60,6 +60,11 @@ public:
     void setPaused(bool p);   // 정지 ON/OFF — 해제 시 각 탭에 onResumeLive() 통지
     bool isPaused() const  { return mPaused; }
 
+    // [측정 대기] 워밍업 게이트 — 활성화 시 broadcastWave/broadcastMeasurement 차단
+    //  (엔진은 내부적으로 계속 계산하지만 탭·이력 버퍼에는 아무것도 전달되지 않음)
+    void setWarmup(bool inWarmup) { mInWarmup = inWarmup; }
+    bool isWarmup() const  { return mInWarmup; }
+
     int count() const { return mTabs.size(); }
 
 protected:
@@ -71,6 +76,7 @@ private:
     QVector<WaveSink *> mWaveSinks;   // broadcastWave 시 함께 통지(소유 안 함)
     bool                mPaused = false;
     bool                mSeekedSincePause = false;   // 이번 정지 구간에서 seek 발생 여부(resume 정리용)
+    bool                mInWarmup = false;           // [측정 대기] 워밍업 게이트 활성 여부
 
     // Swipe/Gesture state variables
     bool                mDragActive = false;
