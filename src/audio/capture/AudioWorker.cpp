@@ -61,6 +61,13 @@ void TAudioWorker::StartAudioRecording(QAudioDevice InputDevice,int SampleRate,f
     mAudioInputDevice = mAudioInput->start(); // Start recording
     connect( mAudioInputDevice, &QIODevice::readyRead, this, &TAudioWorker::ProcessAudioInput);
     qDebug() << "Audio recording started in worker thread.";
+
+    QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();
+    if (!outputDevice.isNull()) {
+        mAudioOutput = new QAudioSink(outputDevice, InputFormat, this);
+        mAudioOutputDevice = mAudioOutput->start();
+        qDebug() << "Audio monitoring output started.";
+    }
 }
 
 void TAudioWorker::SetAudioInputVolume(float Volume)
@@ -141,12 +148,21 @@ void TAudioWorker::ProcessAudioInput()
         }
 #endif
     }
+    if (mAudioOutputDevice)
+        mAudioOutputDevice->write(ba);
+
     emit AudioDataReady(); // Emit data to the main thread
 
 }
 
 void TAudioWorker::StopAudioRecording()
 {
+    if (mAudioOutput) {
+        mAudioOutput->stop();
+        delete mAudioOutput;
+        mAudioOutput = nullptr;
+        mAudioOutputDevice = nullptr;
+    }
     if (mAudioInput) {
         mAudioInput->stop();
         delete mAudioInput;
