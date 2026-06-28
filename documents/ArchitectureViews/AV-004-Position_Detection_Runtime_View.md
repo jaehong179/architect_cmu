@@ -1,8 +1,8 @@
 # Position-Detection Runtime View
 
-##  Behavior
+This view shows how the system reads the watch's current position at runtime using a USB camera and an on-device TFLite classifier, and how that result reaches the UI. Position reading runs in a dedicated VisionWorker thread, fully separated from the deterministic acoustic measurement path, so a misclassified position can never corrupt a measured value (ADR-001). The camera samples frames continuously, but the worker classifies only once per second (1 Hz) and pushes the result to the GUI thread asynchronously.
 
-![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
+
 
 ##  Element catalog
 
@@ -29,13 +29,8 @@ The detected position is used differently depending on the display mode. In the 
 
 
 
-##  Variability guide
-
-The source of the measurement position is variable at runtime:
-- **AI auto-detection (default):** the camera and TinyML classifier determine the position automatically.
-- **Manual selection (fallback):** used when classification confidence is below threshold or the camera is unavailable.
-
-Binding time: runtime, decided per measurement based on the classifier confidence and camera availability.
+##  Behavior
+![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
 
 ##  Related ADRs
 
