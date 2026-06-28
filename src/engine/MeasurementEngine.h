@@ -36,6 +36,9 @@ public:
     void setConfig(int sampleRateHz, int averagingPeriodSec, int liftAngleDeg);
     void reset();                                                  // 측정 상태/시리즈 비움(UI 무관)
 
+    // [측정 대기] rate 그래프 x축 원점(초). 웜업 종료 시 그 시점을 0으로 만들어 갭 제거.
+    void setPlotTimeOrigin(double sec) { mPlotTimeOriginSec = sec; }
+
     SeriesUpdate onAEvent(double aEventSample, bool haveValidBph, double bph); // rate + beat error
     void         onCEvent(double cEventSample, bool haveValidBph, double bph); // amplitude
 
@@ -94,5 +97,6 @@ private:
     } mAmp;
 
     int mSampleRate = 48000, mAveragingPeriod = 20, mLiftAngle = 52;
+    double mPlotTimeOriginSec = 0.0;   // [측정 대기] rate 그래프 x축 원점 오프셋(초)
 };
 #endif // MEASUREMENTENGINE_H

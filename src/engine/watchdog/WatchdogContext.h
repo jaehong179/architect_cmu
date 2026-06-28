@@ -17,9 +17,14 @@ struct WatchdogContext {
     double      lastBeatMs     = 0.0;
     double      sessionStartMs = 0.0;
 
+    bool        cameraActive      = false;
+    bool        cameraAlive       = true;
+    double      lastCameraFrameMs = 0.0;
+
     double msSinceBlock() const { return nowMs - lastBlockMs; }
     double msSinceBeat()  const { return nowMs - lastBeatMs; }
     double msSinceStart() const { return nowMs - sessionStartMs; }
+    double msSinceCameraFrame() const { return nowMs - lastCameraFrameMs; }
 };
 
 #endif // WATCHDOGCONTEXT_H

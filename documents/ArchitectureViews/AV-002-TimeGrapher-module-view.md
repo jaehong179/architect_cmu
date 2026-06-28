@@ -1,4 +1,4 @@
-# TimeGrapher Module View (Package Diagram)
+# Top-Level Module Uses View (Package Diagram)
 
 The scope is the static code structure of the TimeGrapher application.
 The diagram shows seven top-level packages and their `«uses»` dependencies.
@@ -6,7 +6,7 @@ The diagram shows seven top-level packages and their `«uses»` dependencies.
 Key pattern applied:
 - **Layered** — dependencies flow top-down (ui → engine → core, ui → audio → core). No upward or circular dependencies are permitted. watchdog is a cross-cutting exception, referenced by all layers for system health monitoring.
   
-![Package Diagram](../images/TimeGrapherModuleView.jpg)
+![Package Diagram](../images/Top-Level_Module_Uses_View.jpg)
 
 
 ## Element Catalog

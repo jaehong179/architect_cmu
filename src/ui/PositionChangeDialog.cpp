@@ -1,4 +1,5 @@
 #include "PositionChangeDialog.h"
+#include "PositionNames.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,26 +17,28 @@ PositionChangeDialog::PositionChangeDialog(const QString &completedName, const Q
 
 QString PositionChangeDialog::getShortCode(const QString &fullName) const
 {
-    if (fullName.contains(QLatin1Char(' '))) {
-        return fullName.split(QLatin1Char(' ')).first();
-    }
+    const QString key = canonicalCorePositionKey(fullName);
+    if (!key.isEmpty()) return key;
+    if (fullName.contains(QLatin1Char(' '))) return fullName.split(QLatin1Char(' ')).first();
     return fullName;
 }
 
 QString PositionChangeDialog::getKoreanName(const QString &fullName) const
 {
-    if (fullName.startsWith(QLatin1String("CH"))) return QStringLiteral("윗면");
-    if (fullName.startsWith(QLatin1String("CB"))) return QStringLiteral("아랫면");
-    if (fullName.startsWith(QLatin1String("9H"))) return QStringLiteral("9시 위");
-    if (fullName.startsWith(QLatin1String("6H"))) return QStringLiteral("6시 위");
-    if (fullName.startsWith(QLatin1String("3H"))) return QStringLiteral("3시 위");
-    if (fullName.startsWith(QLatin1String("12H"))) return QStringLiteral("12시 위");
+    const QString key = canonicalCorePositionKey(fullName);
+    if (key == QStringLiteral("CH")) return QStringLiteral("윗면");
+    if (key == QStringLiteral("CB")) return QStringLiteral("아랫면");
+    if (key == QStringLiteral("9H")) return QStringLiteral("9시 위");
+    if (key == QStringLiteral("6H")) return QStringLiteral("6시 위");
+    if (key == QStringLiteral("3H")) return QStringLiteral("3시 위");
+    if (key == QStringLiteral("12H")) return QStringLiteral("12시 위");
     return fullName;
 }
 
 void PositionChangeDialog::setupUi(const QString &completedName, const QString &nextName, int completedIndex)
 {
     setObjectName(QStringLiteral("PositionChangeDialog"));
+    Q_UNUSED(nextName);
 
     // Main layout
     auto *mainLayout = new QVBoxLayout(this);
@@ -51,7 +54,7 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
 
     auto *titleIcon = new QLabel(QStringLiteral("⟳"), this);
     titleIcon->setObjectName(QStringLiteral("TitleIcon"));
-    auto *titleLabel = new QLabel(QStringLiteral("NEXT POSITION"), this);
+    auto *titleLabel = new QLabel(QStringLiteral("CHANGE POSITION"), this);
     titleLabel->setObjectName(QStringLiteral("TitleLabel"));
 
     headerLayout->addWidget(titleIcon);
@@ -89,13 +92,13 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
     arrowLabel->setObjectName(QStringLiteral("ArrowIcon"));
     arrowLabel->setAlignment(Qt::AlignCenter);
 
-    // Right position (Next)
+    // Right position (generic instruction)
     auto *rightCol = new QVBoxLayout();
     rightCol->setAlignment(Qt::AlignCenter);
-    auto *rightCode = new QLabel(getShortCode(nextName), this);
+    auto *rightCode = new QLabel(QStringLiteral("OTHER"), this);
     rightCode->setObjectName(QStringLiteral("NextCode"));
     rightCode->setAlignment(Qt::AlignCenter);
-    auto *rightDesc = new QLabel(getKoreanName(nextName), this);
+    auto *rightDesc = new QLabel(QStringLiteral("다른 위치로 변경"), this);
     rightDesc->setObjectName(QStringLiteral("NextDesc"));
     rightDesc->setAlignment(Qt::AlignCenter);
     rightCol->addWidget(rightCode);
@@ -126,7 +129,7 @@ void PositionChangeDialog::setupUi(const QString &completedName, const QString &
     bodyLayout->addLayout(progressLayout);
 
     // 4. Confirm Button
-    auto *confirmButton = new QPushButton(QStringLiteral("✓ 확인  –  %1 시작").arg(getShortCode(nextName)), this);
+    auto *confirmButton = new QPushButton(QStringLiteral("✓ 확인  –  다른 위치로 변경"), this);
     confirmButton->setObjectName(QStringLiteral("ConfirmButton"));
     confirmButton->setFixedHeight(48);
     connect(confirmButton, &QPushButton::clicked, this, &QDialog::accept);

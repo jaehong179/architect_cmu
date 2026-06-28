@@ -50,6 +50,8 @@ set(PROJECT_SOURCES
         src/ui/PositionSequenceController.cpp
         src/ui/PositionChangeDialog.h
         src/ui/PositionChangeDialog.cpp
+        src/ui/SequenceResultSaveDialog.h
+        src/ui/SequenceResultSaveDialog.cpp
         src/ui/VideoSplashScreen.h
 )
 
@@ -126,6 +128,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/engine/watchdog/checks/AudioDeviceTimeoutCheck.cpp
         src/engine/watchdog/checks/NoSignalTimeoutCheck.h
         src/engine/watchdog/checks/NoSignalTimeoutCheck.cpp
+        src/engine/watchdog/checks/CameraDisconnectCheck.h
+        src/engine/watchdog/checks/CameraDisconnectCheck.cpp
         # [탭 모듈 · QA-MOD-01] 디스플레이 탭 인프라 + 신규 탭 모듈 (tabs/)
         src/ui/tabs/MeasurementModel.h
         src/ui/tabs/TabView.h
@@ -168,6 +172,8 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabSoundPrint.cpp
         src/ui/tabs/TabRateScope.h
         src/ui/tabs/TabRateScope.cpp
+        src/ui/WarmupOverlay.h
+        src/ui/WarmupOverlay.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h
@@ -455,6 +461,12 @@ if(ENABLE_VISION OR ENABLE_DIAG)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${VISION_TFLITE_RUNTIME}" "$<TARGET_FILE_DIR:TimeGrapher>"
         COMMENT "[vision] copy TFLite runtime next to executable")
+
+    if(NOT WIN32)
+        set_target_properties(TimeGrapher PROPERTIES
+            BUILD_RPATH   "$ORIGIN"
+            INSTALL_RPATH "$ORIGIN")
+    endif()
 endif()
 
 IF(WIN32)

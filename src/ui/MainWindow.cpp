@@ -4,11 +4,12 @@
 #include "./ui_MainWindow.h"
 #include <QMediaDevices>
 #include <QAudioDevice>
-#include <QPushButton>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QToolButton>
+#include <QTabBar>
 #include <QQuickWidget>
 #include <QQmlContext>
 #include <QFileDialog>
@@ -21,6 +22,7 @@
 #include "WavFileReader.h"
 #include "PerfInstrumentation.h"
 #include "UiResponsivenessSampler.h"
+#include <QResizeEvent>
 
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
@@ -37,6 +39,7 @@
 #include "tabs/TabSyncSweepScope.h"
 #include "tabs/TabFilterViews.h"
 #include "tabs/ReadoutBar.h"
+#include "WarmupOverlay.h"
 
 #if defined(Q_OS_LINUX)
 #include "LinuxAudio.h"
@@ -102,6 +105,82 @@ static int SimBPH[]={3600,  6000,  7200,  7380,  7440,  7800,  9000,  9100, 1080
                      21600, 25200, 28800, 32400, 36000, 43200};
 
 static int AveragingPeriodList[]={2,4,8,10,12,20,20,30,40,50,60,120,240};
+static constexpr qint64 kDetectedPositionHoldMs = 3000;
+
+int MainWindow::sequenceIndexFromDetectedPosition(const QString &detectedLabel)
+{
+    const QString raw = detectedLabel.trimmed().toUpper();
+    if (raw.isEmpty() || raw == QStringLiteral("?"))
+        return -1;
+
+    const int underscore = raw.indexOf(QLatin1Char('_'));
+    const QString suffix = (underscore >= 0 && (underscore + 1) < raw.size())
+        ? raw.mid(underscore + 1)
+        : raw;
+
+    if (suffix == QStringLiteral("DU") || suffix == QStringLiteral("CH")) return 0;
+    if (suffix == QStringLiteral("DD") || suffix == QStringLiteral("CB")) return 1;
+    if (suffix == QStringLiteral("CR") || suffix == QStringLiteral("9H")) return 2;
+    if (suffix == QStringLiteral("CL") || suffix == QStringLiteral("6H")) return 3;
+    if (suffix == QStringLiteral("CU") || suffix == QStringLiteral("3H")) return 4;
+    if (suffix == QStringLiteral("CD") || suffix == QStringLiteral("12H")) return 5;
+    return -1;
+}
+
+void MainWindow::updateDetectedPositionUiSync(const QString &detectedLabel)
+{
+    if (!mSequenceDisplay)
+        return;
+
+    const QString normalizedLabel = detectedLabel.trimmed().toUpper();
+
+    const int detectedIndex = sequenceIndexFromDetectedPosition(detectedLabel);
+    if (detectedIndex < 0) {
+        mDetectedStableCandidateIndex = -1;
+        mDetectedStableTimer = QElapsedTimer();
+        if (mDetectedPosition != normalizedLabel) {
+            mDetectedPosition = normalizedLabel;
+            emit detectedPositionChanged();
+        }
+        return;
+    }
+
+    if (mDetectedStableCandidateIndex != detectedIndex) {
+        mDetectedStableCandidateIndex = detectedIndex;
+        mDetectedStableTimer.restart();
+        return;
+    }
+
+    if (!mDetectedStableTimer.isValid() || mDetectedStableTimer.elapsed() < kDetectedPositionHoldMs)
+        return;
+
+    // Treat as a real position change only when the stable candidate differs
+    // from the last confirmed position.
+    if (mDetectedConfirmedIndex == detectedIndex) {
+        if (mDetectedPosition != normalizedLabel) {
+            mDetectedPosition = normalizedLabel;
+            emit detectedPositionChanged();
+        }
+        return;
+    }
+
+    mDetectedConfirmedIndex = detectedIndex;
+
+    if (mDetectedPosition != normalizedLabel) {
+        mDetectedPosition = normalizedLabel;
+        emit detectedPositionChanged();
+    }
+
+    // Apply only after the same detected position is held for >= 3 seconds.
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=vision confirmedLabel=%1 confirmedIndex=%2")
+                             .arg(normalizedLabel)
+                             .arg(detectedIndex);
+    mSequenceDisplay->setCurrentPositionByIndex(detectedIndex);
+
+    if (mActivePositionDialog && mActivePositionDialog->isVisible()) {
+        mActivePositionDialog->accept();
+    }
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -117,21 +196,23 @@ MainWindow::MainWindow(QWidget *parent)
 
     ui->setupUi(this);
     this->setWindowTitle("TimeGrapher");
+    statusBar()->hide();
 
     // Hide legacy Results label and setup styled ReadoutBar
     ui->Results->hide();
     mReadoutBar = new ReadoutBar(ui->CentralWidget);
-    mReadoutBar->setGeometry(250, 0, 1020, 50);
     mReadoutBar->show();
 
     // Reposition GraphicsTabWidget to make room for ReadoutBar
-    ui->GraphicsTabWidget->setGeometry(250, 53, 1025, 661);
 
     // Load static lists for models
     LoadBPH();
     LoadSimBPH();
     LoadAverageingPeriod();
     LoadAudioDevices();
+
+    // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
+    mWarmupDelayList << "0s" << "5s" << "10s" << "15s" << "20s";
 
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
@@ -150,13 +231,17 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onPositionMeasurementEnded);
     connect(mPositionSequence, &PositionSequenceController::currentPositionIndexChanged,
             this, [this](int idx) {
-        if (mSequenceDisplay)
-            mSequenceDisplay->setCurrentPositionByIndex(idx);
+        qInfo().noquote() << QStringLiteral("[pos-sync] source=sequence targetIndex=%1")
+                                 .arg(idx);
+        qInfo().noquote() << QStringLiteral("[pos-sync] source=sequence dropdownOverrideIgnored=true");
     });
 
     QVBoxLayout *cpLayout = new QVBoxLayout(ui->ControlPanelPlaceholder);
     cpLayout->setContentsMargins(0, 0, 0, 0);
     cpLayout->addWidget(mControlPanelQuickWidget);
+
+    // Initial geometry sync: use the whole available central area (no fixed tab height).
+    onControlPanelToggled(mControlPanelCollapsed);
 
     DisplayResults();
 
@@ -187,6 +272,9 @@ MainWindow::MainWindow(QWidget *parent)
     mVisionThread = new QThread(this);
     mVisionWorker = new vision::VisionWorker();
     mVisionWorker->moveToThread(mVisionThread);
+    // [vision · 워치독] 카메라 liveness 를 워치독 공유상태에 publish → USB 카메라 분리 시 모달 알림
+    //  (오디오 장치 분리와 동일 동작). 워커 스레드 이동 직후·start 전에 주입.
+    if (mCapture) mVisionWorker->setWatchdogState(mCapture->watchdogState());
     connect(mVisionThread, &QThread::started,  mVisionWorker, &vision::VisionWorker::start);
     connect(mVisionThread, &QThread::finished, mVisionWorker, &QObject::deleteLater);
 
@@ -200,10 +288,7 @@ MainWindow::MainWindow(QWidget *parent)
                 visionLabel->setText(QStringLiteral("watch: %1 (%2%)")
                                          .arg(label)
                                          .arg(QString::number(conf * 100.0f, 'f', 0)));
-                if (mDetectedPosition != label) {
-                    mDetectedPosition = label;
-                    emit detectedPositionChanged();
-                }
+                updateDetectedPositionUiSync(label);
             });
 
     mVisionThread->start();
@@ -231,6 +316,13 @@ MainWindow::MainWindow(QWidget *parent)
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
+
+    if (mBedTab) {
+        connect(mDiagWorker, &diag::DiagWorker::resultReady, mBedTab,
+                &TabBeatErrorTrace::setDiagResult);
+        connect(mDiagWorker, &diag::DiagWorker::error, mBedTab,
+                &TabBeatErrorTrace::setDiagError);
+    }
 
     mDiagThread->start();
 #endif
@@ -295,6 +387,7 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(bnsTab);
 
     auto *bedTab = new TabBeatErrorTrace(this);
+    mBedTab = bedTab;
     connect(bedTab, &TabBeatErrorTrace::seekRequested, mTabManager, &TabManager::broadcastSeek);
     connect(bedTab, &TabBeatErrorTrace::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(bedTab);
@@ -319,8 +412,8 @@ void MainWindow::RegisterDisplayTabs(void)
     filterTab->setHistory(&mWaveHistory);
     mTabManager->registerTab(filterTab);
 
-    // Apply touch-friendly stylesheet and enable scrolling for GraphicsTabWidget
-    ui->GraphicsTabWidget->setUsesScrollButtons(true);
+    // Apply touch-friendly stylesheet and use custom corner navigation buttons.
+    ui->GraphicsTabWidget->setUsesScrollButtons(false);
     ui->GraphicsTabWidget->setElideMode(Qt::ElideNone);
     ui->GraphicsTabWidget->setStyleSheet(QStringLiteral(
         "QTabWidget::pane {"
@@ -348,45 +441,60 @@ void MainWindow::RegisterDisplayTabs(void)
         "    background: #323242;"
         "    color: #ffffff;"
         "}"
-        "QTabBar QToolButton {"
+        "QTabWidget QToolButton {"
         "    background-color: #252530;"
         "    border: 1px solid #2e2e3a;"
-        "    border-radius: 4px;"
-        "    width: 28px;"
-        "    height: 28px;"
+        "    border-radius: 6px;"
+        "    width: 32px;"
+        "    height: 36px;"
+        "    color: #ffffff;"
+        "    font-weight: bold;"
         "}"
-        "QTabBar QToolButton:hover {"
+        "QTabWidget QToolButton:hover {"
         "    background-color: #ab47bc;"
         "}"
     ));
 
-    QWidget *corner = new QWidget(this);
-    auto *cl = new QHBoxLayout(corner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
-    mSeekLabel = new QLabel(this);
+    auto *tabBar = ui->GraphicsTabWidget->tabBar();
+    auto shiftTab = [tabBar](int step) {
+        if (!tabBar) return;
+        const int count = tabBar->count();
+        if (count <= 0) return;
+        const int next = qBound(0, tabBar->currentIndex() + step, count - 1);
+        tabBar->setCurrentIndex(next);
+    };
+
+    QWidget *leftCorner = new QWidget(this);
+    auto *ll = new QHBoxLayout(leftCorner); ll->setContentsMargins(6, 0, 0, 0); ll->setSpacing(0);
+    auto *leftBtn = new QToolButton(leftCorner);
+    leftBtn->setText(QStringLiteral("◀"));
+    leftBtn->setToolTip(QStringLiteral("Move tabs left"));
+    ll->addWidget(leftBtn);
+    ui->GraphicsTabWidget->setCornerWidget(leftCorner, Qt::TopLeftCorner);
+
+    QWidget *rightCorner = new QWidget(this);
+    auto *cl = new QHBoxLayout(rightCorner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
+    mSeekLabel = new QLabel(rightCorner);
     mSeekLabel->setStyleSheet(QStringLiteral("color:#960096; font-weight:bold;"));
-    mPauseBtn = new QPushButton(QStringLiteral("⏸ Pause"), this);
-    mPauseBtn->setCheckable(true);
-    cl->addWidget(mSeekLabel); cl->addWidget(mPauseBtn);
-    ui->GraphicsTabWidget->setCornerWidget(corner, Qt::TopRightCorner);
-    
-    connect(mPauseBtn, &QPushButton::toggled, this, [this](bool p) {
-        if (p && !mWaveHistory.hasData()) {
-            mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false); mPauseBtn->blockSignals(false);
-            return;
-        }
-        mPauseBtn->setText(p ? QStringLiteral("▶ Resume") : QStringLiteral("⏸ Pause"));
-        if (p) updateSeekLabel((double)mWaveHistory.latestAbs());
-        else if (mSeekLabel) mSeekLabel->clear();
-        if (mCapture)    mCapture->setPaused(p);
-        if (mTabManager) mTabManager->setPaused(p);
-        if (mRateScope)  mRateScope->setPaused(p);
-    });
+    auto *rightBtn = new QToolButton(rightCorner);
+    rightBtn->setText(QStringLiteral("▶"));
+    rightBtn->setToolTip(QStringLiteral("Move tabs right"));
+    cl->addWidget(mSeekLabel);
+    cl->addWidget(rightBtn);
+    ui->GraphicsTabWidget->setCornerWidget(rightCorner, Qt::TopRightCorner);
+
+    connect(leftBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(-1); });
+    connect(rightBtn, &QToolButton::clicked, this, [shiftTab]() { shiftTab(1); });
+
+    // [측정 대기] WarmupOverlay 생성 (탭 위에 오버레이)
+    mWarmupOverlay = new WarmupOverlay(ui->GraphicsTabWidget);
+    connect(mWarmupOverlay, &WarmupOverlay::warmupFinished,
+            this, &MainWindow::onWarmupFinished);
 }
 
 void MainWindow::updateSeekLabel(double absSample)
 {
     if (!mSeekLabel) return;
-    if (mPauseBtn && !mPauseBtn->isChecked()) return;                  // [③] 선택은 정지 중에만 — 라이브 클릭은 라벨도 무시
     const int sr = mWaveHistory.sampleRate();
     const double t = sr > 0 ? absSample / (double)sr : 0.0;
     mSeekLabel->setText(QString("viewing  t=%1 s   #%2").arg(t, 0, 'f', 1).arg((qint64)absSample));
@@ -484,6 +592,13 @@ void MainWindow::setAveragingPeriodIndex(int idx)
     if (mCapture) {
         mCapture->setEngineParams(mCurrentSamplesPerSecond, mAveragingPeriod, (int)mLiftAngle);
     }
+}
+
+void MainWindow::setWarmupDelayIndex(int idx)
+{
+    if (mWarmupDelayIndex == idx || idx < 0 || idx >= mWarmupDelayList.size()) return;
+    mWarmupDelayIndex = idx;
+    emit warmupDelayIndexChanged();
 }
 
 QString MainWindow::selectedWavFile() const 
@@ -645,6 +760,24 @@ void MainWindow::startSession()
 
 void MainWindow::stopSession()
 {
+    if (mCapture) {
+        if (mCurrentMode == LIVE) {
+            mCapture->stopLive();
+        } else if (mCurrentMode == PLAYBACK) {
+            mCapture->stopPlayback();
+        } else if (mCurrentMode == SIM) {
+            mCapture->stopSim();
+        }
+    }
+    finishSession(true);
+}
+
+void MainWindow::finishSession(bool runDiag)
+{
+    if (!mIsRunning)
+        return;
+
+    cancelWarmup();
     if (mPositionSequence)
         mPositionSequence->stop();
     if (mSequenceDisplay)
@@ -652,26 +785,23 @@ void MainWindow::stopSession()
 
     SetGuiStopMode();
 
-    if (mCurrentMode == LIVE) {
-        mCapture->stopLive();
-        AudioCloseCheck();
-    } else if (mCurrentMode == PLAYBACK) {
-        mCapture->stopPlayback();
-        AudioCloseCheck();
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    } else if (mCurrentMode == SIM) {
-        mCapture->stopSim();
-        AudioCloseCheck();
+    AudioCloseCheck();
+    if (mCurrentMode == PLAYBACK || mCurrentMode == SIM) {
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
     }
 
     statusBar()->showMessage("Stopped");
 
+    if (runDiag)
+        triggerDiagnosis();
+}
+
+void MainWindow::triggerDiagnosis()
+{
 #ifdef ENABLE_DIAG
-    // [diag] 정지 시점의 t1(rateTicY)/t3(rateTocY) 시계열로 고장유형 진단을 비동기 실행.
-    //  데이터 부족(<64)·미수행 사유는 워커가 error() 로 상태바에 통지한다.
+    if (mCapture)
+        mCapture->flushDetector();
     if (mDiagWorker) {
         const QVector<double> t1 = mEngine.ticY();
         const QVector<double> t3 = mEngine.tocY();
@@ -680,6 +810,44 @@ void MainWindow::stopSession()
                                   Q_ARG(QVector<double>, t3));
     }
 #endif
+}
+
+// =========================================================================
+// [측정 대기] Warm-up Delay 로직
+// =========================================================================
+static const int kWarmupSecs[] = {0, 5, 10, 15, 20};
+
+void MainWindow::startWarmup(int seconds)
+{
+    mInWarmup = true;
+    if (mTabManager) mTabManager->setWarmup(true);
+    mWarmupOverlay->startCountdown(seconds);
+    statusBar()->showMessage("Warming up...");
+}
+
+void MainWindow::cancelWarmup()
+{
+    if (!mInWarmup) return;
+    mInWarmup = false;
+    if (mWarmupOverlay) mWarmupOverlay->cancel();
+    if (mTabManager) mTabManager->setWarmup(false);
+}
+
+void MainWindow::onWarmupFinished()
+{
+    mInWarmup = false;
+    EventsReset();                        // 엔진 롤링 버퍼 전체 초기화 (origin도 0으로 리셋)
+    // [측정 대기] 워밍업 종료 시점을 rate 그래프 x축 원점(0)으로 → 워밍업 시간 갭 제거
+    if (mCapture && mCurrentSamplesPerSecond > 0) {
+        const double originSec = (double)mCapture->totalSamples() / (double)mCurrentSamplesPerSecond;
+        mEngine.setPlotTimeOrigin(originSec);
+    }
+    if (mTabManager) {
+        mTabManager->setWarmup(false);    // 게이트 해제 (이후에 broadcastReset이 탭에 도달함)
+        mTabManager->broadcastReset();    // 모든 탭 디스플레이 취캠
+    }
+    mWaveHistory.clear();                 // 스크롤백 이력 취캠
+    statusBar()->showMessage("Running");
 }
 
 void MainWindow::refreshDevices()
@@ -859,6 +1027,12 @@ void MainWindow::pushCaptureConfig(void)
 
 void MainWindow::LiveStart(void)
 {
+    if (mDeviceIndex < 0 || mDeviceIndex >= mAudioInputDevices.size()) {
+        QMessageBox::warning(this, "No Audio Input Device",
+            "No audio input device is available.\n\n"
+            "Please connect the USB microphone and try again.");
+        return;
+    }
     if (mRecordSessionEnabled && !RecordSessionCheck()) return;
     Reset();
     pushCaptureConfig();
@@ -867,7 +1041,9 @@ void MainWindow::LiveStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::PlaybackStart(void)
@@ -881,7 +1057,9 @@ void MainWindow::PlaybackStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::SimStart(void)
@@ -908,11 +1086,14 @@ void MainWindow::SimStart(void)
     SetGuiRunMode();
     if (mPositionSequence)
         mPositionSequence->start();
-    statusBar()->showMessage("Running");
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    if (delay > 0) startWarmup(delay);
+    else statusBar()->showMessage("Running");
 }
 
 void MainWindow::DisplayResults(void)
 {
+    if (mInWarmup) return;   // [측정 대기] 웜업 중에는 readout/그래프 갱신 차단
     MeasurementEngine::Results res = mEngine.results();
     QString BeatsPerHour,RateError,BeatError,Amplitude, Results;
     if (res.bphValid) {
@@ -972,10 +1153,6 @@ void MainWindow::Reset(void)
     qInfo()<<"RESET";
     if (mTabManager) mTabManager->broadcastReset();
     mWaveHistory.clear();
-    if (mPauseBtn && mPauseBtn->isChecked()) {
-        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
-        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
-    }
     if (mCapture)    mCapture->setPaused(false);
     if (mTabManager) mTabManager->setPaused(false);
     if (mSeekLabel)  mSeekLabel->clear();
@@ -984,24 +1161,16 @@ void MainWindow::Reset(void)
 
 void MainWindow::HandlePlaybackDoneReadingFile()
 {
-    SetGuiStopMode();
-    if (mCurrentMode == PLAYBACK) {
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    }
-    AudioCloseCheck();
-    statusBar()->showMessage("Stopped");
+    if (mCapture)
+        mCapture->stopPlayback();
+    finishSession(true);
 }
 
 void MainWindow::HandleSimDone()
 {
-    SetGuiStopMode();
-    if (mCurrentMode == SIM) {
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    }
-    AudioCloseCheck();
-    statusBar()->showMessage("Stopped");
+    if (mCapture)
+        mCapture->stopSim();
+    finishSession(true);
 }
 
 bool MainWindow::RecordSessionCheck(void)
@@ -1102,10 +1271,6 @@ void MainWindow::SetGuiRunMode(void)
 
 void MainWindow::SetGuiStopMode(void)
 {
-    if (mPauseBtn && mPauseBtn->isChecked()) {
-        mPauseBtn->blockSignals(true); mPauseBtn->setChecked(false);
-        mPauseBtn->setText(QStringLiteral("⏸ Pause")); mPauseBtn->blockSignals(false);
-    }
     if (mCapture)    mCapture->setPaused(false);
     if (mTabManager) mTabManager->setPaused(false);
     if (mSeekLabel)  mSeekLabel->clear();
@@ -1160,10 +1325,12 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
     } else {
         if (ui && ui->GraphicsTabWidget && mSequenceDisplay && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay) {
             PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
+            mActivePositionDialog = &dlg;
             dlg.exec();
+            mActivePositionDialog = nullptr;
         }
 
-        if (mCurrentMode == LIVE && mPositionSequence)
+        if (mPositionSequence)
             mPositionSequence->confirmPositionChange();
     }
 }
@@ -1179,9 +1346,9 @@ static constexpr int CONTENT_EXPANDED_X  = 250;
 static constexpr int CONTENT_COLLAPSED_X = 48;   // 40px panel + 8px gap
 static constexpr int READOUT_H           = 50;
 static constexpr int TAB_Y               = 53;
-static constexpr int TAB_H              = 661;
 static constexpr int WINDOW_W           = 1280;
 static constexpr int RIGHT_MARGIN        = 8;
+static constexpr int BOTTOM_MARGIN       = 4;
 
 void MainWindow::setControlPanelCollapsed(bool collapsed)
 {
@@ -1196,9 +1363,22 @@ void MainWindow::onControlPanelToggled(bool collapsed)
 {
     const int panelW   = collapsed ? PANEL_COLLAPSED_W  : PANEL_EXPANDED_W;
     const int contentX = collapsed ? CONTENT_COLLAPSED_X : CONTENT_EXPANDED_X;
-    const int contentW = WINDOW_W - contentX - RIGHT_MARGIN;
 
     ui->ControlPanelPlaceholder->setFixedWidth(panelW);
+
+    QWidget *host = ui && ui->CentralWidget ? static_cast<QWidget *>(ui->CentralWidget) : this;
+    const int hostW = host ? host->width() : width();
+    const int hostH = host ? host->height() : height();
+
+    const int contentW = qMax(200, hostW - contentX - RIGHT_MARGIN);
+    const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
+
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
-    ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, TAB_H);
+    ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    onControlPanelToggled(mControlPanelCollapsed);
 }

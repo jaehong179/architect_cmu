@@ -13,6 +13,7 @@
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QAudioOutput>
+#include <QMediaDevices>
 #include <QVideoSink>
 #include <QVideoFrame>
 #include <QPainter>
@@ -30,6 +31,9 @@
 // running while the picture stays frozen. Pulling each QVideoFrame from the
 // sink and drawing it ourselves in paintEvent() uses the ordinary widget
 // painting path, which works reliably on both Wayland and Windows.
+//
+// Playback ending (or user skip) emits finished() but keeps the last frame
+// visible until dismiss() — typically after MainWindow::show().
 class VideoSplashScreen : public QWidget
 {
     Q_OBJECT
@@ -58,7 +62,7 @@ public:
                     }
                 });
 
-        m_audioOutput = new QAudioOutput(this);
+        m_audioOutput = new QAudioOutput(preferredVideoAudioOutput(), this);
         m_player->setAudioOutput(m_audioOutput);
         m_player->setSource(QUrl::fromLocalFile(filePath));
 #else
@@ -75,12 +79,12 @@ public:
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
         connect(m_player, &QMediaPlayer::errorOccurred, this, [this](QMediaPlayer::Error error, const QString &errorString) {
             qWarning() << "Video splash playback error occurred:" << error << "-" << errorString;
-            closeAndExit();
+            finishPlayback();
         });
 #else
         connect(m_player, static_cast<void(QMediaPlayer::*)(QMediaPlayer::Error)>(&QMediaPlayer::error), this, [this](QMediaPlayer::Error error) {
             qWarning() << "Video splash playback error occurred:" << error;
-            closeAndExit();
+            finishPlayback();
         });
 #endif
     }
@@ -89,6 +93,14 @@ public:
     {
         m_player->play();
         setFocus();
+    }
+
+    void dismiss()
+    {
+        if (m_dismissed)
+            return;
+        m_dismissed = true;
+        close();
     }
 
 signals:
@@ -113,36 +125,53 @@ protected:
     void mousePressEvent(QMouseEvent *event) override
     {
         Q_UNUSED(event);
-        closeAndExit();
+        finishPlayback();
     }
 
     void keyPressEvent(QKeyEvent *event) override
     {
         Q_UNUSED(event);
-        closeAndExit();
+        finishPlayback();
     }
 
 private slots:
     void onMediaStatusChanged(QMediaPlayer::MediaStatus status)
     {
         if (status == QMediaPlayer::EndOfMedia) {
-            closeAndExit();
+            finishPlayback();
         }
     }
 
 private:
-    void closeAndExit()
+    // Prefer HDMI output for video audio so that connecting a USB mic does not
+    // silently redirect sound to the USB adapter's unplugged headphone jack.
+    static QAudioDevice preferredVideoAudioOutput()
     {
-        if (m_finished)
+        QAudioDevice hdmi, nonUsb;
+        for (const QAudioDevice &dev : QMediaDevices::audioOutputs()) {
+            const QString desc = dev.description();
+            if (desc.contains(QLatin1String("HDMI"), Qt::CaseInsensitive) && hdmi.isNull())
+                hdmi = dev;
+            if (!desc.contains(QLatin1String("USB"), Qt::CaseInsensitive) && nonUsb.isNull())
+                nonUsb = dev;
+        }
+        if (!hdmi.isNull())  return hdmi;
+        if (!nonUsb.isNull()) return nonUsb;
+        return QMediaDevices::defaultAudioOutput();
+    }
+
+    void finishPlayback()
+    {
+        if (m_playbackFinished)
             return;
-        m_finished = true;
+        m_playbackFinished = true;
         m_player->stop();
-        close();
         emit finished();
     }
 
     QMediaPlayer *m_player = nullptr;
-    bool m_finished = false;
+    bool m_playbackFinished = false;
+    bool m_dismissed = false;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     QVideoSink *m_sink = nullptr;
     QAudioOutput *m_audioOutput = nullptr;

@@ -61,6 +61,24 @@ void TAudioWorker::StartAudioRecording(QAudioDevice InputDevice,int SampleRate,f
     mAudioInputDevice = mAudioInput->start(); // Start recording
     connect( mAudioInputDevice, &QIODevice::readyRead, this, &TAudioWorker::ProcessAudioInput);
     qDebug() << "Audio recording started in worker thread.";
+
+    // Prefer the USB output (headphone jack on the adapter) for monitoring;
+    // fall back to the system default if none is found.
+    QAudioDevice monitorOut;
+    for (const QAudioDevice &dev : QMediaDevices::audioOutputs()) {
+        if (dev.description().contains(QLatin1String("USB"), Qt::CaseInsensitive)) {
+            monitorOut = dev;
+            break;
+        }
+    }
+    if (monitorOut.isNull())
+        monitorOut = QMediaDevices::defaultAudioOutput();
+
+    if (!monitorOut.isNull()) {
+        mAudioOutput = new QAudioSink(monitorOut, InputFormat, this);
+        mAudioOutputDevice = mAudioOutput->start();
+        qDebug() << "Audio monitoring output started on:" << monitorOut.description();
+    }
 }
 
 void TAudioWorker::SetAudioInputVolume(float Volume)
@@ -141,12 +159,21 @@ void TAudioWorker::ProcessAudioInput()
         }
 #endif
     }
+    if (mAudioOutputDevice)
+        mAudioOutputDevice->write(ba);
+
     emit AudioDataReady(); // Emit data to the main thread
 
 }
 
 void TAudioWorker::StopAudioRecording()
 {
+    if (mAudioOutput) {
+        mAudioOutput->stop();
+        delete mAudioOutput;
+        mAudioOutput = nullptr;
+        mAudioOutputDevice = nullptr;
+    }
     if (mAudioInput) {
         mAudioInput->stop();
         delete mAudioInput;

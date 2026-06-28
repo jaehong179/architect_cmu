@@ -1,6 +1,7 @@
 #include "TabSequenceDisplay.h"
 #include "PositionNames.h"
 #include "PositionTimingModel.h"
+#include "SequenceResultSaveDialog.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -8,6 +9,10 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QHeaderView>
+#include <QFile>
+#include <QMessageBox>
+#include <QTextStream>
+#include <QDebug>
 #include <algorithm>
 #include <cmath>
 
@@ -18,13 +23,13 @@ bool TabSequenceDisplay::isHorizontal(const QString &pos)
 
 int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
 {
-    QString clean = posName.split(QLatin1Char(' ')).first();
-    if (clean == QStringLiteral("CH")) return 0;
-    if (clean == QStringLiteral("CB")) return 1;
-    if (clean == QStringLiteral("9H")) return 2;
-    if (clean == QStringLiteral("6H")) return 3;
-    if (clean == QStringLiteral("3H")) return 4;
-    if (clean == QStringLiteral("12H")) return 5;
+    const QString key = canonicalCorePositionKey(posName);
+    if (key == QStringLiteral("CH")) return 0;
+    if (key == QStringLiteral("CB")) return 1;
+    if (key == QStringLiteral("9H")) return 2;
+    if (key == QStringLiteral("6H")) return 3;
+    if (key == QStringLiteral("3H")) return 4;
+    if (key == QStringLiteral("12H")) return 5;
     return -1;
 }
 
@@ -69,6 +74,15 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
         "QPushButton:pressed { background-color: #222222; }"
     ));
     ctl->addWidget(mClear);
+
+    mSave = new QPushButton(QStringLiteral("Save"), this);
+    mSave->setStyleSheet(QStringLiteral(
+        "QPushButton { background-color: #1e6f46; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; }"
+        "QPushButton:hover { background-color: #258b58; }"
+        "QPushButton:pressed { background-color: #175637; }"
+    ));
+    mSave->setVisible(false);
+    ctl->addWidget(mSave);
 
     mComplete = new QLabel(this);
     mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px;"));
@@ -129,8 +143,8 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     // 테이블 초기값 세팅 (행별 타이틀 고정 및 읽기전용)
     const QString rowNames[8] = {
-        QStringLiteral("CH"), QStringLiteral("CB"), QStringLiteral("9H"),
-        QStringLiteral("6H"), QStringLiteral("3H"), QStringLiteral("12H"),
+        QStringLiteral("Dial Up"), QStringLiteral("Dial Down"), QStringLiteral("Crown Right"),
+        QStringLiteral("Crown Left"), QStringLiteral("Crown Up"), QStringLiteral("Crown Down"),
         QStringLiteral("Average"), QStringLiteral("Deviation")
     };
     for (int r = 0; r < 8; ++r) {
@@ -165,6 +179,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     connect(mCapture, &QPushButton::clicked, this, &TabSequenceDisplay::capture);
     connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
+    connect(mSave,    &QPushButton::clicked, this, &TabSequenceDisplay::onSaveRequested);
     connect(mPos, &QComboBox::currentIndexChanged, this, &TabSequenceDisplay::onPositionComboChanged);
 
     mPrevPos = mPos->currentText();
@@ -300,17 +315,78 @@ void TabSequenceDisplay::updateComplete()
     if (haveAll) {
         mComplete->setText(QStringLiteral("✓ Sequence complete (Ok)"));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#00FF66;"));
+        if (mSave) mSave->setVisible(true);
     } else {
         mComplete->setText(QStringLiteral("Progress %1/6 positions").arg(n));
         mComplete->setStyleSheet(QStringLiteral("font-weight:bold; padding:2px 8px; color:#888888;"));
+        if (mSave) mSave->setVisible(false);
     }
+}
+
+void TabSequenceDisplay::onSaveRequested()
+{
+    SequenceResultSaveDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QString path = dlg.selectedPath();
+    if (path.isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("Save"), QStringLiteral("Please select a file path."));
+        return;
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QMessageBox::critical(this,
+                              QStringLiteral("Save failed"),
+                              QStringLiteral("Could not write file:\n%1").arg(path));
+        return;
+    }
+
+    QTextStream out(&file);
+    out << buildCurrentSequenceCsv();
+    file.close();
+
+    QMessageBox::information(this,
+                             QStringLiteral("Saved"),
+                             QStringLiteral("Sequence result saved to:\n%1").arg(path));
+}
+
+QString TabSequenceDisplay::buildCurrentSequenceCsv() const
+{
+    if (!mTable) return QString();
+
+    QString csv;
+    QTextStream stream(&csv);
+    stream << QStringLiteral("Position,Rate,Amplitude,Beat error\n");
+
+    for (int r = 0; r < 8; ++r) {
+        const QString pos = mTable->item(r, 0) ? mTable->item(r, 0)->text() : QStringLiteral("");
+        const QString rate = mTable->item(r, 1) ? mTable->item(r, 1)->text() : QStringLiteral("--");
+        const QString amp = mTable->item(r, 2) ? mTable->item(r, 2)->text() : QStringLiteral("--");
+        const QString beat = mTable->item(r, 3) ? mTable->item(r, 3)->text() : QStringLiteral("--");
+        stream << QStringLiteral("\"") << pos << QStringLiteral("\",\"")
+               << rate << QStringLiteral("\",\"")
+               << amp << QStringLiteral("\",\"")
+               << beat << QStringLiteral("\"\n");
+    }
+    return csv;
 }
 
 void TabSequenceDisplay::setCurrentPositionByIndex(int index)
 {
     if (!mPos || index < 0 || index >= mPos->count())
         return;
+    if (mPos->currentIndex() == index)
+        return;
+
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=programmatic targetIndex=%1 targetName=%2")
+                             .arg(index)
+                             .arg(mPos->itemText(index));
+
+    mProgrammaticPositionChange = true;
     mPos->setCurrentIndex(index);
+    mProgrammaticPositionChange = false;
 }
 
 void TabSequenceDisplay::setPhaseStatus(const QString &phaseLabel, int remainingSec)
@@ -360,7 +436,11 @@ void TabSequenceDisplay::onResetSession()
 
 void TabSequenceDisplay::onPositionComboChanged(int index)
 {
-    Q_UNUSED(index);
+    const QString source = mProgrammaticPositionChange ? QStringLiteral("programmatic") : QStringLiteral("manual");
+    const QString newPos = (mPos && index >= 0 && index < mPos->count()) ? mPos->itemText(index) : QStringLiteral("<invalid>");
+    qInfo().noquote() << QStringLiteral("[pos-sync] source=%1 prev=%2 new=%3 index=%4")
+                             .arg(source, mPrevPos, newPos)
+                             .arg(index);
 
     // 1. 포지션이 변경되기 직전, 이전 포지션(mPrevPos)에 대하여 자동 캡처(고정) 수행
     if (mHaveLast && !mPrevPos.isEmpty()) {

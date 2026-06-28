@@ -36,6 +36,7 @@ void TabManager::registerTab(TabView *tab)
 
 void TabManager::broadcastMeasurement(const MeasurementSnapshot &snap)
 {
+    if (mInWarmup) return;   // [측정 대기] 워밍업 중 스냅샷 전달 차단.
     if (mPaused) return;   // [8분 스크롤백] 전역 정지 중엔 모든 탭 동결.
     // 모든 탭에 스냅샷 전달. 탭별 onMeasurement 소요시간을 측정해 병목 후보를 드러낸다.
     //  (탭 내부에서 무거운 replot 은 isVisible() 가드를 권장 → 숨은 탭은 데이터만 누적)
@@ -52,6 +53,7 @@ void TabManager::broadcastWave(const WaveBlock &wave)
 {
     // 고빈도(처리 슬라이스마다) → perf 로그는 생략(로그 폭주 방지). 탭이 자체적으로
     //  isVisible() 가드로 렌더 비용을 줄인다.
+    if (mInWarmup) return;   // [측정 대기] 워밍업 중 파형과 WaveSink 모두 차단.
     if (!mPaused)                       // [8분 스크롤백] 정지 중엔 탭 갱신만 동결.
         for (TabView *t : mTabs)
             if (t) t->onWave(wave);

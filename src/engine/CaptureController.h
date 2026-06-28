@@ -41,6 +41,8 @@ public:
     void stopLive();
     void stopPlayback();
     void stopSim();
+    // EOF/세션 종료 시 검출기 delay 버퍼 잔여 이벤트를 엔진에 반영(rate_error_cli 의 tg_flush 와 동일).
+    void flushDetector();
 
     // 설정 주입 — start 전/런타임 변경 시 MainWindow 가 갱신.
     void setEngineParams(int sampleRate, int averagingPeriod, int liftAngle)
@@ -63,6 +65,8 @@ public:
     void setWavWriter(WavStreamWriter *w) { mWavWriter = w; }   // 녹음 대상(소유 안 함)
 
     uint64_t totalSamples() const { return mLocalTotalSamplesWritten; }  // 탭 스냅샷 게시용
+
+    WatchdogState *watchdogState() { return &mWatchdogState; }
 
 public slots:
     void onScopeReplotted();   // 탭 ScopePlot afterReplot → disp_paint_ms·e2e_full_ms·paint_fps
@@ -97,6 +101,8 @@ private:
     void processSamples(TMasterAudioDataRaw *p);
     void aEvent(double t, bool haveValidBph, double bph);
     void cEvent(double t, bool haveValidBph, double bph);
+    // tg_process/tg_flush 공통: A/C → 엔진. slice>0 이면 WaveBlock 도 탭에 게시.
+    void handleDetectorResult(const tg_result_t &r, int slice);
     void matchGroundTruth(double val, bool isAEvent);   // [PERF] 검출 vs Sim 정답 대조(A/C 공용)
     void updateStatusMessage();
 

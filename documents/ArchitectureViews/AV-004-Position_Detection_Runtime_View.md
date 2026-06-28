@@ -1,41 +1,33 @@
 # Position-Detection Runtime View
 
-##  Behavior
+The system reads the watch's position with a USB camera and an on-device TFLite classifier. Detection runs in a dedicated VisionWorker thread, separate from the acoustic measurement path, so a misclassified position can never corrupt a measured value (ADR-001). The camera streams frames continuously, but the worker classifies once per second and pushes the result to the GUI thread asynchronously.
 
-![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
+![Sequence Diagram](../images/AI_multiposition_cc.jpg)
 
 ##  Element catalog
 
-The architecture is composed of five categories of elements:
-the user, the main UI thread, an external camera, an on-device AI classifier (TinyML), and the deterministic measurement path inside the Main UI.
 
-### User
-The User operates the timegrapher in Live mode. The user places the watch in each of the nine standard measurement positions (CR, CU(R), CU, CU(L), CL, CD(L), CD, CD(R), DU/DD) and, only when the system requests it, selects the position manually. The user otherwise relies on automatic position detection and reads the measured Rate/Beat-Error/Amplitude on the screen.
+### USB Camera
+External USB webcam («external device»). Streams frames of the watch to VisionWorker. Used only to read the position; falls back to manual selection when unavailable.
 
-### Main UI
-The Main UI is the central element that the user sees and interacts with. It coordinates the whole flow: it requests a frame from the camera, asks the classifier to read the current position, and — independently of the classifier — performs the actual signal-processing measurement and renders the results on screen. The measurement of Rate/Beat-Error/Amplitude is always computed here by deterministic signal processing; the AI classifier never computes a measured value. This separation guarantees that a misclassified position cannot corrupt the measured values.
+### MainWindow
+Coordinator on the GUI (main) thread. Starts the VisionWorker thread (moveToThread) and receives results via a queued connection (resultReady). It consumes results as they arrive — it does not poll the camera. Measured values (Rate/Beat-Error/Amplitude) come only from the deterministic measurement path, never the classifier.
 
-### Vision
-The Camera is an external device connected to the Raspberry Pi. On request from the Main UI, it captures a frame of the watch in its current orientation and returns it. The camera is used only to read which position the watch is in; it has no role in the acoustic measurement. When the camera is unavailable (disconnected or the view is occluded), the system falls back to manual position selection.
+### VisionWorker
+vision::VisionWorker on a dedicated worker thread. Owns the camera pipeline (QCamera/QVideoSink), keeps only the newest frame, and runs a 1 Hz QTimer. Each tick: preprocess the latest frame, classify, then emit resultReady(label, confidence). Results below kConfThresh are flagged uncertain.
 
-### Classifier (TinyML)
-The Classifier is a lightweight on-device image classification model (TinyML). Given a camera frame, it infers which of the nine standard positions the watch is in and returns that position together with a confidence value. It performs only position reading — labeling which position a measurement belongs to — and never computes Rate/Beat-Error/Amplitude. The specific model is an implementation detail to be finalized and validated by experiment ([EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md)); the model is chosen to be small enough for real-time inference on the Raspberry Pi.
+### TfliteApi (TinyML)
+vision::TfliteApi, a member of VisionWorker (same thread). Runs an embedded TFLite model via invoke(...). Outputs 12 classes — six positions (DU, DD, CD, CL, CR, CU) × W_ (watch present) / N_ (no watch). Reads position only; the model is finalized by EXP-18.
 
-### Measurement path (signal processing)
-The Measurement path is the deterministic, rule/signal-processing logic inside the Main UI that computes Rate, Beat Error, and Amplitude from the acoustic signal. It is explainable and verifiable, and it is the only source of measured values. It runs the same way regardless of whether the position came from the AI classifier or from manual selection, so the trustworthiness of the measurement does not depend on the AI.
-
-### Position usage by mode
-The detected position is used differently depending on the display mode. In the Multi-Position Sequence Display mode, the measured values are recorded into the detected position's row of the sequence table; if confidence is below threshold or the camera is unavailable, the system withholds auto-recording and asks the user to select the position manually. In other display modes, the current position is shown for display only (e.g., 9H) and is not used to record measurements; when confidence is low or the camera is unavailable, the position is simply not shown.
+### Connectors
+frames (stream): USB Camera → VisionWorker (videoFrameChanged).
+classify frame / position, confidence: VisionWorker ↔ TfliteApi, synchronous invoke(...), same thread.
+resultReady(label, confidence): VisionWorker → MainWindow, asynchronous queued connection (worker → GUI thread).
 
 
-
-##  Variability guide
-
-The source of the measurement position is variable at runtime:
-- **AI auto-detection (default):** the camera and TinyML classifier determine the position automatically.
-- **Manual selection (fallback):** used when classification confidence is below threshold or the camera is unavailable.
-
-Binding time: runtime, decided per measurement based on the classifier confidence and camera availability.
+##  Behavior
+One detection cycle: VisionWorker wakes on its 1 Hz timer, asks TfliteApi to classify the latest frame, gets back position + confidence, and emits resultReady to MainWindow. MainWindow then displays/records the result (confidence above threshold) or prompts for manual selection (low confidence / camera not used).
+![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
 
 ##  Related ADRs
 
@@ -43,4 +35,6 @@ Binding time: runtime, decided per measurement based on the classifier confidenc
 
 ##  Related views
 
-N/A
+[AV-003: Live Microphone to Graph Runtime View — the measurement path that produces the values labeled by position](AV-003-MicToGraph-SeqenceDiagram.md)
+
+[AV-002: Top-Level Module Uses View — the vision module containing these components.](documents/ArchitectureViews/AV-002-TimeGrapher-module-view.md)
