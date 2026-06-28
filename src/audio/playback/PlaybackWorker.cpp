@@ -113,7 +113,6 @@ void TPlaybackWorker::StartPlayback(const QString &FileName)
         (header.numChannels!=1)|| (header.bitsPerSample != 32)||
         (header.audioFormat != 3))
     {
-     emit PlaybackDoneReadingFile();
         file->close();
         delete file;
         emit PlaybackDoneReadingFile();

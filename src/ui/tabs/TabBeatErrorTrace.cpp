@@ -1,21 +1,36 @@
 #include "TabBeatErrorTrace.h"
-#include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
+#include <QFont>
+#include <QFontMetrics>
 #include <cmath>
+
+namespace {
+// DiagWorker/DiagConfig kConfThresh 와 동일 — 탭은 diag 빌드에 의존하지 않음.
+constexpr float kDiagConfThresh = 0.6f;
+}
 
 TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Slope&nbsp;:</b></td><td>Slope of the two lines = rate (rising=fast · falling=slow)</td></tr>"
-        "<tr><td valign='top'><b>Vertical gap&nbsp;:</b></td><td>Vertical gap of the two lines (Tic·Toc) = beat error (narrower is more accurate)</td></tr>"
-        "<tr><td valign='top'><b>Formula&nbsp;:</b></td><td>Each beat Eₙ = T_measured − (T_start + n·I_target), ±10ms wrap</td></tr>"
-        "</table>"), this));
-    mAlert = new QLabel(this); mAlert->setWordWrap(true);
+    QFont statusFont = font();
+    statusFont.setPointSizeF(14.0 * 1.5);   // 기존 diag 라벨(14pt) 대비 1.5배
+    statusFont.setBold(true);
+    const int statusAreaH = QFontMetrics(statusFont).height() * 2 + 8;
+
+    mAlert = new QLabel(this);
+    mAlert->setWordWrap(true);
+    mAlert->setFont(statusFont);
+    mAlert->setFixedHeight(statusAreaH);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
     lay->addWidget(mAlert);
+
+    mDiagLabel = new QLabel(this);
+    mDiagLabel->setWordWrap(true);
+    mDiagLabel->setFont(statusFont);
+    mDiagLabel->setFixedHeight(statusAreaH);
+    mDiagLabel->setStyleSheet(QStringLiteral("color:#9e9e9e;"));
+    lay->addWidget(mDiagLabel);
 
     mPlot = new QCustomPlot(this);
     // 두 선 모델(문서 §탭5): 짝수 비트=Tic 선, 홀수 비트=Toc 선. 점을 선으로 이어 두 trace 로 보이게 함.
@@ -141,17 +156,14 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
     }
 
     if (mAnchored && mHavePrevE) {
-        // 트레이스 기울기 각도 — 화면 스케일 정의: 1비트(가로) ↔ 1ms(세로) 등가.
-        //  45° = 비트당 1ms 오차 증가(≈691 s/d @28800bph) → major fault 기준(문서화된 스케일).
-        //  표시 부호 = −ΔE (양의 rate ↔ 양의 기울기).
         const double slopeDeg = std::atan2(-mSlopeAvg, 1.0) * 180.0 / M_PI;
         const double rateSd = -(mSlopeAvg / iTargetMs) * 86400.0;   // E6: R = −(m/I_target)·86400
         const QString gapTxt = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
         QStringList warn;
         if (mBeatErrValid && mBeatErrMs > kGoodMs)
             warn << QString("⚠ beat error (gap between the two lines) too large: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
-        if (std::fabs(slopeDeg) > 45.0)
-            warn << QString("⚠ MAJOR FAULT — slope %1° (>45°)").arg(slopeDeg, 0, 'f', 0);
+        if (std::fabs(rateSd) > kMaxRateSd)
+            warn << QString("⚠ MAJOR FAULT — rate %1 s/d (|rate| > %2 s/d)").arg(rateSd, 0, 'f', 1).arg(kMaxRateSd, 0, 'f', 0);
         if (warn.isEmpty()) {
             mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · slope %2° (≈ %3 s/d)")
                                 .arg(gapTxt).arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
@@ -171,6 +183,28 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
 
 void TabBeatErrorTrace::onShown() { if (mPlot) mPlot->replot(); }
 
+void TabBeatErrorTrace::setDiagResult(const QString &label, float confidence, int windows)
+{
+    if (!mDiagLabel) return;
+    const QString prefix = confidence < kDiagConfThresh ? QStringLiteral("? ") : QString();
+    mDiagLabel->setText(QStringLiteral("[diag] %1%2 (%3%, %4 windows)")
+                            .arg(prefix)
+                            .arg(label)
+                            .arg(QString::number(confidence * 100.0f, 'f', 1))
+                            .arg(windows));
+    if (label == QStringLiteral("normal"))
+        mDiagLabel->setStyleSheet(QStringLiteral("color:#2ed573;"));
+    else
+        mDiagLabel->setStyleSheet(QStringLiteral("color:#ffa502;"));
+}
+
+void TabBeatErrorTrace::setDiagError(const QString &message)
+{
+    if (!mDiagLabel) return;
+    mDiagLabel->setText(QStringLiteral("[diag] %1").arg(message));
+    mDiagLabel->setStyleSheet(QStringLiteral("color:#ff4757;"));
+}
+
 void TabBeatErrorTrace::onResetSession()
 {
     mAnchored = false; mTstart = 0; mN = 0; mLastA = 0; mBph = 0;
@@ -178,6 +212,10 @@ void TabBeatErrorTrace::onResetSession()
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
+    if (mDiagLabel) {
+        mDiagLabel->setText(QStringLiteral("Waiting for diagnosis…"));
+        mDiagLabel->setStyleSheet(QStringLiteral("color:#9e9e9e;"));
+    }
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
     if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }

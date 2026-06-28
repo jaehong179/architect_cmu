@@ -212,7 +212,7 @@ MainWindow::MainWindow(QWidget *parent)
     LoadAudioDevices();
 
     // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
-    mWarmupDelayList << "5s" << "10s" << "15s" << "20s";
+    mWarmupDelayList << "0s" << "5s" << "10s" << "15s" << "20s";
 
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
@@ -317,6 +317,13 @@ MainWindow::MainWindow(QWidget *parent)
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
 
+    if (mBedTab) {
+        connect(mDiagWorker, &diag::DiagWorker::resultReady, mBedTab,
+                &TabBeatErrorTrace::setDiagResult);
+        connect(mDiagWorker, &diag::DiagWorker::error, mBedTab,
+                &TabBeatErrorTrace::setDiagError);
+    }
+
     mDiagThread->start();
 #endif
 }
@@ -380,6 +387,7 @@ void MainWindow::RegisterDisplayTabs(void)
     mTabManager->registerTab(bnsTab);
 
     auto *bedTab = new TabBeatErrorTrace(this);
+    mBedTab = bedTab;
     connect(bedTab, &TabBeatErrorTrace::seekRequested, mTabManager, &TabManager::broadcastSeek);
     connect(bedTab, &TabBeatErrorTrace::seekRequested, this, &MainWindow::updateSeekLabel);
     mTabManager->registerTab(bedTab);
@@ -752,7 +760,24 @@ void MainWindow::startSession()
 
 void MainWindow::stopSession()
 {
-    cancelWarmup();   // [측정 대기] 워밍업 중이라면 취소 (아니라면 no-op)
+    if (mCapture) {
+        if (mCurrentMode == LIVE) {
+            mCapture->stopLive();
+        } else if (mCurrentMode == PLAYBACK) {
+            mCapture->stopPlayback();
+        } else if (mCurrentMode == SIM) {
+            mCapture->stopSim();
+        }
+    }
+    finishSession(true);
+}
+
+void MainWindow::finishSession(bool runDiag)
+{
+    if (!mIsRunning)
+        return;
+
+    cancelWarmup();
     if (mPositionSequence)
         mPositionSequence->stop();
     if (mSequenceDisplay)
@@ -760,26 +785,23 @@ void MainWindow::stopSession()
 
     SetGuiStopMode();
 
-    if (mCurrentMode == LIVE) {
-        mCapture->stopLive();
-        AudioCloseCheck();
-    } else if (mCurrentMode == PLAYBACK) {
-        mCapture->stopPlayback();
-        AudioCloseCheck();
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    } else if (mCurrentMode == SIM) {
-        mCapture->stopSim();
-        AudioCloseCheck();
+    AudioCloseCheck();
+    if (mCurrentMode == PLAYBACK || mCurrentMode == SIM) {
         SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
         SetAudioRate(mRateBeforePlaybackOrSim);
     }
 
     statusBar()->showMessage("Stopped");
 
+    if (runDiag)
+        triggerDiagnosis();
+}
+
+void MainWindow::triggerDiagnosis()
+{
 #ifdef ENABLE_DIAG
-    // [diag] 정지 시점의 t1(rateTicY)/t3(rateTocY) 시계열로 고장유형 진단을 비동기 실행.
-    //  데이터 부족(<64)·미수행 사유는 워커가 error() 로 상태바에 통지한다.
+    if (mCapture)
+        mCapture->flushDetector();
     if (mDiagWorker) {
         const QVector<double> t1 = mEngine.ticY();
         const QVector<double> t3 = mEngine.tocY();
@@ -793,7 +815,7 @@ void MainWindow::stopSession()
 // =========================================================================
 // [측정 대기] Warm-up Delay 로직
 // =========================================================================
-static const int kWarmupSecs[] = {5, 10, 15, 20};
+static const int kWarmupSecs[] = {0, 5, 10, 15, 20};
 
 void MainWindow::startWarmup(int seconds)
 {
@@ -1139,24 +1161,16 @@ void MainWindow::Reset(void)
 
 void MainWindow::HandlePlaybackDoneReadingFile()
 {
-    SetGuiStopMode();
-    if (mCurrentMode == PLAYBACK) {
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    }
-    AudioCloseCheck();
-    statusBar()->showMessage("Stopped");
+    if (mCapture)
+        mCapture->stopPlayback();
+    finishSession(true);
 }
 
 void MainWindow::HandleSimDone()
 {
-    SetGuiStopMode();
-    if (mCurrentMode == SIM) {
-        SetAudioDevice(mDeviceNameBeforePlaybackOrSim);
-        SetAudioRate(mRateBeforePlaybackOrSim);
-    }
-    AudioCloseCheck();
-    statusBar()->showMessage("Stopped");
+    if (mCapture)
+        mCapture->stopSim();
+    finishSession(true);
 }
 
 bool MainWindow::RecordSessionCheck(void)
