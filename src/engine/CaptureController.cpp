@@ -135,9 +135,33 @@ void CaptureController::resetPipeline()
     createDetectors();
 }
 
+// 한 소스 워커를 '연결 격리 + interruption + join' 으로 완전히 끝낸다.
+//  · wk(sender)→this 격리: 죽는 워커의 PlaybackDoneReadingFile/DataReady 가 새 세션을 오염시키지 않게.
+//  · this→wk(localStartX) 격리: 새 emit 이 죽는 워커를 재트리거하지 않게.
+//  · 정리(thread/worker delete)는 finished→deleteLater 연결이 담당(여기선 루프 종료만 보장).
+void CaptureController::joinSourceThread(QThread *th, QObject *wk)
+{
+    if (!th) return;
+    if (wk) { disconnect(wk, nullptr, this, nullptr); disconnect(this, nullptr, wk, nullptr); }
+    th->requestInterruption();
+    th->quit();
+    th->wait();
+}
+
+// 새 세션 시작 전, 떠 있을 수 있는 모든 입력 소스를 완전히 종료·join.
+//  같은 모드 재시작뿐 아니라 '모드 전환'(예: playback→live)에서도 옛 워커가 해제될 mRawAudio/검출기에
+//  계속 접근(UAF)하거나 카운터를 오염시켜 tic/tac 미검출을 일으키는 것을 막는다.
+void CaptureController::stopAndJoinAllSources()
+{
+    joinSourceThread(mAudioThread,    mAudioWorker);
+    joinSourceThread(mPlaybackThread, mPlaybackWorker);
+    joinSourceThread(mSimThread,      mSimWorker);
+}
+
 // ── 입력 소스 시작 ──
 void CaptureController::startLive(const QAudioDevice &device, int sampleRate, float micVol)
 {
+    stopAndJoinAllSources();   // [재시작 안전] 이전 소스(타 모드 포함) 완전 종료 후 재생성
     mSampleRate = sampleRate;  mLive = true;  mSimMode = false;  mSimActive = false;
     resetPipeline();
     allocBuffer(sampleRate);
@@ -164,6 +188,7 @@ void CaptureController::startLive(const QAudioDevice &device, int sampleRate, fl
 
 void CaptureController::startPlayback(const QString &fileName, int sampleRate)
 {
+    stopAndJoinAllSources();   // [재시작 안전] 이전 소스 완전 종료 후에야 공유 버퍼/검출기 재생성
     mSampleRate = sampleRate;  mLive = false;  mSimMode = false;  mSimActive = false;
     resetPipeline();
     allocBuffer(sampleRate);
@@ -189,6 +214,7 @@ void CaptureController::startPlayback(const QString &fileName, int sampleRate)
 
 void CaptureController::startSim(const WatchSynthStreamConfig &cfg, int sampleRate)
 {
+    stopAndJoinAllSources();   // [재시작 안전] 이전 소스(타 모드 포함) 완전 종료 후 재생성
     mSampleRate = sampleRate;  mLive = false;  mSimMode = true;
     mLastSimCfg = cfg;  mSimActive = true;     // [G-1] 정답 설정값 보관(측정값과 대비)
     resetPipeline();

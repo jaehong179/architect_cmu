@@ -91,6 +91,8 @@ private:
     void createDetectors();
     void deleteDetectors();
     void resetPipeline();                       // 세션 시작 시 파이프라인 상태 비움
+    void joinSourceThread(QThread *th, QObject *wk);   // 한 소스 워커 격리+interruption+join
+    void stopAndJoinAllSources();               // 새 세션 전 live/playback/sim 모두 완전 종료(재시작 레이스 차단)
     void handleInputData(TMasterAudioDataRaw *p);
     void processSamples(TMasterAudioDataRaw *p);
     void aEvent(double t, bool haveValidBph, double bph);
