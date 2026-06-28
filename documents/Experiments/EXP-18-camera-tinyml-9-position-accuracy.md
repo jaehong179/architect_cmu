@@ -1,16 +1,16 @@
-# EXP-18 / Camera+TinyML 9-Position Accuracy & Per-Mode Fallback Verification
+# EXP-18 / Camera+TinyML 6-Position Accuracy
 
 ## Objective
 
-- Verify 9-position classification accuracy and that per-mode safe fallback works (Sequence Display = manual switch; other modes = no display).
+- Verify 6-position classification accuracy.
 
 ## Status
 
-- [Planned | **In progress** | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | Canceled | **Concluded**]
 
 ## Expected outcomes
 
-- 9-position accuracy (confusion matrix); Sequence-Display manual switch with zero mis-records under low confidence; no-display in other modes under low confidence; Pi inference latency.
+- 6-position accuracy (confusion matrix).
 
 ## Resources required
 
@@ -18,15 +18,11 @@
 
 ## Experiment description
 
-- Collect/label 9-position images.
+- Collect/label 6-position images.
 
 - Train a lightweight classifier, deploy on Pi.
 
 - Measure per-position accuracy (confusion matrix).
-
-- Sequence Display mode: across positions, verify values record into the correct row, and under low confidence/occlusion/unavailability it switches to manual with zero mis-records.
-
-- Other display modes: verify the current position shows correctly (e.g., 9H) and is hidden under low confidence/unavailability.
 
 - Verify Pi inference latency is acceptable ([RISK-09](../README.md#risk-09)).
 
@@ -40,4 +36,33 @@
 
 ## Results and recommendations
 
-*(to be completed after the experiment)*
+Labeling of camera positions was performed correctly, and 6-position classification was confirmed to work accurately.
+
+### Labeling
+
+All collected images were correctly labeled across the 6 positions.
+
+| | | |
+|---|---|---|
+| ![labeling_1](../images/labeling_1.png) | ![labeling_2](../images/labeling_2.png) | ![labeling_3](../images/labeling_3.png) |
+| ![labeling_4](../images/labeling_4.png) | ![labeling_5](../images/labeling_5.png) | ![labeling_6](../images/labeling_6.png) |
+
+### Training
+
+The model converged stably during training.
+
+| Training history |
+|---|
+| ![training_history](../images/training_history.png) |
+
+### Accuracy
+
+High classification accuracy was achieved across all 9 positions.
+
+| Confusion matrix |
+|---|
+| ![confusion_matrix](../images/confusion_matrix.png) |
+
+### Summary
+
+![summary_grid](../images/summary_grid.png)
