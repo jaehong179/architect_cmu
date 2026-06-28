@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <!-- Empty Case Silhouette (Dashed) -->
+  <rect x="20" y="41" width="60" height="14" rx="2" fill="none" stroke="#ffffff" stroke-width="3" stroke-dasharray="4,4"/>
+  <!-- Empty Crown Outline -->
+  <rect x="80" y="44" width="5" height="8" rx="1" fill="none" stroke="#ffffff" stroke-width="2"/>
+</svg>

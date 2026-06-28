@@ -1,6 +1,19 @@
 <RCC>
     <qresource prefix="/images">
         <file>Splash.png</file>
+        <file>src/ui/images/pos_du.svg</file>
+        <file>src/ui/images/pos_du_empty.svg</file>
+        <file>src/ui/images/pos_dd.svg</file>
+        <file>src/ui/images/pos_dd_empty.svg</file>
+        <file>src/ui/images/pos_cr.svg</file>
+        <file>src/ui/images/pos_cr_empty.svg</file>
+        <file>src/ui/images/pos_cl.svg</file>
+        <file>src/ui/images/pos_cl_empty.svg</file>
+        <file>src/ui/images/pos_cu.svg</file>
+        <file>src/ui/images/pos_cu_empty.svg</file>
+        <file>src/ui/images/pos_cd.svg</file>
+        <file>src/ui/images/pos_cd_empty.svg</file>
+        <file>src/ui/images/pos_camera_disconnected.svg</file>
     </qresource>
     <qresource prefix="/qml">
         <file>src/ui/ControlPanel.qml</file>

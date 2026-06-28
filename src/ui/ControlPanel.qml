@@ -667,6 +667,151 @@ Rectangle {
                     }
                 }
             }
+            // ==========================================
+            // 6. DETECTED WATCH POSITION
+            // ==========================================
+            Rectangle {
+                id: positionCard
+                Layout.fillWidth: true
+                Layout.preferredHeight: 110
+                color: root.colorBgCard
+                radius: 8
+                border.color: root.colorBorder
+
+                function getPositionInfo(dp) {
+                    if (!dp || dp === "" || dp === "?") {
+                        return {
+                            "name": "N/A",
+                            "status": "Camera Disconnected",
+                            "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
+                            "colorBg": "#1f1d24", 
+                            "colorBorder": "#3a3a4a", 
+                            "colorText": "#9e9e9e", 
+                            "statusColor": "#ff7043" 
+                        };
+                    }
+
+                    var isWatch = dp.startsWith("W_");
+                    var suffix = dp.substring(2); 
+                    var name = "";
+                    var icon = "";
+                    var iconEmpty = "";
+
+                    switch (suffix) {
+                        case "DU":
+                            name = "DU (Dial Up)";
+                            icon = "qrc:/images/src/ui/images/pos_du.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_du_empty.svg";
+                            break;
+                        case "DD":
+                            name = "DD (Dial Down)";
+                            icon = "qrc:/images/src/ui/images/pos_dd.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_dd_empty.svg";
+                            break;
+                        case "CR":
+                            name = "12H (Crown Right)";
+                            icon = "qrc:/images/src/ui/images/pos_cr.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_cr_empty.svg";
+                            break;
+                        case "CL":
+                            name = "6H (Crown Left)";
+                            icon = "qrc:/images/src/ui/images/pos_cl.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_cl_empty.svg";
+                            break;
+                        case "CU":
+                            name = "3H (Crown Up)";
+                            icon = "qrc:/images/src/ui/images/pos_cu.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_cu_empty.svg";
+                            break;
+                        case "CD":
+                            name = "9H (Crown Down)";
+                            icon = "qrc:/images/src/ui/images/pos_cd.svg";
+                            iconEmpty = "qrc:/images/src/ui/images/pos_cd_empty.svg";
+                            break;
+                        default:
+                            return {
+                                "name": "N/A",
+                                "status": "Unknown Position",
+                                "icon": "qrc:/images/src/ui/images/pos_camera_disconnected.svg",
+                                "colorBg": "#1e1e26",
+                                "colorBorder": root.colorBorder,
+                                "colorText": root.colorTextMain,
+                                "statusColor": root.colorTextSub
+                            };
+                    }
+
+                    return {
+                        "name": name,
+                        "status": isWatch ? "Watch Present" : "Empty Holder",
+                        "icon": isWatch ? icon : iconEmpty,
+                        "colorBg": isWatch ? "#1e3822" : "#382c1e",
+                        "colorBorder": isWatch ? "#4caf50" : "#ff7043",
+                        "colorText": isWatch ? "#4caf50" : "#ff7043",
+                        "statusColor": isWatch ? "#81c784" : "#ffb74d"
+                    };
+                }
+
+                readonly property var currentInfo: getPositionInfo(cppBackend.detectedPosition)
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 8
+
+                    Text {
+                        text: "Detected Watch Position"
+                        color: root.colorTextMain
+                        font.bold: true
+                        font.pixelSize: 13
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        color: positionCard.currentInfo.colorBg
+                        radius: 6
+                        border.color: positionCard.currentInfo.colorBorder
+                        border.width: 2
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 12
+
+                            Image {
+                                source: positionCard.currentInfo.icon
+                                Layout.preferredWidth: 48
+                                Layout.preferredHeight: 48
+                                fillMode: Image.PreserveAspectFit
+                            }
+
+                            ColumnLayout {
+                                spacing: 2
+                                Layout.fillWidth: true
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Text {
+                                    text: positionCard.currentInfo.name
+                                    color: positionCard.currentInfo.colorText
+                                    font.bold: true
+                                    font.pixelSize: 18
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: positionCard.currentInfo.status
+                                    color: positionCard.currentInfo.statusColor
+                                    font.bold: true
+                                    font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // 하단 여백
             Item { Layout.preferredHeight: 12 }
