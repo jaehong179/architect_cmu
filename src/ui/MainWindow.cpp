@@ -1118,3 +1118,38 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
             mPositionSequence->confirmPositionChange();
     }
 }
+
+// =============================================================================
+// Control Panel Collapse / Expand
+// =============================================================================
+
+// Layout constants
+static constexpr int PANEL_EXPANDED_W    = 242;
+static constexpr int PANEL_COLLAPSED_W   = 40;
+static constexpr int CONTENT_EXPANDED_X  = 250;
+static constexpr int CONTENT_COLLAPSED_X = 48;   // 40px panel + 8px gap
+static constexpr int READOUT_H           = 50;
+static constexpr int TAB_Y               = 53;
+static constexpr int TAB_H              = 661;
+static constexpr int WINDOW_W           = 1280;
+static constexpr int RIGHT_MARGIN        = 8;
+
+void MainWindow::setControlPanelCollapsed(bool collapsed)
+{
+    if (mControlPanelCollapsed == collapsed)
+        return;
+    mControlPanelCollapsed = collapsed;
+    emit controlPanelCollapsedChanged();
+    onControlPanelToggled(collapsed);
+}
+
+void MainWindow::onControlPanelToggled(bool collapsed)
+{
+    const int panelW   = collapsed ? PANEL_COLLAPSED_W  : PANEL_EXPANDED_W;
+    const int contentX = collapsed ? CONTENT_COLLAPSED_X : CONTENT_EXPANDED_X;
+    const int contentW = WINDOW_W - contentX - RIGHT_MARGIN;
+
+    ui->ControlPanelPlaceholder->setFixedWidth(panelW);
+    mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
+    ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, TAB_H);
+}

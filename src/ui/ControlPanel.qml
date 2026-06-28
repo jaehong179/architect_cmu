@@ -18,12 +18,206 @@ Rectangle {
     readonly property color colorBorder: "#3a3a4a"
     readonly property color colorAccent: "#ff7043"     // Orange Accent for alert/status
 
+    // ─── helper: mode label → short icon text ───────────────────────────────
+    readonly property var modeIcons: ["●", "▶", "⚙"]  // Live / Playback / Sim
+
+    // ─── Header Bar ──────────────────────────────────────────────────────────
+    Rectangle {
+        id: headerBar
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: 48
+        color: "#1c1c26"
+        border.color: root.colorBorder
+        border.width: 1
+
+        // Title – only visible when expanded
+        Text {
+            text: "Control Panel"
+            color: root.colorTextMain
+            font.bold: true
+            font.pixelSize: 14
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            visible: !cppBackend.controlPanelCollapsed
+        }
+
+        // Toggle button (◀ expanded / ▶ collapsed)
+        Button {
+            id: toggleBtn
+            width: 32
+            height: 32
+            anchors.verticalCenter: parent.verticalCenter
+            x: cppBackend.controlPanelCollapsed
+               ? (parent.width - width) / 2
+               : (parent.width - width - 8)
+
+            background: Rectangle {
+                color: toggleBtn.down ? root.colorPrimary
+                                      : (toggleBtn.hovered ? "#2d2d3d" : root.colorBgCard)
+                radius: 6
+                border.color: root.colorBorder
+                border.width: 1
+            }
+            contentItem: Text {
+                text: cppBackend.controlPanelCollapsed ? "▶" : "◀"
+                color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
+                font.bold: true
+                font.pixelSize: 14
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+            onClicked: { cppBackend.controlPanelCollapsed = !cppBackend.controlPanelCollapsed }
+        }
+    }
+
+    // ─── Collapsed Mini-Info Panel ────────────────────────────────────────────
+    // Shown only when the panel is collapsed; displays mode icon + position icon
+    Column {
+        id: collapsedInfo
+        anchors.top: headerBar.bottom
+        anchors.topMargin: 10
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 14
+        visible: cppBackend.controlPanelCollapsed
+
+        // ── Mode badge ──
+        Rectangle {
+            width: 34
+            height: 34
+            radius: 8
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Text {
+                anchors.centerIn: parent
+                text: root.modeIcons[cppBackend.currentMode] || "●"
+                font.pixelSize: 16
+                color: {
+                    switch (cppBackend.currentMode) {
+                        case 0: return "#ef5350"  // Live  → red
+                        case 1: return "#42a5f5"  // Play  → blue
+                        case 2: return "#ab47bc"  // Sim   → purple
+                        default: return root.colorTextMain
+                    }
+                }
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            // Tooltip: mode label
+            ToolTip.visible: modeHover.containsMouse
+            ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
+            ToolTip.delay: 400
+
+            HoverHandler { id: modeHover }
+        }
+
+        // ── Position badge ──
+        Rectangle {
+            width: 34
+            height: 34
+            radius: 8
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Image {
+                anchors.centerIn: parent
+                width: 24
+                height: 24
+                fillMode: Image.PreserveAspectFit
+                source: {
+                    var p = cppBackend.detectedPosition
+                    switch (p) {
+                        case "DU":  return "qrc:/images/src/ui/images/pos_du.svg"
+                        case "DD":  return "qrc:/images/src/ui/images/pos_dd.svg"
+                        case "CR":  return "qrc:/images/src/ui/images/pos_cr.svg"
+                        case "CL":  return "qrc:/images/src/ui/images/pos_cl.svg"
+                        case "CU":  return "qrc:/images/src/ui/images/pos_cu.svg"
+                        case "CD":  return "qrc:/images/src/ui/images/pos_cd.svg"
+                        default:    return "qrc:/images/src/ui/images/pos_camera_disconnected.svg"
+                    }
+                }
+            }
+
+            // Tooltip: position label
+            ToolTip.visible: posHover.containsMouse
+            ToolTip.text: cppBackend.detectedPosition !== "" ? cppBackend.detectedPosition : "Unknown"
+            ToolTip.delay: 400
+
+            HoverHandler { id: posHover }
+        }
+
+        // ── Start / Stop 토글 버튼 ──
+        Rectangle {
+            id: miniStartStopBtn
+            width: 34
+            height: 40
+            radius: 8
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: cppBackend.isRunning ? "#b71c1c" : "#1b5e20"
+            border.color: cppBackend.isRunning ? "#f44336" : "#4caf50"
+            border.width: 1
+
+            Behavior on color { ColorAnimation { duration: 200 } }
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 1
+
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: cppBackend.isRunning ? "⏹" : "▶"
+                    font.pixelSize: 15
+                    color: "#ffffff"
+                    horizontalAlignment: Text.AlignHCenter
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: cppBackend.isRunning ? "STOP" : "GO"
+                    font.pixelSize: 8
+                    font.bold: true
+                    color: "#ffffff"
+                    horizontalAlignment: Text.AlignHCenter
+                }
+            }
+
+            // Tooltip
+            ToolTip.visible: ssHover.containsMouse
+            ToolTip.text: cppBackend.isRunning ? "Stop Session" : "Start Session"
+            ToolTip.delay: 400
+
+            HoverHandler { id: ssHover }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: {
+                    if (cppBackend.isRunning)
+                        cppBackend.stopSession()
+                    else
+                        cppBackend.startSession()
+                }
+            }
+        }
+    }
+
+    // ─── Full Settings ScrollView (expanded only) ─────────────────────────────
     // 스크롤뷰를 사용해 모든 화면 해상도에서 흘러내리지 않도록 함
     ScrollView {
-        anchors.fill: parent
+        anchors.top: headerBar.bottom
+        anchors.bottom: parent.bottom
+        anchors.left: parent.left
+        anchors.right: parent.right
         contentWidth: availableWidth
         contentHeight: contentColumn.implicitHeight
         clip: true
+        visible: !cppBackend.controlPanelCollapsed
 
         ColumnLayout {
             id: contentColumn
