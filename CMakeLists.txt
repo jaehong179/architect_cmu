@@ -461,6 +461,12 @@ if(ENABLE_VISION OR ENABLE_DIAG)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${VISION_TFLITE_RUNTIME}" "$<TARGET_FILE_DIR:TimeGrapher>"
         COMMENT "[vision] copy TFLite runtime next to executable")
+
+    if(NOT WIN32)
+        set_target_properties(TimeGrapher PROPERTIES
+            BUILD_RPATH   "$ORIGIN"
+            INSTALL_RPATH "$ORIGIN")
+    endif()
 endif()
 
 IF(WIN32)
