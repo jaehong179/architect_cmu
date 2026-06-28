@@ -20,7 +20,7 @@ void CameraDisconnectCheck::evaluate(const WatchdogContext &ctx, IEventSink &sin
             ev.title       = QStringLiteral("Camera Lost");
             ev.message     = removed
                 ? QStringLiteral("The camera (USB) was disconnected.")
-                : QStringLiteral("The camera stopped responding (no video frames for over 3 seconds).");
+                : QStringLiteral("The camera stopped responding (no video frames for over 10 seconds).");
             ev.timestampMs = ctx.nowMs;
             sink.post(ev);
         }
