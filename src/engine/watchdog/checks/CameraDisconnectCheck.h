@@ -9,7 +9,7 @@
 
 class CameraDisconnectCheck : public IWatchdogCheck {
 public:
-    explicit CameraDisconnectCheck(double frameTimeoutMs = 3000.0) : mTimeoutMs(frameTimeoutMs) {}
+    explicit CameraDisconnectCheck(double frameTimeoutMs = 10000.0) : mTimeoutMs(frameTimeoutMs) {}
     void evaluate(const WatchdogContext &ctx, IEventSink &sink) override;
     const char *name() const override { return "CameraDisconnect"; }
 private:
