@@ -56,6 +56,6 @@ private:
     static constexpr double kPostMs = 10.0;   // C 이후(tg POSITIVE_SPAN)
     static constexpr int    kPaperHist  = 1200;
     static constexpr double kPaperSecs  = 60.0;   // paperstrip 세로 시간창(1분), 초과 시 자연 스크롤
-    static constexpr double kPaperZoom  = 50.0;   // tg PAPERSTRIP_ZOOM 대응: 폴딩창 = 비트주기/zoom (클수록 beat error 확대)
+    static constexpr double kPaperZoom  = 50.0;   // tg PAPERSTRIP_ZOOM 대응: 폴딩창 = 비트주기/zoom (클수록 위상 확대)
 };
 #endif // TABWAVEFORMCOMPARE_H
