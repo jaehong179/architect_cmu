@@ -58,8 +58,12 @@ void TabSyncSweepScope::onShown() { render(); }
 void TabSyncSweepScope::onWave(const WaveBlock &w)
 {
     if (!mConfigured && w.sampleRateHz > 0) {
-        mBuf.configure((int)(w.sampleRateHz * 1.6));
-        mRawBuf.configure((int)(w.sampleRateHz * 1.6));
+        // 표시 창은 '마지막 완전한 스윕'이라 현재보다 최대 2 스윕 뒤처진다 → 버퍼는 그 창이 고정돼 있는
+        //  동안(추가 1 스윕) 꼬리에 안 잡아먹히게 ≥ 2×최대스윕 + 여유가 필요. 최대 8비트(≤18000BPH 기준
+        //  ≈1.6s)·2배 = 3.2s → 4s 로 잡아 좌측 데이터 소실(깜빡임)을 막는다.
+        const int cap = (int)(w.sampleRateHz * 4.0);
+        mBuf.configure(cap);
+        mRawBuf.configure(cap);
         mConfigured = true;
     }
     mBuf.push(w);                                      // 엔벨로프 + 이벤트(마커/동기)
@@ -83,7 +87,7 @@ void TabSyncSweepScope::onSeek(double absSample)
     if (!mHistory || !mHistory->hasData()) return;
     const int sr = mHistory->sampleRate();
     if (sr <= 0) return;
-    if (!mConfigured) { mBuf.configure((int)(sr * 1.6)); mRawBuf.configure((int)(sr * 1.6)); mConfigured = true; }
+    if (!mConfigured) { const int cap = (int)(sr * 4.0); mBuf.configure(cap); mRawBuf.configure(cap); mConfigured = true; }
     mBuf.clear();
     mRawBuf.clear();
     WaveLodHistory::replayInto(*mHistory, mBuf, &mRawBuf, absSample, (int)(sr * 1.6));
