@@ -3,7 +3,7 @@
 This diagram shows the process of displaying the audio signal captured from the microphone as a graph.
 Through this diagram, you can identify the parts needed to verify whether the process from audio signal to graph display satisfies the condition ([QAS-01](../Requirements/quality-attribute-requirements.md#qas-01--real-time-streaming-throughput)) of completing within 125ms per T1~T3 cycle (based on 28800 BPH).
 
-![Diagram](../images/MicToGraph_CnCDiaggram.png)
+![Diagram](../images/audio_thread_cc.png)
 
 ## Element Catalog
 
