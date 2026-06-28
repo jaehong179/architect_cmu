@@ -20,7 +20,6 @@ namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
 class QLabel;
-class QPushButton;
 class QQuickWidget;
 class TabManager;   
 class TabRateScope; 
@@ -185,7 +184,6 @@ private:
     TabManager     *mTabManager = nullptr;
     TabRateScope   *mRateScope  = nullptr;
     TabSequenceDisplay *mSequenceDisplay = nullptr;
-    QPushButton    *mPauseBtn   = nullptr;
     QLabel         *mSeekLabel  = nullptr;
     WaveLodHistory  mWaveHistory;
 

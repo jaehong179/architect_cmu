@@ -339,58 +339,130 @@ Rectangle {
                     anchors.margins: 8
                     spacing: 8
 
+                    property bool runParametersExpanded: true
+                    property bool simulationParametersExpanded: true
+
                     // LIVE MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
                         visible: cppBackend.currentMode === 0 // LIVE
                         spacing: 8
 
-                        Text {
-                            text: "Run Parameters (Live)"
-                            color: root.colorTextMain
-                            font.bold: true
-                            font.pixelSize: 13
-                        }
-
-                        // Gain 조절 (실행 중에도 동작하도록 enabled: true 유지)
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Text { text: "Gain"; color: root.colorTextSub; font.pixelSize: 11 }
-                                Item { Layout.fillWidth: true; Layout.fillHeight: true } // Spacer
-                                Text { 
-                                    text: (gainSlider.value * 100).toFixed(0) + "%"
-                                    color: root.colorPrimaryLight
-                                    font.bold: true
-                                    font.pixelSize: 11 
-                                }
-                            }
-                            Slider {
-                                id: gainSlider
-                                Layout.fillWidth: true
-                                from: 0.0
-                                to: 1.0
-                                value: cppBackend.gain
-                                onMoved: { cppBackend.gain = value }
-                            }
-                        }
-
-                        // Input Device
-                        ColumnLayout {
+                        RowLayout {
                             Layout.fillWidth: true
                             spacing: 4
-                            Text { text: "Input Device"; color: root.colorTextSub; font.pixelSize: 11 }
-                            RowLayout {
+
+                            Text {
+                                text: "Run Parameters (Live)"
+                                color: root.colorTextMain
+                                font.bold: true
+                                font.pixelSize: 13
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Button {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 24
+                                text: dynamicStack.runParametersExpanded ? "▾" : "▸"
+                                onClicked: {
+                                    dynamicStack.runParametersExpanded = !dynamicStack.runParametersExpanded
+                                }
+                                background: Rectangle {
+                                    color: "transparent"
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: root.colorTextSub
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: 11
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: dynamicStack.runParametersExpanded
+                            spacing: 8
+
+                            // Gain 조절 (실행 중에도 동작하도록 enabled: true 유지)
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text { text: "Gain"; color: root.colorTextSub; font.pixelSize: 11 }
+                                    Item { Layout.fillWidth: true; Layout.fillHeight: true } // Spacer
+                                    Text {
+                                        text: (gainSlider.value * 100).toFixed(0) + "%"
+                                        color: root.colorPrimaryLight
+                                        font.bold: true
+                                        font.pixelSize: 11
+                                    }
+                                }
+                                Slider {
+                                    id: gainSlider
+                                    Layout.fillWidth: true
+                                    from: 0.0
+                                    to: 1.0
+                                    value: cppBackend.gain
+                                    onMoved: { cppBackend.gain = value }
+                                }
+                            }
+
+                            // Input Device
+                            ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 4
-                                ComboBox {
-                                    id: deviceCombo
+                                Text { text: "Input Device"; color: root.colorTextSub; font.pixelSize: 11 }
+                                RowLayout {
                                     Layout.fillWidth: true
-                                    model: cppBackend.deviceList
-                                    currentIndex: cppBackend.deviceIndex
-                                    onActivated: (index) => { cppBackend.deviceIndex = index }
+                                    spacing: 4
+                                    ComboBox {
+                                        id: deviceCombo
+                                        Layout.fillWidth: true
+                                        model: cppBackend.deviceList
+                                        currentIndex: cppBackend.deviceIndex
+                                        onActivated: (index) => { cppBackend.deviceIndex = index }
+                                        enabled: !cppBackend.isRunning
+                                        background: Rectangle {
+                                            color: root.colorBgInput
+                                            border.color: parent.enabled ? root.colorBorder : "#2d2d38"
+                                            radius: 4
+                                        }
+                                        contentItem: Text {
+                                            text: deviceCombo.displayText
+                                            color: parent.enabled ? root.colorTextMain : root.colorTextSub
+                                            verticalAlignment: Text.AlignVCenter
+                                            leftPadding: 8
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                    Button {
+                                        Layout.preferredWidth: 28
+                                        Layout.preferredHeight: 28
+                                        text: "🔄"
+                                        enabled: !cppBackend.isRunning
+                                        onClicked: { cppBackend.refreshDevices() }
+                                    }
+                                }
+                            }
+
+                            // Sample Rate
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                Text { text: "Sample Rate"; color: root.colorTextSub; font.pixelSize: 11 }
+                                ComboBox {
+                                    id: srCombo
+                                    Layout.fillWidth: true
+                                    model: cppBackend.sampleRateList
+                                    currentIndex: cppBackend.sampleRateIndex
+                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
                                     enabled: !cppBackend.isRunning
                                     background: Rectangle {
                                         color: root.colorBgInput
@@ -398,47 +470,12 @@ Rectangle {
                                         radius: 4
                                     }
                                     contentItem: Text {
-                                        text: deviceCombo.displayText
+                                        text: srCombo.displayText
                                         color: parent.enabled ? root.colorTextMain : root.colorTextSub
                                         verticalAlignment: Text.AlignVCenter
                                         leftPadding: 8
                                         font.pixelSize: 11
-                                        elide: Text.ElideRight
                                     }
-                                }
-                                Button {
-                                    Layout.preferredWidth: 28
-                                    Layout.preferredHeight: 28
-                                    text: "🔄"
-                                    enabled: !cppBackend.isRunning
-                                    onClicked: { cppBackend.refreshDevices() }
-                                }
-                            }
-                        }
-
-                        // Sample Rate
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-                            Text { text: "Sample Rate"; color: root.colorTextSub; font.pixelSize: 11 }
-                            ComboBox {
-                                id: srCombo
-                                Layout.fillWidth: true
-                                model: cppBackend.sampleRateList
-                                currentIndex: cppBackend.sampleRateIndex
-                                onActivated: (index) => { cppBackend.sampleRateIndex = index }
-                                enabled: !cppBackend.isRunning
-                                background: Rectangle {
-                                    color: root.colorBgInput
-                                    border.color: parent.enabled ? root.colorBorder : "#2d2d38"
-                                    radius: 4
-                                }
-                                contentItem: Text {
-                                    text: srCombo.displayText
-                                    color: parent.enabled ? root.colorTextMain : root.colorTextSub
-                                    verticalAlignment: Text.AlignVCenter
-                                    leftPadding: 8
-                                    font.pixelSize: 11
                                 }
                             }
                         }
@@ -450,39 +487,73 @@ Rectangle {
                         visible: cppBackend.currentMode === 1 // PLAYBACK
                         spacing: 10
 
-                        Text {
-                            text: "Run Parameters (Playback)"
-                            color: root.colorTextMain
-                            font.bold: true
-                            font.pixelSize: 13
-                        }
-
-                        Button {
+                        RowLayout {
                             Layout.fillWidth: true
-                            text: "Browse WAV File"
-                            enabled: !cppBackend.isRunning
-                            onClicked: { cppBackend.choosePlaybackFile() }
-                        }
+                            spacing: 4
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 48
-                            color: root.colorBgInput
-                            radius: 4
-                            border.color: root.colorBorder
+                            Text {
+                                text: "Run Parameters (Playback)"
+                                color: root.colorTextMain
+                                font.bold: true
+                                font.pixelSize: 13
+                            }
 
-                            ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 6
-                                spacing: 2
-                                Text { text: "Selected WAV File:"; color: root.colorTextSub; font.pixelSize: 10 }
-                                Text { 
-                                    text: cppBackend.selectedWavFile !== "" ? cppBackend.selectedWavFile : "No WAV selected"
-                                    color: cppBackend.selectedWavFile !== "" ? root.colorPrimaryLight : root.colorTextSub
-                                    font.bold: true
+                            Item { Layout.fillWidth: true }
+
+                            Button {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 24
+                                text: dynamicStack.runParametersExpanded ? "▾" : "▸"
+                                onClicked: {
+                                    dynamicStack.runParametersExpanded = !dynamicStack.runParametersExpanded
+                                }
+                                background: Rectangle {
+                                    color: "transparent"
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: root.colorTextSub
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
                                     font.pixelSize: 11
-                                    elide: Text.ElideLeft
-                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: dynamicStack.runParametersExpanded
+                            spacing: 10
+
+                            Button {
+                                Layout.fillWidth: true
+                                text: "Browse WAV File"
+                                enabled: !cppBackend.isRunning
+                                onClicked: { cppBackend.choosePlaybackFile() }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 48
+                                color: root.colorBgInput
+                                radius: 4
+                                border.color: root.colorBorder
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 6
+                                    spacing: 2
+                                    Text { text: "Selected WAV File:"; color: root.colorTextSub; font.pixelSize: 10 }
+                                    Text {
+                                        text: cppBackend.selectedWavFile !== "" ? cppBackend.selectedWavFile : "No WAV selected"
+                                        color: cppBackend.selectedWavFile !== "" ? root.colorPrimaryLight : root.colorTextSub
+                                        font.bold: true
+                                        font.pixelSize: 11
+                                        elide: Text.ElideLeft
+                                        Layout.fillWidth: true
+                                    }
                                 }
                             }
                         }
@@ -494,108 +565,142 @@ Rectangle {
                         visible: cppBackend.currentMode === 2 // SIMULATION
                         spacing: 6
 
-                        Text {
-                            text: "Simulation Parameters"
-                            color: root.colorTextMain
-                            font.bold: true
-                            font.pixelSize: 13
-                        }
-
-                        // Sim BPH
                         RowLayout {
                             Layout.fillWidth: true
-                            Text { text: "Sim BPH"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                            ComboBox {
-                                id: simBphCombo
-                                Layout.preferredWidth: 110
-                                model: cppBackend.simBphList
-                                currentIndex: cppBackend.simBphIndex
-                                onActivated: (index) => { cppBackend.simBphIndex = index }
-                                enabled: !cppBackend.isRunning
-                            }
-                        }
+                            spacing: 4
 
-                        // Sim Sample Rate
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text { text: "Sample Rate"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                            ComboBox {
-                                id: simSrCombo
-                                Layout.preferredWidth: 110
-                                model: cppBackend.sampleRateList
-                                currentIndex: cppBackend.sampleRateIndex
-                                onActivated: (index) => { cppBackend.sampleRateIndex = index }
-                                enabled: !cppBackend.isRunning
-                            }
-                        }
-
-                        // Sim Error Rate
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text { text: "Error Rate (s/d)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                            SpinBox {
-                                Layout.preferredWidth: 110
-                                from: -999
-                                to: 999
-                                value: cppBackend.simErrorRate
-                                enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.simErrorRate = value }
-                            }
-                        }
-
-                        // Sim Amplitude
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text { text: "Amplitude (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                            SpinBox {
-                                Layout.preferredWidth: 110
-                                from: 100
-                                to: 360
-                                value: cppBackend.simAmplitude
-                                enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.simAmplitude = value }
-                            }
-                        }
-
-                        // Sim Beat Error (Decimals SpinBox logic inline)
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text { text: "Beat Error (ms)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                            SpinBox {
-                                id: simBeSpin
-                                Layout.preferredWidth: 110
-                                from: -100
-                                to: 100
-                                stepSize: 1
-                                value: cppBackend.simBeatError * 10
-                                enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.simBeatError = value / 10.0 }
-                                
-                                validator: DoubleValidator {
-                                    bottom: -10.0
-                                    top: 10.0
-                                }
-                                textFromValue: function(value, locale) {
-                                    return (value / 10).toFixed(1)
-                                }
-                                valueFromText: function(text, locale) {
-                                    return parseFloat(text) * 10
-                                }
-                            }
-                        }
-
-                        // Realistic Noise
-                        CheckBox {
-                            text: "Realistic Noise"
-                            checked: cppBackend.simRealistic
-                            enabled: !cppBackend.isRunning
-                            onCheckedChanged: { cppBackend.simRealistic = checked }
-                            contentItem: Text {
-                                text: parent.text
+                            Text {
+                                text: "Simulation Parameters"
                                 color: root.colorTextMain
-                                leftPadding: 24
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 11
+                                font.bold: true
+                                font.pixelSize: 13
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Button {
+                                Layout.preferredWidth: 28
+                                Layout.preferredHeight: 24
+                                text: dynamicStack.simulationParametersExpanded ? "▾" : "▸"
+                                onClicked: {
+                                    dynamicStack.simulationParametersExpanded = !dynamicStack.simulationParametersExpanded
+                                }
+                                background: Rectangle {
+                                    color: "transparent"
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: root.colorTextSub
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: 11
+                                }
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            visible: dynamicStack.simulationParametersExpanded
+                            spacing: 6
+
+                            // Sim BPH
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Sim BPH"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                                ComboBox {
+                                    id: simBphCombo
+                                    Layout.preferredWidth: 110
+                                    model: cppBackend.simBphList
+                                    currentIndex: cppBackend.simBphIndex
+                                    onActivated: (index) => { cppBackend.simBphIndex = index }
+                                    enabled: !cppBackend.isRunning
+                                }
+                            }
+
+                            // Sim Sample Rate
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Sample Rate"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                                ComboBox {
+                                    id: simSrCombo
+                                    Layout.preferredWidth: 110
+                                    model: cppBackend.sampleRateList
+                                    currentIndex: cppBackend.sampleRateIndex
+                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
+                                    enabled: !cppBackend.isRunning
+                                }
+                            }
+
+                            // Sim Error Rate
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Error Rate (s/d)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                                SpinBox {
+                                    Layout.preferredWidth: 110
+                                    from: -999
+                                    to: 999
+                                    value: cppBackend.simErrorRate
+                                    enabled: !cppBackend.isRunning
+                                    onValueModified: { cppBackend.simErrorRate = value }
+                                }
+                            }
+
+                            // Sim Amplitude
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Amplitude (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                                SpinBox {
+                                    Layout.preferredWidth: 110
+                                    from: 100
+                                    to: 360
+                                    value: cppBackend.simAmplitude
+                                    enabled: !cppBackend.isRunning
+                                    onValueModified: { cppBackend.simAmplitude = value }
+                                }
+                            }
+
+                            // Sim Beat Error (Decimals SpinBox logic inline)
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Beat Error (ms)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                                SpinBox {
+                                    id: simBeSpin
+                                    Layout.preferredWidth: 110
+                                    from: -100
+                                    to: 100
+                                    stepSize: 1
+                                    value: cppBackend.simBeatError * 10
+                                    enabled: !cppBackend.isRunning
+                                    onValueModified: { cppBackend.simBeatError = value / 10.0 }
+
+                                    validator: DoubleValidator {
+                                        bottom: -10.0
+                                        top: 10.0
+                                    }
+                                    textFromValue: function(value, locale) {
+                                        return (value / 10).toFixed(1)
+                                    }
+                                    valueFromText: function(text, locale) {
+                                        return parseFloat(text) * 10
+                                    }
+                                }
+                            }
+
+                            // Realistic Noise
+                            CheckBox {
+                                text: "Realistic Noise"
+                                checked: cppBackend.simRealistic
+                                enabled: !cppBackend.isRunning
+                                onCheckedChanged: { cppBackend.simRealistic = checked }
+                                contentItem: Text {
+                                    text: parent.text
+                                    color: root.colorTextMain
+                                    leftPadding: 24
+                                    verticalAlignment: Text.AlignVCenter
+                                    font.pixelSize: 11
+                                }
                             }
                         }
                     }
