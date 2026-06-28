@@ -10,6 +10,7 @@
 #include <QThread>
 #include <QStyleFactory>
 #include <QPalette>
+#include <memory>
 #if PERF_ENABLE && defined(Q_OS_LINUX)
 #include <QProcess>
 #include <QFileInfo>
@@ -97,24 +98,25 @@ int main(int argc, char *argv[])
 #endif
 
   bool playedVideo = false;
+  std::unique_ptr<VideoSplashScreen> videoSplash;
   QString videoPath = QCoreApplication::applicationDirPath() + "/Splash.mp4";
   if (!QFileInfo::exists(videoPath)) {
       videoPath = "Splash.mp4";
   }
 
   if (QFileInfo::exists(videoPath)) {
-      VideoSplashScreen videoSplash(videoPath);
+      videoSplash = std::make_unique<VideoSplashScreen>(videoPath);
       QRect screenGeometry = QGuiApplication::primaryScreen()->availableGeometry();
-      int x = (screenGeometry.width() - videoSplash.width()) / 2;
-      int y = (screenGeometry.height() - videoSplash.height()) / 2;
-      videoSplash.move(x, y);
+      int x = (screenGeometry.width() - videoSplash->width()) / 2;
+      int y = (screenGeometry.height() - videoSplash->height()) / 2;
+      videoSplash->move(x, y);
 
-      videoSplash.show();
+      videoSplash->show();
       a.processEvents();
 
       QEventLoop loop;
-      QObject::connect(&videoSplash, &VideoSplashScreen::finished, &loop, &QEventLoop::quit);
-      videoSplash.play();
+      QObject::connect(videoSplash.get(), &VideoSplashScreen::finished, &loop, &QEventLoop::quit);
+      videoSplash->play();
       loop.exec();
       playedVideo = true;
   }
@@ -142,7 +144,10 @@ int main(int argc, char *argv[])
 
   MainWindow w;
   w.show();
+  a.processEvents();
 
+  if (videoSplash)
+      videoSplash->dismiss();
   if (splash) {
       splash->finish(&w);
       delete splash;
