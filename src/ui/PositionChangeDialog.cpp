@@ -1,4 +1,5 @@
 #include "PositionChangeDialog.h"
+#include "PositionNames.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,20 +17,21 @@ PositionChangeDialog::PositionChangeDialog(const QString &completedName, const Q
 
 QString PositionChangeDialog::getShortCode(const QString &fullName) const
 {
-    if (fullName.contains(QLatin1Char(' '))) {
-        return fullName.split(QLatin1Char(' ')).first();
-    }
+    const QString key = canonicalCorePositionKey(fullName);
+    if (!key.isEmpty()) return key;
+    if (fullName.contains(QLatin1Char(' '))) return fullName.split(QLatin1Char(' ')).first();
     return fullName;
 }
 
 QString PositionChangeDialog::getKoreanName(const QString &fullName) const
 {
-    if (fullName.startsWith(QLatin1String("CH"))) return QStringLiteral("윗면");
-    if (fullName.startsWith(QLatin1String("CB"))) return QStringLiteral("아랫면");
-    if (fullName.startsWith(QLatin1String("9H"))) return QStringLiteral("9시 위");
-    if (fullName.startsWith(QLatin1String("6H"))) return QStringLiteral("6시 위");
-    if (fullName.startsWith(QLatin1String("3H"))) return QStringLiteral("3시 위");
-    if (fullName.startsWith(QLatin1String("12H"))) return QStringLiteral("12시 위");
+    const QString key = canonicalCorePositionKey(fullName);
+    if (key == QStringLiteral("CH")) return QStringLiteral("윗면");
+    if (key == QStringLiteral("CB")) return QStringLiteral("아랫면");
+    if (key == QStringLiteral("9H")) return QStringLiteral("9시 위");
+    if (key == QStringLiteral("6H")) return QStringLiteral("6시 위");
+    if (key == QStringLiteral("3H")) return QStringLiteral("3시 위");
+    if (key == QStringLiteral("12H")) return QStringLiteral("12시 위");
     return fullName;
 }
 

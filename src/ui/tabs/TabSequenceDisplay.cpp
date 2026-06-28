@@ -18,13 +18,13 @@ bool TabSequenceDisplay::isHorizontal(const QString &pos)
 
 int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
 {
-    QString clean = posName.split(QLatin1Char(' ')).first();
-    if (clean == QStringLiteral("CH")) return 0;
-    if (clean == QStringLiteral("CB")) return 1;
-    if (clean == QStringLiteral("9H")) return 2;
-    if (clean == QStringLiteral("6H")) return 3;
-    if (clean == QStringLiteral("3H")) return 4;
-    if (clean == QStringLiteral("12H")) return 5;
+    const QString key = canonicalCorePositionKey(posName);
+    if (key == QStringLiteral("CH")) return 0;
+    if (key == QStringLiteral("CB")) return 1;
+    if (key == QStringLiteral("9H")) return 2;
+    if (key == QStringLiteral("6H")) return 3;
+    if (key == QStringLiteral("3H")) return 4;
+    if (key == QStringLiteral("12H")) return 5;
     return -1;
 }
 
@@ -129,8 +129,8 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     // 테이블 초기값 세팅 (행별 타이틀 고정 및 읽기전용)
     const QString rowNames[8] = {
-        QStringLiteral("CH"), QStringLiteral("CB"), QStringLiteral("9H"),
-        QStringLiteral("6H"), QStringLiteral("3H"), QStringLiteral("12H"),
+        QStringLiteral("Dial Up"), QStringLiteral("Dial Down"), QStringLiteral("Crown Right"),
+        QStringLiteral("Crown Left"), QStringLiteral("Crown Up"), QStringLiteral("Crown Down"),
         QStringLiteral("Average"), QStringLiteral("Deviation")
     };
     for (int r = 0; r < 8; ++r) {
