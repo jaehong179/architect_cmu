@@ -1,14 +1,26 @@
 #include "TabBeatErrorTrace.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
+#include <QDebug>
 #include <QFont>
 #include <QFontMetrics>
 #include <cmath>
 
 namespace {
-// DiagWorker/DiagConfig kConfThresh 와 동일 — 탭은 diag 빌드에 의존하지 않음.
 constexpr float kDiagConfThresh = 0.6f;
+
+enum BedAlertTier { kTierUnknown = 0, kTierGood = 1, kTierCaution = 2, kTierBad = 3 };
+
+const char *bedTierLabel(int tier)
+{
+    switch (tier) {
+    case kTierGood:    return "Good";
+    case kTierCaution: return "Caution";
+    case kTierBad:     return "Bad";
+    default:           return "Unknown";
+    }
 }
+} // namespace
 
 TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 {
@@ -73,10 +85,70 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     onResetSession();
 }
 
-// 스냅샷은 수치 readout + beat error 경고에 사용. (트레이스 자체는 비트 이벤트 기반)
+// 스냅샷은 수치 readout + Good/Bad 경고에 사용. (트레이스 자체는 비트 이벤트 기반)
 void TabBeatErrorTrace::onMeasurement(const MeasurementSnapshot &s)
 {
     mBeatErrValid = s.beatErrorValid; mBeatErrMs = s.beatErrorMs;
+    mRateValid    = s.rateValid;      mRateSd    = s.rate;
+    updateStatusAlert();
+}
+
+void TabBeatErrorTrace::updateStatusAlert()
+{
+    if (!mAlert || !mAnchored) return;
+
+    const QString gapTxt  = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
+    const QString rateTxt = mRateValid ? QString("%1 s/d").arg(mRateSd, 0, 'f', 1) : QStringLiteral("--");
+
+    if (!mBeatErrValid) {
+        mAlert->setText(QStringLiteral("Measuring beat error…"));
+        mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
+        return;
+    }
+
+    int tier = kTierGood;
+    if (mBeatErrMs > kServiceMs)
+        tier = kTierBad;
+    else if (mBeatErrMs > kGoodMs)
+        tier = kTierCaution;
+
+    if (tier != mAlertTier) {
+        const double iTargetMs = mBph > 0 ? 3600.0 / mBph * 1000.0 : 0.0;
+        const double traceRate = iTargetMs > 0.0 ? -(mSlopeAvg / iTargetMs) * 86400.0 : 0.0;
+        qInfo().noquote() << QStringLiteral(
+            "[BED-status] → %1 | beatErr=%2 ms (good≤%3 caution≤%4) | engineRate=%5 s/d | traceRate=%6 s/d | beat#=%7")
+                                 .arg(QString::fromUtf8(bedTierLabel(tier)))
+                                 .arg(mBeatErrMs, 0, 'f', 3)
+                                 .arg(kGoodMs, 0, 'f', 1)
+                                 .arg(kServiceMs, 0, 'f', 1)
+                                 .arg(mRateValid ? QString::number(mRateSd, 'f', 2) : QStringLiteral("--"))
+                                 .arg(traceRate, 0, 'f', 2)
+                                 .arg(mN);
+        mAlertTier = tier;
+    }
+
+    switch (tier) {
+    case kTierGood:
+        mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · rate ≈ %2")
+                            .arg(gapTxt, rateTxt));
+        mAlert->setStyleSheet(QStringLiteral("color:#2ed573; font-weight:bold;"));
+        break;
+    case kTierCaution:
+        mAlert->setText(QString("Caution — beat error %1 (> %2 ms; monitor · service if > %3 ms) · rate ≈ %4")
+                            .arg(gapTxt)
+                            .arg(kGoodMs, 0, 'f', 1)
+                            .arg(kServiceMs, 0, 'f', 1)
+                            .arg(rateTxt));
+        mAlert->setStyleSheet(QStringLiteral("color:#ffa502; font-weight:bold;"));
+        break;
+    default:
+        mAlert->setText(QString("⚠ beat error too high: %1 (> %2 ms — adjust balance/beat error) · rate ≈ %3")
+                            .arg(gapTxt)
+                            .arg(kServiceMs, 0, 'f', 1)
+                            .arg(rateTxt));
+        mAlert->setStyleSheet(QStringLiteral("color:#ff4757; font-weight:bold;"));
+        break;
+    }
 }
 
 void TabBeatErrorTrace::onWave(const WaveBlock &w)
@@ -155,25 +227,6 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         mGapText->setVisible(shown);
     }
 
-    if (mAnchored && mHavePrevE) {
-        const double slopeDeg = std::atan2(-mSlopeAvg, 1.0) * 180.0 / M_PI;
-        const double rateSd = -(mSlopeAvg / iTargetMs) * 86400.0;   // E6: R = −(m/I_target)·86400
-        const QString gapTxt = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
-        QStringList warn;
-        if (mBeatErrValid && mBeatErrMs > kGoodMs)
-            warn << QString("⚠ beat error (gap between the two lines) too large: %1 ms").arg(mBeatErrMs, 0, 'f', 2);
-        if (std::fabs(rateSd) > kMaxRateSd)
-            warn << QString("⚠ MAJOR FAULT — rate %1 s/d (|rate| > %2 s/d)").arg(rateSd, 0, 'f', 1).arg(kMaxRateSd, 0, 'f', 0);
-        if (warn.isEmpty()) {
-            mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · slope %2° (≈ %3 s/d)")
-                                .arg(gapTxt).arg(slopeDeg,0,'f',1).arg(rateSd,0,'f',1));
-            mAlert->setStyleSheet(QStringLiteral("color:#2ed573; font-weight:bold;"));
-        } else {
-            mAlert->setText(warn.join(QStringLiteral("    ")));
-            mAlert->setStyleSheet(QStringLiteral("color:#ff4757; font-weight:bold;"));
-        }
-    }
-
     if (isVisible()) {
         mPlot->xAxis->rescale();
         mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);   // Y 는 랩 창 고정
@@ -211,6 +264,8 @@ void TabBeatErrorTrace::onResetSession()
     mSeek.clear();
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;
+    mRateSd = 0.0; mRateValid = false;
+    mAlertTier = kTierUnknown;
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
     if (mDiagLabel) {
         mDiagLabel->setText(QStringLiteral("Waiting for diagnosis…"));

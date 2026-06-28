@@ -4,7 +4,8 @@
 //  Equations_v0 Part I 그대로: 비트 n 마다 E_n = T_measured − (T_start + n·I_target)  (E2),
 //  Y = E_n 의 모듈로 랩(±10ms 창)  (E3),  짝/홀 비트(위상)별 두 점-라인.
 //  기울기 = rate (E6: R = −(m/I_target)·86400), 두 라인 간 수직 간격 = beat error.
-//  |rate|>10 s/d → major fault, 간격>0.6ms → 경고.
+//  Good/Bad: beat error(스냅샷)만 — grading-rationale 밴드: Good≤0.7 · Caution≤1.0 · Service>1.0 ms.
+//  rate 는 readout 정보로만 표시(조정 항목, Good/Bad 판정 제외).
 #include "TabView.h"
 #include "TrendSeek.h"   // [③] 클릭→seek 헬퍼
 class QCustomPlot;
@@ -31,6 +32,7 @@ signals:
 protected:
     void onShown() override;
 private:
+    void updateStatusAlert();
     TrendSeek mSeek;   // x(beat#) → 절대 샘플 매핑 + 클릭 커서
     QCustomPlot *mPlot = nullptr;
     QLabel      *mAlert = nullptr;
@@ -48,8 +50,11 @@ private:
     long     mPrevN    = 0;                              // 직전 비트 번호(누락 보정)
     double   mSlopeAvg = 0.0;                            // ΔE 지수평활(기울기 안정화)
     double   mBeatErrMs = 0.0; bool mBeatErrValid = false;  // 스냅샷 beat error(간격 경고)
-    static constexpr double kGoodMs    = 0.6;   // beat error 허용(ms)
-    static constexpr double kMaxRateSd = 10.0;  // |rate| 허용(s/d) — 초과 시 major fault
+    double   mRateSd    = 0.0; bool mRateValid    = false;  // 스냅샷 rate — 표시용
+    int      mAlertTier = 0;   // [BED-status] 0=unknown 1=Good 2=Caution 3=Bad
+    // grading-rationale.md beat-error bands (ms)
+    static constexpr double kGoodMs    = 0.7;   // Good 상한 (≤)
+    static constexpr double kServiceMs = 1.0;   // Service 경고 (>)
     static constexpr double kWrapMs   = 20.0;  // 모듈로 랩 창(±10ms) — E3 Plot Height
     static constexpr int    kMaxDots  = 2000;  // 점 보존 한도(메모리 바운드)
 };
