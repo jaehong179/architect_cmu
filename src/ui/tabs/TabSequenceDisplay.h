@@ -5,6 +5,7 @@
 //  ※ 하드웨어가 포지션을 USB로 전송하지 않음(EXP-12) → 수동 포지션 선택 + 캡처.
 #include "TabView.h"
 #include "RadarChartWidget.h"
+#include <QList>
 
 class QTableWidget;
 class QComboBox;
@@ -22,6 +23,9 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
     void setTimingModel(PositionTimingModel *model);
+    QList<int> measuredPositionIndices() const;
+    QList<int> remainingPositionIndices() const;
+    bool hasAllPositionsMeasured() const;
 
 public slots:
     void setCurrentPositionByIndex(int index);
@@ -30,6 +34,9 @@ public slots:
     void onTimingDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
     void onTimingModelReset();
     void onRunningStateChanged(bool isRunning);
+
+signals:
+    void allPositionsMeasured();
 
 private:
     void capture();
@@ -40,6 +47,7 @@ private:
     QString buildCurrentSequenceCsv() const;
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
     int getRowIndexForPosition(const QString &posName) const;
+    bool isPositionMeasuredInTable(int row) const;
 
     QTableWidget     *mTable   = nullptr;   // 포지션 행: Position | Rate | Beat | Ampl (고정 8행)
     RadarChartWidget *mRadar   = nullptr;   // 극좌표 레이더 차트 위젯
@@ -57,5 +65,6 @@ private:
     PositionTimingModel *mTiming = nullptr;
     QComboBox           *mMeasTimeCombo = nullptr;
     bool                 mProgrammaticPositionChange = false;
+    bool                 mAllPositionsCompleteNotified = false;
 };
 #endif // TABSEQUENCEDISPLAY_H

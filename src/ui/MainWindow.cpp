@@ -358,6 +358,8 @@ void MainWindow::RegisterDisplayTabs(void)
     connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
         mSequenceDisplay->onRunningStateChanged(this->isRunning());
     });
+    connect(mSequenceDisplay, &TabSequenceDisplay::allPositionsMeasured,
+            this, &MainWindow::onAllPositionsMeasured);
     mTabManager->registerTab(mSequenceDisplay);
 
     auto *ltpTab = new TabLongTermPerformance(this);
@@ -1321,22 +1323,41 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
                                           const QString &nextPositionName,
                                           bool sequenceComplete)
 {
-    if (sequenceComplete) {
-        QString message = tr("Measurement time for %1 is complete.\n\n"
-                             "All core positions in the sequence are done.")
-                              .arg(positionName);
-        QMessageBox::information(this, tr("Sequence Complete"), message);
-    } else {
-        if (ui && ui->GraphicsTabWidget && mSequenceDisplay && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay) {
-            PositionChangeDialog dlg(positionName, nextPositionName, positionIndex, this);
+    Q_UNUSED(sequenceComplete);
+
+    const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
+        && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
+
+    if (onSequenceTab) {
+        Q_UNUSED(positionIndex);
+        Q_UNUSED(positionName);
+        Q_UNUSED(nextPositionName);
+        const QList<int> remaining = mSequenceDisplay->remainingPositionIndices();
+        if (!remaining.isEmpty()) {
+            PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
+                                     remaining,
+                                     PositionChangeDialog::Mode::ChangePosition,
+                                     this);
             mActivePositionDialog = &dlg;
             dlg.exec();
             mActivePositionDialog = nullptr;
         }
-
-        if (mPositionSequence)
-            mPositionSequence->confirmPositionChange();
     }
+
+    if (mPositionSequence)
+        mPositionSequence->confirmPositionChange();
+}
+
+void MainWindow::onAllPositionsMeasured()
+{
+    if (!mSequenceDisplay || !mSequenceDisplay->hasAllPositionsMeasured())
+        return;
+
+    PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
+                             QList<int>(),
+                             PositionChangeDialog::Mode::SequenceComplete,
+                             this);
+    dlg.exec();
 }
 
 // =============================================================================

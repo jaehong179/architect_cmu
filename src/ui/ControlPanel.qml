@@ -119,7 +119,7 @@ Rectangle {
             visible: !cppBackend.controlPanelCollapsed
         }
 
-        // Toggle button (◀ expanded / ▶ collapsed)
+        // Toggle button (hamburger collapsed / chevron expanded)
         Button {
             id: toggleBtn
             width: 32
@@ -145,14 +145,16 @@ Rectangle {
 
                 Rectangle {
                     id: bar1
-                    width: 14
+                    width: hamburgerIcon.collapsed ? 14 : 11
                     height: 2
                     radius: 1
                     color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
                     x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 11 : 15
+                    y: hamburgerIcon.collapsed ? 11 : 18
                     transformOrigin: Item.Center
                     rotation: hamburgerIcon.collapsed ? 0 : 45
+
+                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
                     Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                     Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
@@ -176,15 +178,16 @@ Rectangle {
 
                 Rectangle {
                     id: bar3
-                    width: 14
+                    width: hamburgerIcon.collapsed ? 14 : 11
                     height: 2
                     radius: 1
                     color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
                     x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 19 : 15
+                    y: hamburgerIcon.collapsed ? 19 : 12
                     transformOrigin: Item.Center
                     rotation: hamburgerIcon.collapsed ? 0 : -45
 
+                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                     Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                     Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                     Behavior on color { ColorAnimation { duration: 100 } }

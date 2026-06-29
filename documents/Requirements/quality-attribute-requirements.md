@@ -140,36 +140,34 @@ Importance: Medium Difficulty: High
 
 - [EXP-05](../Experiments/EXP-05-noise-environment-robustness.md) (Noise-environment robustness)
 
-### QAS-06 / Position-Detection Safe Fallback
+### QAS-06 / Watch-Position Auto-Detection Accuracy
 
-####  *Usability/Dependability -\> Reliability*
+#### *Usability/Dependability -\> Reliability (Accuracy)*
 
-#### In Live mode, when the AI position-classification confidence falls below the threshold or the camera becomes unavailable, the system avoids committing an uncertain position. In Multi-Position Sequence Display mode it withholds auto-recording, marks the position as undetermined, and prompts the user to select it manually; in other display modes it simply hides the current position. As a result, no measurement is ever recorded into a wrong position row, and no incorrect position is displayed.
+#### When the watch's physical measurement position is changed, the system shall automatically classify and display the correct standard position without false positives.
 
-#### 
+####
 
-| **Type**               | **Description**                                                                                                                                                                                                                                                                                                   |
+| **Type**               | **Description** |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Stimulus**           | Camera input and the AI (TinyML) position-classification inference                                                                                                                                                                                                                                                |
-| **Source of stimulus** | AI position-classification confidence below threshold, or camera unavailable (disconnected / occluded)                                                                                                                                                                                                            |
-| **Artifact**           | Position-detection module, measurement-to-position mapping, GUI (per-mode display)                                                                                                                                                                                                                                |
-| **Environment**        | Live (measurement) mode, Raspberry Pi 5 + external camera                                                                                                                                                                                                                                                         |
-| **Response**           | Sequence Display: withhold auto-record → mark "undetermined" → prompt manual selection. Other modes: do not display the position                                                                                                                                                                                  |
-| **Response measure**   | In Sequence Display, among items auto-recorded at confidence ≥ threshold, mis-records from wrong-position classification = 0; under low confidence/unavailability switch to manual prompt (zero wrong-row updates). Other modes: position not displayed under low confidence/unavailability (zero wrong displays) |
+| **Stimulus**           | Physical change of watch measurement position (e.g., CH → 6H) |
+| **Source of stimulus** | User repositioning the watch on the timegrapher microphone |
+| **Artifact**           | AI Position Classification Module → GUI Layout |
+| **Environment**        | Live Mode |
+| **Response**           | System automatically classifies the correct standard position and updates the display |
+| **Response measure**   | Classification Accuracy > 95% over test cycles; GUI position indicator updates within 2.0 seconds after stabilization; False Positive Rate < 3% |
 
 #### 
 
 #### Priority
-
-Importance: High Difficulty: Medium
+Importance: High Difficulty: High
 
 #### Risk
-
-- Risk that AI misclassifies the position. In Sequence Display mode it can record measured values into the wrong position row (high impact); in other modes it is display-only (low impact). Depends on camera environment (lighting, angle, occlusion).
+- [RISK-15](../README.md#risk-15)
 
 #### Experiment
-
-- [RISK-20](../README.md#risk-20) · [EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md) · FR-POS · ADR-01
+- [EXP-12](../Experiments/EXP-12-usb-protocol-watch-position-detection.md)
+- [EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md)
 
 ### QAS-07 / Graceful Degradation and Fault Feedback
 
