@@ -99,6 +99,7 @@ void TabEscapementAnalyzer::onSeek(double absSample)
     mHistory->reconstruct(from, win, rb);
     mBuf.clear();
     mRawBuf.clear();
+    mHaveShownTic = false;                                      // seek → 위상 앵커 재설정
     mBuf.push(rb.block);                                        // 엔벨로프 + 이벤트
     if (rb.block.raw && rb.block.rawN > 0) {                    // 원신호 → mRawBuf
         WaveBlock raw;
@@ -163,19 +164,33 @@ void TabEscapementAnalyzer::render()
         return;
     }
 
-    // 두 연속 onset = Tick(이전 A) + Tock(최신 A).
     const QVector<WaveEvent> allEv = mBuf.eventsInRange(mBuf.oldestAbs(), mBuf.latestAbs());
     QVector<uint64_t> aList;
     for (const WaveEvent &e : allEv) if (e.type == 1) aList.push_back(e.sample);
-    const bool haveTwo = aList.size() >= 2;
-    const uint64_t ticA = haveTwo ? aList[aList.size() - 2] : lastA;
-    const uint64_t tocA = lastA;
+
+    // 표시 위상 고정: 후보 Tick(끝에서 둘째 A)은 매 틱 1비트씩 전진하지만, 앵커는 '2비트 이상' 벌어질
+    //  때만 따라간다 → 항상 같은 위상(tic→toc)만 표시 → Tock·ideal Tock T3 가 beat error 만큼 매 틱
+    //  좌우로 튀지 않고 rate 드리프트만 남는다. (역행=seek/reset 시엔 즉시 재앵커.)
+    const uint64_t candTic = aList.size() >= 2 ? aList[aList.size() - 2] : lastA;
+    if (!mHaveShownTic || candTic < mShownTicA || candTic >= mShownTicA + (uint64_t)(1.5 * beat)) {
+        mShownTicA = candTic; mHaveShownTic = true;
+    }
+    const uint64_t ticA = mShownTicA;
+    uint64_t tocA = ticA;
+    for (uint64_t a : aList) if (a > ticA) { tocA = a; break; }   // ticA 바로 다음 A = Tock
+    const bool haveTwo = (tocA > ticA);
 
     // ── 고정 x축: [-preMs, beatMs+tailMs] — BPH(nominal beat)만으로 결정 → 좌우 흔들림 없음. ──
     const double beatMs = 1000.0 * beat / sr;
     const double xLo = -preMs, xHi = beatMs + tailMs;
     const int span = (int)((xHi - xLo) / 1000.0 * sr);
     const uint64_t from = ticA > (uint64_t)pre ? ticA - pre : 0;
+
+    // 창 끝(from+span)이 아직 최신을 넘는다면(=오른쪽이 미래·부분 데이터) 직전 완전 프레임을 유지한다.
+    //  ticA 가 최신보다 ~1비트밖에 안 뒤처져 창이 다음 비트 구간까지 뻗는데, 그게 버퍼되기 전에 그리면
+    //  오른쪽이 채워졌다 비었다 = 깜빡임. 완전히 버퍼된 뒤에만 갱신 → 비트당 1회 깔끔하게 그린다.
+    if (mRawBuf.latestAbs() < from + (uint64_t)span)
+        return;
 
     QVector<double> y; mRawBuf.copyRange(from, span, y);
     QVector<double> x(span);
@@ -343,6 +358,7 @@ void TabEscapementAnalyzer::onResetSession()
     mBuf.clear(); mRawBuf.clear(); mConfigured = false;
     mAmpScale = 0.0; mScaleFrames = 0; mScaleLocked = false;
     mAnchored = false; mAnchorStartSample = 0; mBeatNumber = 0; mLastASample = 0; mAnchorBph = 0;
+    mHaveShownTic = false;
     mBeatErrVals.clear(); mBeatErrNums.clear(); mBeatErrOut.clear(); mLastBeatErr = 0.0;
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mPlot) {

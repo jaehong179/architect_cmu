@@ -43,6 +43,8 @@ private:
     double       mAmpScale = 0.0; int mScaleFrames = 0; bool mScaleLocked = false;
     // 비트 타이밍오차 누적(E1~E3): 짝수=Tic, 홀수=Tac. 가운데 점열로 표시.
     bool     mAnchored = false; uint64_t mAnchorStartSample = 0; long mBeatNumber = 0; uint64_t mLastASample = 0; int mAnchorBph = 0;
+    // 표시 위상 고정: Tick→Tock 쌍을 매 틱 교대(tic↔toc)시키지 않고 '2비트 단위'로만 전진(Tock 출렁임 방지).
+    uint64_t mShownTicA = 0; bool mHaveShownTic = false;
     QVector<double> mBeatErrVals;   // 랩된 타이밍오차(ms, ±kWrapMs/2)
     QVector<long>   mBeatErrNums;   // 비트 번호(짝/홀 → Tic/Tac)
     QVector<bool>   mBeatErrOut;    // [이상치] 각 점의 rate 이상치 플래그(이벤트에 박혀 들어옴)
