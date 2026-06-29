@@ -2,6 +2,7 @@
 #include "PositionNames.h"
 #include "PositionTimingModel.h"
 #include "SequenceResultSaveDialog.h"
+#include "cloud/MeasurementUploadClient.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -365,7 +366,23 @@ void TabSequenceDisplay::updateComplete()
 
 void TabSequenceDisplay::onSaveRequested()
 {
-    SequenceResultSaveDialog dlg(this);
+    const QString watchId = mWatchIdProvider ? mWatchIdProvider().trimmed() : QString();
+    if (watchId.isEmpty()) {
+        QMessageBox::warning(this,
+                             QStringLiteral("Watch ID required"),
+                             QStringLiteral("Set a Watch ID in Control Panel → Advanced / Tuning before saving."));
+        return;
+    }
+
+    const QString engineer = mEngineerProvider ? mEngineerProvider().trimmed() : QString();
+    if (engineer.isEmpty()) {
+        QMessageBox::warning(this,
+                             QStringLiteral("Engineer required"),
+                             QStringLiteral("Set an Engineer name in Control Panel → Advanced / Tuning before saving."));
+        return;
+    }
+
+    SequenceResultSaveDialog dlg(watchId, engineer, this);
     if (dlg.exec() != QDialog::Accepted)
         return;
 
@@ -384,20 +401,33 @@ void TabSequenceDisplay::onSaveRequested()
     }
 
     QTextStream out(&file);
-    out << buildCurrentSequenceCsv();
+    out << buildCurrentSequenceCsv(watchId);
     file.close();
 
-    QMessageBox::information(this,
-                             QStringLiteral("Saved"),
-                             QStringLiteral("Sequence result saved to:\n%1").arg(path));
+    const QJsonObject measurements = buildMeasurementsPayload();
+    const MeasurementUploadClient::UploadResult uploadResult =
+        MeasurementUploadClient::uploadMeasurement(watchId, engineer, measurements);
+
+    if (uploadResult.success) {
+        QMessageBox::information(this,
+                                 QStringLiteral("Saved"),
+                                 QStringLiteral("Sequence result saved to:\n%1\n\nCloud upload: %2")
+                                     .arg(path, uploadResult.message));
+    } else {
+        QMessageBox::warning(this,
+                             QStringLiteral("Saved locally"),
+                             QStringLiteral("Sequence result saved to:\n%1\n\nCloud upload failed: %2")
+                                 .arg(path, uploadResult.message));
+    }
 }
 
-QString TabSequenceDisplay::buildCurrentSequenceCsv() const
+QString TabSequenceDisplay::buildCurrentSequenceCsv(const QString &watchId) const
 {
     if (!mTable) return QString();
 
     QString csv;
     QTextStream stream(&csv);
+    stream << QStringLiteral("# watch_id,") << watchId << QLatin1Char('\n');
     stream << QStringLiteral("Position,Rate,Amplitude,Beat error\n");
 
     for (int r = 0; r < 8; ++r) {
@@ -411,6 +441,55 @@ QString TabSequenceDisplay::buildCurrentSequenceCsv() const
                << beat << QStringLiteral("\"\n");
     }
     return csv;
+}
+
+QJsonObject TabSequenceDisplay::buildMeasurementsPayload() const
+{
+    QJsonObject measurements;
+    if (!mTable)
+        return measurements;
+
+    for (int r = 0; r < 6; ++r) {
+        if (!isPositionMeasuredInTable(r))
+            continue;
+
+        const QString apiCode = toApiPositionCode(internalKeyForCoreRow(r));
+        if (apiCode.isEmpty())
+            continue;
+
+        const QTableWidgetItem *rateItem = mTable->item(r, 1);
+        const QTableWidgetItem *ampItem = mTable->item(r, 2);
+        const QTableWidgetItem *beatItem = mTable->item(r, 3);
+        if (!rateItem || !ampItem || !beatItem)
+            continue;
+
+        bool rateOk = false;
+        bool ampOk = false;
+        bool beatOk = false;
+        const double rate = rateItem->text().toDouble(&rateOk);
+        const double amplitude = ampItem->text().toDouble(&ampOk);
+        const double beatError = beatItem->text().toDouble(&beatOk);
+        if (!rateOk || !ampOk || !beatOk)
+            continue;
+
+        QJsonObject positionValues;
+        positionValues[QStringLiteral("rate")] = rate;
+        positionValues[QStringLiteral("amplitude")] = amplitude;
+        positionValues[QStringLiteral("beat_error")] = beatError;
+        measurements[apiCode] = positionValues;
+    }
+
+    return measurements;
+}
+
+void TabSequenceDisplay::setWatchIdProvider(std::function<QString()> provider)
+{
+    mWatchIdProvider = std::move(provider);
+}
+
+void TabSequenceDisplay::setEngineerProvider(std::function<QString()> provider)
+{
+    mEngineerProvider = std::move(provider);
 }
 
 void TabSequenceDisplay::setCurrentPositionByIndex(int index)

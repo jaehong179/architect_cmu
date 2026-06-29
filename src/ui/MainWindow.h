@@ -37,6 +37,7 @@ namespace vision { class VisionWorker; }        // [vision] 웹캠 1Hz watch-pos
 #ifdef ENABLE_DIAG
 class QThread;                                  // [diag] 진단 워커 전용 스레드
 namespace diag { class DiagWorker; }            // [diag] t1/t3 고장유형 진단 추론
+class DiagBanner;                               // [diag] 진단 완료 알림 배너
 #endif
 
 #define AUDIO_OUTPUT 0
@@ -72,6 +73,8 @@ class MainWindow : public QMainWindow
     
     Q_PROPERTY(int highPassCutoff READ highPassCutoff WRITE setHighPassCutoff NOTIFY highPassCutoffChanged)
     Q_PROPERTY(bool useConset READ useConset WRITE setUseConset NOTIFY useConsetChanged)
+    Q_PROPERTY(QString watchId READ watchId WRITE setWatchId NOTIFY watchIdChanged)
+    Q_PROPERTY(QString engineer READ engineer WRITE setEngineer NOTIFY engineerChanged)
     Q_PROPERTY(QObject* positionTiming READ positionTiming CONSTANT)
 
     // Constant lists for QML Combobox Models
@@ -151,6 +154,12 @@ public:
     bool useConset() const;
     void setUseConset(bool val);
 
+    QString watchId() const;
+    void setWatchId(const QString &id);
+
+    QString engineer() const;
+    void setEngineer(const QString &name);
+
     QObject *positionTiming() const;
 
     QStringList averagingPeriodList() const { return mAveragingPeriodList; }
@@ -185,6 +194,8 @@ signals:
     void simRealisticChanged();
     void highPassCutoffChanged();
     void useConsetChanged();
+    void watchIdChanged();
+    void engineerChanged();
     void controlPanelCollapsedChanged();
     void warmupDelayIndexChanged();
 
@@ -287,6 +298,8 @@ private:
     bool                       mSimRealistic = true;
     int                        mHighPassCutoff = 200;
     bool                       mUseConset = false;
+    QString                    mWatchId;
+    QString                    mEngineer;
 
     bool                       mIsRunning = false;
     bool                       mRecordSessionEnabled = false;
@@ -313,6 +326,9 @@ private:
 #ifdef ENABLE_DIAG
     QThread          *mDiagThread = nullptr;         // [diag] 진단 워커 스레드(병렬 실행)
     diag::DiagWorker *mDiagWorker = nullptr;         // [diag] Stop 시 t1/t3 고장유형 진단
+    DiagBanner       *mDiagBanner = nullptr;         // [diag] 진단 완료 알림 배너(우측 상단)
+    QString           mLastDiagKey;                  // [diag] 마지막 진단 라벨 키(상세창용)
+    float             mLastDiagConf = 0.0f;          // [diag] 마지막 진단 신뢰도
 #endif
 };
 #endif // MAINWINDOW_H

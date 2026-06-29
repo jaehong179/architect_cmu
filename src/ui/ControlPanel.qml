@@ -138,61 +138,82 @@ Rectangle {
                 border.width: 1
             }
             Item {
-                id: hamburgerIcon
+                id: toggleIcon
                 anchors.fill: parent
 
                 readonly property bool collapsed: cppBackend.controlPanelCollapsed
+                readonly property color iconColor: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
 
-                Rectangle {
-                    id: bar1
-                    width: hamburgerIcon.collapsed ? 14 : 11
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 11 : 18
-                    transformOrigin: Item.Center
-                    rotation: hamburgerIcon.collapsed ? 0 : 45
+                // Collapsed: hamburger menu
+                Item {
+                    anchors.fill: parent
+                    opacity: toggleIcon.collapsed ? 1 : 0
+                    visible: opacity > 0
 
-                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
-                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 11
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 15
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 19
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
                 }
 
-                Rectangle {
-                    id: bar2
-                    width: 14
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: 15
-                    opacity: hamburgerIcon.collapsed ? 1 : 0
-                    transformOrigin: Item.Center
+                // Expanded: collapse chevron (←) — geometry-based for true centering
+                Item {
+                    width: 12
+                    height: 12
+                    anchors.centerIn: parent
+                    opacity: toggleIcon.collapsed ? 0 : 1
+                    visible: opacity > 0
 
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
-                }
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
-                Rectangle {
-                    id: bar3
-                    width: hamburgerIcon.collapsed ? 14 : 11
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 19 : 12
-                    transformOrigin: Item.Center
-                    rotation: hamburgerIcon.collapsed ? 0 : -45
-
-                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Rectangle {
+                        width: 8
+                        height: 2
+                        radius: 1
+                        color: toggleIcon.iconColor
+                        x: 2
+                        y: 6
+                        rotation: -45
+                        transformOrigin: Item.Left
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 8
+                        height: 2
+                        radius: 1
+                        color: toggleIcon.iconColor
+                        x: 2
+                        y: 6
+                        rotation: 45
+                        transformOrigin: Item.Left
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
                 }
             }
+
+            ToolTip.visible: toggleBtn.hovered
+            ToolTip.text: cppBackend.controlPanelCollapsed ? "Expand panel" : "Collapse panel"
+            ToolTip.delay: 400
+
             onClicked: { cppBackend.controlPanelCollapsed = !cppBackend.controlPanelCollapsed }
         }
     }
@@ -983,6 +1004,62 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: advancedTuningCard.advancedTuningExpanded
                         spacing: 8
+
+                        // Watch ID (cloud save key)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Watch ID"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. rolex_123456"
+                                text: cppBackend.watchId
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    cppBackend.watchId = text.trim()
+                                }
+                            }
+                        }
+
+                        // Engineer (required by cloud API)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Engineer"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. Mr. Park"
+                                text: cppBackend.engineer
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    cppBackend.engineer = text.trim()
+                                }
+                            }
+                        }
 
                         // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                         RowLayout {

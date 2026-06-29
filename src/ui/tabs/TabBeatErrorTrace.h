@@ -24,9 +24,6 @@ public:
     void onResetSession() override;
     void onSeek(double absSample) override { mSeek.showCursorAtSample(absSample); }   // [③] 다른 탭 seek → 커서 동기화
     void onResumeLive(bool seeked) override { (void)seeked; mSeek.hideCursor(); }  // [③] resume → 선택 리셋(커서 숨김)
-public slots:
-    void setDiagResult(const QString &label, float confidence, int windows);
-    void setDiagError(const QString &message);
 signals:
     void seekRequested(double absSample);   // [③] 정지 중 점 클릭 → 그 비트의 절대 샘플
 protected:
@@ -36,7 +33,6 @@ private:
     TrendSeek mSeek;   // x(beat#) → 절대 샘플 매핑 + 클릭 커서
     QCustomPlot *mPlot = nullptr;
     QLabel      *mAlert = nullptr;
-    QLabel      *mDiagLabel = nullptr;
     // 최신 비트에서 Tic·Toc 두 선 사이 간격(=beat error)을 표시하는 양방향 화살표 + 라벨.
     QCPItemLine *mGapLine = nullptr;
     QCPItemText *mGapText = nullptr;

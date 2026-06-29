@@ -21,6 +21,32 @@ inline QStringList standardPositionNames()
     };
 }
 
+// API v1.6 position codes (DU/DD/CU/CD/CL/CR) — see documents/timegrapher_api_spec_en.md
+inline QString toApiPositionCode(const QString &internalKey)
+{
+    const QString k = internalKey.trimmed();
+    if (k == QStringLiteral("CH"))  return QStringLiteral("DU");
+    if (k == QStringLiteral("CB"))  return QStringLiteral("DD");
+    if (k == QStringLiteral("9H"))  return QStringLiteral("CR");
+    if (k == QStringLiteral("6H"))  return QStringLiteral("CL");
+    if (k == QStringLiteral("3H"))  return QStringLiteral("CU");
+    if (k == QStringLiteral("12H")) return QStringLiteral("CD");
+    return QString();
+}
+
+inline QString internalKeyForCoreRow(int row)
+{
+    switch (row) {
+    case 0: return QStringLiteral("CH");
+    case 1: return QStringLiteral("CB");
+    case 2: return QStringLiteral("9H");
+    case 3: return QStringLiteral("6H");
+    case 4: return QStringLiteral("3H");
+    case 5: return QStringLiteral("12H");
+    default: return QString();
+    }
+}
+
 inline QString canonicalCorePositionKey(const QString &name)
 {
     const QString n = name.trimmed();

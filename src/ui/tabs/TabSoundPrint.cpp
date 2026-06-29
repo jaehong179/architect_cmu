@@ -52,6 +52,7 @@ SoundImageRenderer::Config TabSoundPrint::makeConfig(int sampleRateHz) const
     cfg.anchor_columns          = 12;
     cfg.gamma                   = 0.5f;
     cfg.live_preview_current_column = true;
+    cfg.draw_markers_into_image = false;   // 마커는 위젯에서 표시 시점 또렷 오버레이로(확대해도 선명)
     return cfg;
 }
 
@@ -74,6 +75,11 @@ void TabSoundPrint::onResetSession()
 {
     mInitialized = false;   // 다음 onWave에서 고정 캔버스로 재초기화(누적 비움)
     mHasBph = false;
+    if (mImage) {
+        mImage->resetZoom();                 // 새 측정 시작 → 확대/이동 초기화(전체 보기)
+        mImage->setOverlayMarkers({});       // 이전 세션 마커 제거
+        mImage->setBeatPeriodMs(0.0);        // BPH 재확정 전까지 눈금 숫자 보류
+    }
 }
 
 void TabSoundPrint::onMeasurement(const MeasurementSnapshot &snap)
@@ -95,6 +101,7 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
     if (!mHasBph && wave.synced) {
         mHasBph = true;
         mRenderer.setBph(wave.bph);
+        if (wave.bph > 0.0) mImage->setBeatPeriodMs(3600000.0 / wave.bph);   // 한 비트 ms → 축 눈금
     }
 
     // A=green / C=blue 이벤트 마커 (BPH 확정 후에만; 위치는 표시 해상 인덱스 markSample).
@@ -107,7 +114,9 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
                 mRenderer.markCEventAbsoluteSampleIndex(e.markSample, qRgba(0, 0, 255, 255), kMarkerPixelSize);
         }
     }
-    if (mHasBph)
+    if (mHasBph) {
         mImage->setLiveColumn(mRenderer.currentColumn());
+        mImage->setOverlayMarkers(mRenderer.overlayMarkers());   // 또렷 마커 좌표 갱신
+    }
     mImage->DrawImage();
 }

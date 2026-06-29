@@ -6,6 +6,8 @@
 #include "TabView.h"
 #include "RadarChartWidget.h"
 #include <QList>
+#include <QJsonObject>
+#include <functional>
 
 class QTableWidget;
 class QComboBox;
@@ -23,6 +25,8 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
     void setTimingModel(PositionTimingModel *model);
+    void setWatchIdProvider(std::function<QString()> provider);
+    void setEngineerProvider(std::function<QString()> provider);
     QList<int> measuredPositionIndices() const;
     QList<int> remainingPositionIndices() const;
     bool hasAllPositionsMeasured() const;
@@ -44,7 +48,8 @@ private:
     void recomputeSummary();
     void updateComplete();                          // 6개 핵심 포지션 모두 캡처 시 완료 표시
     void updateRadarChart();                        // 차트 실시간 및 정적 데이터 갱신 헬퍼
-    QString buildCurrentSequenceCsv() const;
+    QString buildCurrentSequenceCsv(const QString &watchId) const;
+    QJsonObject buildMeasurementsPayload() const;
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
     int getRowIndexForPosition(const QString &posName) const;
     bool isPositionMeasuredInTable(int row) const;
@@ -64,6 +69,8 @@ private:
 
     PositionTimingModel *mTiming = nullptr;
     QComboBox           *mMeasTimeCombo = nullptr;
+    std::function<QString()> mWatchIdProvider;
+    std::function<QString()> mEngineerProvider;
     bool                 mProgrammaticPositionChange = false;
     bool                 mAllPositionsCompleteNotified = false;
 };

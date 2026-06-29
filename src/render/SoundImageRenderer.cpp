@@ -555,7 +555,9 @@ void SoundImageRenderer::renderBinsToColumn(int x,
     }
 
     rendered_columns_[static_cast<std::size_t>(x)] = meta;
-    reapplyMarkersForColumn(x);
+    if (cfg_.draw_markers_into_image) {
+        reapplyMarkersForColumn(x);
+    }
 }
 
 void SoundImageRenderer::renderCurrentColumnToImage()
@@ -602,6 +604,7 @@ void SoundImageRenderer::commitAnchorColumn(const float *column,
 
     if (anchor_used_ == cfg_.anchor_columns) {
         const int dominant_bucket = argmaxSmoothed5(anchor_sum_);
+        // 지배 밴드(버스트=A onset·C drop)를 화면 세로 중앙에 정렬 → 위/아래 드리프트 여유를 균등하게.
         internal_vertical_offset_rows_ = (height_ / 2) - dominant_bucket;
         center_locked_ = true;
         flushBufferedAnchorColumns();
@@ -983,11 +986,35 @@ void SoundImageRenderer::addPersistentMarkerFromAbsoluteSample(quint64 absolute_
     m.side = normalizeMarkerSidePixels(marker_side_pixels);
     active_markers_.push_back(m);
 
+    if (!cfg_.draw_markers_into_image) {
+        return;   // 표시 시점 오버레이로 그림 — 이미지에 굽지 않음(overlayMarkers()).
+    }
+
     int x = -1;
     int y = -1;
     if (mapRenderedSampleToPixel(absolute_sample_index, &x, &y)) {
         drawCenteredMarkerBlock(x, y, color, m.side);
     }
+}
+
+std::vector<SoundImageRenderer::OverlayMarker> SoundImageRenderer::overlayMarkers() const
+{
+    std::vector<OverlayMarker> out;
+    out.reserve(active_markers_.size());
+    for (const Marker &m : active_markers_) {
+        int x = -1;
+        int y = -1;
+        if (!mapRenderedSampleToPixel(m.absolute_sample_index, &x, &y)) {
+            continue;   // 현재 렌더된 컬럼에 속하지 않음 → 표시 안 함
+        }
+        OverlayMarker om;
+        om.x = x;
+        om.y = y;
+        om.color = m.color;
+        om.side = m.side;
+        out.push_back(om);
+    }
+    return out;
 }
 
 /*

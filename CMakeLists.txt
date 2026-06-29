@@ -21,7 +21,7 @@ if(MINGW)
 endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets Network)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia MultimediaWidgets Widgets QuickWidgets)
 
@@ -52,6 +52,8 @@ set(PROJECT_SOURCES
         src/ui/PositionChangeDialog.cpp
         src/ui/SequenceResultSaveDialog.h
         src/ui/SequenceResultSaveDialog.cpp
+        src/ui/cloud/MeasurementUploadClient.h
+        src/ui/cloud/MeasurementUploadClient.cpp
         src/ui/VideoSplashScreen.h
 )
 
@@ -174,6 +176,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabRateScope.cpp
         src/ui/WarmupOverlay.h
         src/ui/WarmupOverlay.cpp
+        # [diag UI] 진단 결과 배너 + 상세 가이드 창 (자기완결 · diag 토글과 무관하게 컴파일)
+        src/ui/diag/DiagCatalog.h
+        src/ui/diag/DiagCatalog.cpp
+        src/ui/diag/DiagBanner.h
+        src/ui/diag/DiagBanner.cpp
+        src/ui/diag/DiagDetailDialog.h
+        src/ui/diag/DiagDetailDialog.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h
@@ -239,6 +248,7 @@ target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Network)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # [vision · TinyML] Watch-position 추론 — TFLite C API 런타임 동적 로드.

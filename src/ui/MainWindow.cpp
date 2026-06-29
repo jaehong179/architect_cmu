@@ -23,6 +23,7 @@
 #include "PerfInstrumentation.h"
 #include "UiResponsivenessSampler.h"
 #include <QResizeEvent>
+#include <QSettings>
 
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
@@ -55,6 +56,9 @@
 #ifdef ENABLE_DIAG
 #include <QThread>
 #include "DiagWorker.h"            // [diag] Stop 시 t1/t3 고장유형 진단 워커
+#include "diag/DiagCatalog.h"      // [diag] 고장유형 카탈로그(제목/원인/조치/예시)
+#include "diag/DiagBanner.h"       // [diag] 진단 완료 알림 배너
+#include "diag/DiagDetailDialog.h" // [diag] 진단 상세 가이드 창
 #endif
 
 #define  LIVE     0
@@ -214,6 +218,12 @@ MainWindow::MainWindow(QWidget *parent)
     // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
     mWarmupDelayList << "0s" << "5s" << "10s" << "15s" << "20s";
 
+    {
+        QSettings settings;
+        mWatchId = settings.value(QStringLiteral("watchId")).toString();
+        mEngineer = settings.value(QStringLiteral("engineer")).toString();
+    }
+
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
     // ----------------------------------------------------
@@ -305,6 +315,15 @@ MainWindow::MainWindow(QWidget *parent)
 #endif
 
 #ifdef ENABLE_DIAG
+    // 결과/에러는 워커 스레드 → 큐 연결로 메인 스레드에서 처리.
+    //  결과: 화면 우측 상단 배너로 알림 → 배너 클릭 시 가운데 상세 가이드 창.
+    mDiagBanner = new DiagBanner(ui->GraphicsTabWidget);
+    connect(mDiagBanner, &DiagBanner::clicked, this, [this]() {
+        if (mLastDiagKey.isEmpty()) return;
+        DiagDetailDialog dlg(mLastDiagKey, mLastDiagConf, this);
+        dlg.exec();
+    });
+
     // [diag] Stop 시 t1/t3(rateTicY/rateTocY) 로 고장유형을 진단하는 전용 스레드.
     //  슬라이딩 윈도우 보팅 추론을 워커 스레드에서 수행 → UI/측정 핫패스 비차단.
     //  큐 연결로 QVector<double> 를 넘기므로 메타타입 등록이 필요하다.
@@ -315,24 +334,19 @@ MainWindow::MainWindow(QWidget *parent)
     connect(mDiagThread, &QThread::started,  mDiagWorker, &diag::DiagWorker::init);
     connect(mDiagThread, &QThread::finished, mDiagWorker, &QObject::deleteLater);
 
-    // 결과/에러는 워커 스레드 → 큐 연결로 메인 스레드 상태바에 단순 print.
     connect(mDiagWorker, &diag::DiagWorker::resultReady, this,
             [this](const QString &label, float conf, int windows) {
-                statusBar()->showMessage(
-                    QStringLiteral("Diagnosis: %1 (%2%, %3 windows)")
-                        .arg(label)
-                        .arg(QString::number(conf * 100.0f, 'f', 0))
-                        .arg(windows));
+                Q_UNUSED(windows);
+                mLastDiagKey  = label;
+                mLastDiagConf = conf;
+                const diagui::DiagEntry *e = diagui::lookup(label);
+                const QString title   = e ? e->title   : label;
+                const bool    healthy = e ? e->healthy : false;
+                // 정상(healthy)일 때는 배너를 표시하지 않는다.
+                if (mDiagBanner && !healthy) mDiagBanner->showResult(title, healthy, conf);
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
-
-    if (mBedTab) {
-        connect(mDiagWorker, &diag::DiagWorker::resultReady, mBedTab,
-                &TabBeatErrorTrace::setDiagResult);
-        connect(mDiagWorker, &diag::DiagWorker::error, mBedTab,
-                &TabBeatErrorTrace::setDiagError);
-    }
 
     mDiagThread->start();
 #endif
@@ -365,6 +379,8 @@ void MainWindow::RegisterDisplayTabs(void)
 
     mSequenceDisplay = new TabSequenceDisplay(this);
     mSequenceDisplay->setTimingModel(mPositionTiming);
+    mSequenceDisplay->setWatchIdProvider([this]() { return watchId(); });
+    mSequenceDisplay->setEngineerProvider([this]() { return engineer(); });
     connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
         mSequenceDisplay->onRunningStateChanged(this->isRunning());
     });
@@ -753,6 +769,36 @@ void MainWindow::setUseConset(bool val)
     if (mCapture) {
         mCapture->setUseConset(mUseConset);
     }
+}
+
+QString MainWindow::watchId() const
+{
+    return mWatchId;
+}
+
+void MainWindow::setWatchId(const QString &id)
+{
+    const QString trimmed = id.trimmed();
+    if (mWatchId == trimmed) return;
+    mWatchId = trimmed;
+    QSettings settings;
+    settings.setValue(QStringLiteral("watchId"), mWatchId);
+    emit watchIdChanged();
+}
+
+QString MainWindow::engineer() const
+{
+    return mEngineer;
+}
+
+void MainWindow::setEngineer(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    if (mEngineer == trimmed) return;
+    mEngineer = trimmed;
+    QSettings settings;
+    settings.setValue(QStringLiteral("engineer"), mEngineer);
+    emit engineerChanged();
 }
 
 // =========================================================================
