@@ -21,7 +21,7 @@ if(MINGW)
 endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets Network)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia MultimediaWidgets Widgets QuickWidgets)
 
@@ -52,6 +52,8 @@ set(PROJECT_SOURCES
         src/ui/PositionChangeDialog.cpp
         src/ui/SequenceResultSaveDialog.h
         src/ui/SequenceResultSaveDialog.cpp
+        src/ui/cloud/MeasurementUploadClient.h
+        src/ui/cloud/MeasurementUploadClient.cpp
         src/ui/VideoSplashScreen.h
 )
 
@@ -239,6 +241,7 @@ target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Network)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # [vision · TinyML] Watch-position 추론 — TFLite C API 런타임 동적 로드.

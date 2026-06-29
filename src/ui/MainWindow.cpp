@@ -23,6 +23,7 @@
 #include "PerfInstrumentation.h"
 #include "UiResponsivenessSampler.h"
 #include <QResizeEvent>
+#include <QSettings>
 
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
@@ -214,6 +215,12 @@ MainWindow::MainWindow(QWidget *parent)
     // [측정 대기] Warm-up delay 옵션 리스트 (0 = Off)
     mWarmupDelayList << "0s" << "5s" << "10s" << "15s" << "20s";
 
+    {
+        QSettings settings;
+        mWatchId = settings.value(QStringLiteral("watchId")).toString();
+        mEngineer = settings.value(QStringLiteral("engineer")).toString();
+    }
+
     // ----------------------------------------------------
     // QML Control Panel Embedding (QQuickWidget)
     // ----------------------------------------------------
@@ -355,6 +362,8 @@ void MainWindow::RegisterDisplayTabs(void)
 
     mSequenceDisplay = new TabSequenceDisplay(this);
     mSequenceDisplay->setTimingModel(mPositionTiming);
+    mSequenceDisplay->setWatchIdProvider([this]() { return watchId(); });
+    mSequenceDisplay->setEngineerProvider([this]() { return engineer(); });
     connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
         mSequenceDisplay->onRunningStateChanged(this->isRunning());
     });
@@ -743,6 +752,36 @@ void MainWindow::setUseConset(bool val)
     if (mCapture) {
         mCapture->setUseConset(mUseConset);
     }
+}
+
+QString MainWindow::watchId() const
+{
+    return mWatchId;
+}
+
+void MainWindow::setWatchId(const QString &id)
+{
+    const QString trimmed = id.trimmed();
+    if (mWatchId == trimmed) return;
+    mWatchId = trimmed;
+    QSettings settings;
+    settings.setValue(QStringLiteral("watchId"), mWatchId);
+    emit watchIdChanged();
+}
+
+QString MainWindow::engineer() const
+{
+    return mEngineer;
+}
+
+void MainWindow::setEngineer(const QString &name)
+{
+    const QString trimmed = name.trimmed();
+    if (mEngineer == trimmed) return;
+    mEngineer = trimmed;
+    QSettings settings;
+    settings.setValue(QStringLiteral("engineer"), mEngineer);
+    emit engineerChanged();
 }
 
 // =========================================================================

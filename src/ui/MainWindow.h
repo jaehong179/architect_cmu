@@ -72,6 +72,8 @@ class MainWindow : public QMainWindow
     
     Q_PROPERTY(int highPassCutoff READ highPassCutoff WRITE setHighPassCutoff NOTIFY highPassCutoffChanged)
     Q_PROPERTY(bool useConset READ useConset WRITE setUseConset NOTIFY useConsetChanged)
+    Q_PROPERTY(QString watchId READ watchId WRITE setWatchId NOTIFY watchIdChanged)
+    Q_PROPERTY(QString engineer READ engineer WRITE setEngineer NOTIFY engineerChanged)
     Q_PROPERTY(QObject* positionTiming READ positionTiming CONSTANT)
 
     // Constant lists for QML Combobox Models
@@ -151,6 +153,12 @@ public:
     bool useConset() const;
     void setUseConset(bool val);
 
+    QString watchId() const;
+    void setWatchId(const QString &id);
+
+    QString engineer() const;
+    void setEngineer(const QString &name);
+
     QObject *positionTiming() const;
 
     QStringList averagingPeriodList() const { return mAveragingPeriodList; }
@@ -185,6 +193,8 @@ signals:
     void simRealisticChanged();
     void highPassCutoffChanged();
     void useConsetChanged();
+    void watchIdChanged();
+    void engineerChanged();
     void controlPanelCollapsedChanged();
     void warmupDelayIndexChanged();
 
@@ -287,6 +297,8 @@ private:
     bool                       mSimRealistic = true;
     int                        mHighPassCutoff = 200;
     bool                       mUseConset = false;
+    QString                    mWatchId;
+    QString                    mEngineer;
 
     bool                       mIsRunning = false;
     bool                       mRecordSessionEnabled = false;

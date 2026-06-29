@@ -8,15 +8,18 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-SequenceResultSaveDialog::SequenceResultSaveDialog(QWidget *parent)
+SequenceResultSaveDialog::SequenceResultSaveDialog(const QString &watchId,
+                                                   const QString &engineer,
+                                                   QWidget *parent)
     : QDialog(parent)
 {
     setWindowTitle(QStringLiteral("Save Multi-Position Result"));
     setModal(true);
-    resize(560, 180);
+    resize(560, 240);
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(16, 16, 16, 16);
@@ -25,6 +28,31 @@ SequenceResultSaveDialog::SequenceResultSaveDialog(QWidget *parent)
     auto *title = new QLabel(QStringLiteral("Save completed 6-position measurement"), this);
     title->setStyleSheet(QStringLiteral("font-weight: 600; color: #e6e6e6;"));
     mainLayout->addWidget(title);
+
+    auto *watchRow = new QHBoxLayout();
+    watchRow->setSpacing(8);
+    auto *watchCaption = new QLabel(QStringLiteral("Watch ID:"), this);
+    watchCaption->setStyleSheet(QStringLiteral("color: #aaaaaa;"));
+    mWatchIdLabel = new QLabel(watchId.trimmed(), this);
+    mWatchIdLabel->setStyleSheet(QStringLiteral("font-weight: 600; color: #ffffff;"));
+    watchRow->addWidget(watchCaption);
+    watchRow->addWidget(mWatchIdLabel, 1);
+    mainLayout->addLayout(watchRow);
+
+    auto *engineerRow = new QHBoxLayout();
+    engineerRow->setSpacing(8);
+    auto *engineerCaption = new QLabel(QStringLiteral("Engineer:"), this);
+    engineerCaption->setStyleSheet(QStringLiteral("color: #aaaaaa;"));
+    mEngineerLabel = new QLabel(engineer.trimmed(), this);
+    mEngineerLabel->setStyleSheet(QStringLiteral("font-weight: 600; color: #ffffff;"));
+    engineerRow->addWidget(engineerCaption);
+    engineerRow->addWidget(mEngineerLabel, 1);
+    mainLayout->addLayout(engineerRow);
+
+    auto *uploadNote = new QLabel(QStringLiteral("Results will be saved locally and uploaded to the cloud."),
+                                  this);
+    uploadNote->setStyleSheet(QStringLiteral("color: #9e9e9e; font-size: 11px;"));
+    mainLayout->addWidget(uploadNote);
 
     auto *pathRow = new QHBoxLayout();
     pathRow->setSpacing(8);
@@ -36,8 +64,9 @@ SequenceResultSaveDialog::SequenceResultSaveDialog(QWidget *parent)
     if (baseDir.isEmpty()) {
         baseDir = QDir::homePath();
     }
-    const QString fileName = QStringLiteral("timegrapher_sequence_%1.csv")
-                                 .arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
+    const QString fileName = QStringLiteral("timegrapher_%1_%2.csv")
+                                 .arg(sanitizeWatchIdForFileName(watchId),
+                                      QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
     mPathEdit->setText(baseDir + QLatin1Char('/') + fileName);
 
     auto *browse = new QPushButton(QStringLiteral("Browse"), this);
@@ -59,6 +88,16 @@ SequenceResultSaveDialog::SequenceResultSaveDialog(QWidget *parent)
         "QPushButton:hover { background-color: #3a3a3a; }"
         "QPushButton:pressed { background-color: #252525; }"
     ));
+}
+
+QString SequenceResultSaveDialog::sanitizeWatchIdForFileName(const QString &watchId) const
+{
+    QString safe = watchId.trimmed();
+    if (safe.isEmpty())
+        return QStringLiteral("unknown");
+
+    safe.replace(QRegularExpression(QStringLiteral(R"([\\/:*?"<>|])")), QStringLiteral("_"));
+    return safe;
 }
 
 QString SequenceResultSaveDialog::selectedPath() const
