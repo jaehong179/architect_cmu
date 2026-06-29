@@ -24,7 +24,7 @@ Positive
 - Satisfies [QAS-08](../Requirements/quality-attribute-requirements.md#qas-08--new-tab-extensibility): a new tab needs one registerTab() call and no DSP/existing-tab changes, so regressions stay at zero.
 - Mitigates [RISK-06](../README.md#risk-06) by confining change to one integration point.
 - Tabs are decoupled from each other and from DSP, improving testability and parallel work.
-- Extensibility doesn't hurt latency: every tab reuses the same per-block Tic/Toc results and wave processing, so a new tab only renders and adds no signal-processing cost. Adding tabs therefore does not increase per-block processing latency (QAS-02).
+- Extensibility doesn't hurt latency: every tab reuses the same per-block Tic/Toc results and wave processing, so a new tab only renders and adds no signal-processing cost. Adding tabs therefore does not increase per-block processing latency [QAS-02](../Requirements/quality-attribute-requirements.md#qas-02--end-to-end-latency).
 
 Negative / costs
 
