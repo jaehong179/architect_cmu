@@ -18,7 +18,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
 private:
-    void ensureRenderer();                                   // 샘플레이트 확정 시 고정 캔버스로 렌더러 1회 초기화
+    void ensureRenderer(quint64 originSample);              // 샘플레이트 확정 시 고정 캔버스로 렌더러 1회 초기화(절대 샘플 원점 지정)
     SoundImageRenderer::Config makeConfig(int sampleRateHz) const;
     SoundImageWidget   *mImage = nullptr;
     SoundImageRenderer  mRenderer;

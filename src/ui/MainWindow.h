@@ -271,7 +271,7 @@ private:
     QStringList                mSimBphList;
     QStringList                mAveragingPeriodList;
     QStringList                mWarmupDelayList;
-    int                        mWarmupDelayIndex = 3;   // 기본 15초 (0/5/10/15/20)
+    int                        mWarmupDelayIndex = 1;   // 기본 5초 (0/5/10/15/20)
     bool                       mInWarmup = false;
     WarmupOverlay             *mWarmupOverlay = nullptr;
 

@@ -3,21 +3,27 @@
 This diagram shows the process of displaying the audio signal captured from the microphone as a graph.
 Through this diagram, you can identify the parts needed to verify whether the process from audio signal to graph display satisfies the condition ([QAS-01](../Requirements/quality-attribute-requirements.md#qas-01--real-time-streaming-throughput)) of completing within 125ms per T1~T3 cycle (based on 28800 BPH).
 
-![Diagram](../images/MicToGraph_CnCDiaggram.png)
+![Diagram](../images/audio_thread_cc.png)
 
 ## Element Catalog
 
-#### SharedAudio
-- A ring buffer used to process the audio input and processing asynchronously. (Not changed from the existing source code.)
+### Threads
 
-#### AudioInput
-- Responsible for storing the watch's audio data into the ring buffer.
+- **Audio source thread (Producer)** — captures audio and writes it to the shared buffer.
+- **MAIN / GUI thread (Consumer)** — reads audio, runs measurement, and updates the graphs.
+- **WATCHDOG thread** — wakes every 500 ms to check liveness and raise fault events.
 
-#### TimeGrapher
-- Responsible for calculating the watch's audio data into data (T1/T2/T3) that can be displayed by the TimeGrapher.
+### Components
 
-#### TabView
-- The graph displayed by the TimeGrapher.
+- **TAudioWorker / TPlaybackWorker / TSimWorker** — the active audio source (live / playback / sim). Writes audio into SharedAudio and signals AudioDataReady.
+- **SharedAudio** — ring buffer that decouples capture from processing so the two threads run asynchronously.
+- **CaptureController** — the Consumer. Reads SharedAudio, runs tg_process(), drives the displays, and publishes liveness to WatchdogState.
+- **MeasurementEngine** — computes rate, beat error, and amplitude.
+- **TabManager** — broadcasts results to every graph tab (fan-out 1:N).
+- **TabViews**  — the graph widgets that render the signal (onWave / onMeasurement).
+- **WatchdogState** — shared state holding liveness timestamps; published by the Consumer, read by the watchdog.
+- **WatchdogWorker** — runs the checks (AudioDeviceTimeout 1 s, NoSignalTimeout 10 s) and raises an event on fault.
+- **EventHandler** — shows the user alert on a watchdog event.
 
 ## Behavior
 
@@ -27,7 +33,8 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-- N/A
+- [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
-- N/A
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md) — the modules that host these runtime components.
+- [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) — how `TabManager` broadcasts to the `TabViews` shown here (shared `onWave` path).

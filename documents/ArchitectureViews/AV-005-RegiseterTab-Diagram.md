@@ -1,35 +1,41 @@
-# Register Tab Diagram
+# Register Tab Hierarchy
 
-This diagram shows the design that makes it easy to add graph tabs to TimeGrapher.
-It satisfies [QAS-08](../Requirements/quality-attribute-requirements.md#qas-08--new-tab-extensibility), which specifies that code unrelated to the tab must not be modified when adding a graph tab.
-When a developer wants to add a new tab, they only need to implement a new class that inherits from the TabView class.
+This view shows the design that makes adding graph tabs to TimeGrapher easy. It satisfies [QAS-08](../Requirements/quality-attribute-requirements.md#qas-08--new-tab-extensibility): adding a graph tab must not require modifying unrelated code. To add a tab, a developer implements one new class that inherits the `TabView` abstract base class and registers it with one `TabManager::registerTab()` call (OCP).
 
 ![Diagram](../images/classDiagram.jpg)
 
 ## Element Catalog
 
 #### TabManager
-- A class that registers the graphs to be displayed in TimeGrapher and shows the registered graphs.
+- An **abstract base class** derived from `QWidget` (not a pure interface — Qt disallows multiple `QObject` inheritance, so a `QWidget`-derived abstract class is used). Declares the contract every tab implements: `tabTitle()` (pure virtual) plus the virtual hooks `onWave()`, `onMeasurement()`, and `onResetSession()`. A concrete tab overrides the hooks it needs.
 
-#### TabView
-- An interface for implementing a graph.
-- Only classes that inherit the TabView interface can be registered with TabManager.
-- Implement the graph you want to display in the onWave() function.
+
+#### Concrete tabs (×13)
+- RateScope, SoundPrint, TraceDisplay, Spectrogram, etc. Each inherits `TabView` and renders the signal in `onWave()` / `onMeasurement()`. No existing tab is touched when a new one is added.
+  
+#### TabManager
+- Holds the list of registered tabs (`registerTab()`) and pushes data to all of them (`broadcastWave()` / `broadcastMeasurement()` / `broadcastReset()`).
+  
+### Observer pattern
+The data fan-out applies the **Observer** pattern:
+- **Subject / Observable** = `TabManager` — keeps the list of registered tabs and notifies them on each new data block.
+- **Observers** = `TabView` and its concrete subclasses — register via `registerTab()` and react in `onWave()` / `onMeasurement()`.
+- **Mechanism**: not Qt signals/slots. `TabManager` iterates its tab list and calls each tab's `onWave()` / `onMeasurement()` directly, so it broadcasts to all tabs without knowing the concrete types or the data source. (A separate `WaveSink` observer list receives `onWave` for non-visual listeners such as the history buffer.)
+
 
 ## Behavior
-The diagram below shows the process of applying the observer pattern to register all tabs to be displayed, and drawing the graph on every registered tab once the TimeGrapher data has been calculated.
 
-- This UML Sequence Diagram shows that a graph to be displayed can be registered with just a call to TabManager::registerTab() when adding a tab.
+The sequence diagram below shows tab registration: a new tab is added simply by calling `TabManager::registerTab()`.
 
 ![Sequence Diagram](../images/RegisterTab_SequenceDiagram.png)
 
 
-- The bottom part of this UML Sequence Diagram shows TimeGrapher data being presented simultaneously on all registered tabs. TabManager::broadcastWave() calls onWave() on every registered tab to draw the graph.
+The runtime broadcast side — `broadcastWave()` calling `onWave()` on every registered tab — is the same `onWave` interaction documented in [AV-003](./AV-003-MicToGraph-SeqenceDiagram.md); see that view for the runtime/threading context.
 
-![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
 [ADR-003: Register display tabs through a Tab Manager](../ADRs/ADR-003-register-display-tabs.md)
 
 ## Related Views
-- N/A
+- [AV-003: Live Microphone to Graph Runtime View](./AV-003-MicToGraph-SeqenceDiagram.md) — shares the `onWave` broadcast interaction; AV-003 covers the runtime/thread context, this view covers the static tab hierarchy and registration.
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md) — the `ui/tabs` module that contains these classes.

@@ -55,14 +55,17 @@ SoundImageRenderer::Config TabSoundPrint::makeConfig(int sampleRateHz) const
     return cfg;
 }
 
-void TabSoundPrint::ensureRenderer()
+void TabSoundPrint::ensureRenderer(quint64 originSample)
 {
     if (mInitialized) return;
     if (mSampleRateHz <= 0) return;
     QImage *img = mImage->GetImage();
     if (!img || img->isNull()) return;                // 고정 캔버스 — 생성자 이후 항상 유효
     if (!mRenderer.initialize(img, makeConfig(mSampleRateHz))) return;
-    mRenderer.reset();
+    // [측정 대기] 절대 샘플 원점 = 이 블록 raw[0] 의 절대 인덱스(wave.rawStart).
+    //  웜업이 앞선 오디오를 소비해 첫 블록이 0이 아닌 위치에서 시작해도 마커(절대 markSample)와
+    //  렌더러의 절대 샘플 클럭이 일치한다 → 마커가 어긋나 사운드프린트가 틀어지는 현상 방지.
+    mRenderer.reset(originSample);
     mInitialized = true;
     mHasBph = false;                                  // (재)초기화 후 다음 동기 프레임에서 BPH 적용
 }
@@ -81,7 +84,7 @@ void TabSoundPrint::onMeasurement(const MeasurementSnapshot &snap)
 void TabSoundPrint::onWave(const WaveBlock &wave)
 {
     if (wave.sampleRateHz > 0) mSampleRateHz = wave.sampleRateHz;
-    ensureRenderer();
+    ensureRenderer(wave.rawStart);
     if (!mInitialized) return;                        // 샘플레이트 미확정 → 이 슬라이스 건너뜀
 
     // 원신호(정류 전 PCM)를 렌더러에 주입 — 폴딩 사운드 이미지 갱신.
