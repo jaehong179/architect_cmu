@@ -37,6 +37,7 @@ namespace vision { class VisionWorker; }        // [vision] 웹캠 1Hz watch-pos
 #ifdef ENABLE_DIAG
 class QThread;                                  // [diag] 진단 워커 전용 스레드
 namespace diag { class DiagWorker; }            // [diag] t1/t3 고장유형 진단 추론
+class DiagBanner;                               // [diag] 진단 완료 알림 배너
 #endif
 
 #define AUDIO_OUTPUT 0
@@ -325,6 +326,9 @@ private:
 #ifdef ENABLE_DIAG
     QThread          *mDiagThread = nullptr;         // [diag] 진단 워커 스레드(병렬 실행)
     diag::DiagWorker *mDiagWorker = nullptr;         // [diag] Stop 시 t1/t3 고장유형 진단
+    DiagBanner       *mDiagBanner = nullptr;         // [diag] 진단 완료 알림 배너(우측 상단)
+    QString           mLastDiagKey;                  // [diag] 마지막 진단 라벨 키(상세창용)
+    float             mLastDiagConf = 0.0f;          // [diag] 마지막 진단 신뢰도
 #endif
 };
 #endif // MAINWINDOW_H

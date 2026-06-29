@@ -7,8 +7,6 @@
 #include <cmath>
 
 namespace {
-constexpr float kDiagConfThresh = 0.6f;
-
 enum BedAlertTier { kTierUnknown = 0, kTierGood = 1, kTierCaution = 2, kTierBad = 3 };
 
 const char *bedTierLabel(int tier)
@@ -36,13 +34,6 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mAlert->setFixedHeight(statusAreaH);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
     lay->addWidget(mAlert);
-
-    mDiagLabel = new QLabel(this);
-    mDiagLabel->setWordWrap(true);
-    mDiagLabel->setFont(statusFont);
-    mDiagLabel->setFixedHeight(statusAreaH);
-    mDiagLabel->setStyleSheet(QStringLiteral("color:#9e9e9e;"));
-    lay->addWidget(mDiagLabel);
 
     mPlot = new QCustomPlot(this);
     // 두 선 모델(문서 §탭5): 짝수 비트=Tic 선, 홀수 비트=Toc 선. 점을 선으로 이어 두 trace 로 보이게 함.
@@ -236,28 +227,6 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
 
 void TabBeatErrorTrace::onShown() { if (mPlot) mPlot->replot(); }
 
-void TabBeatErrorTrace::setDiagResult(const QString &label, float confidence, int windows)
-{
-    if (!mDiagLabel) return;
-    const QString prefix = confidence < kDiagConfThresh ? QStringLiteral("? ") : QString();
-    mDiagLabel->setText(QStringLiteral("[diag] %1%2 (%3%, %4 windows)")
-                            .arg(prefix)
-                            .arg(label)
-                            .arg(QString::number(confidence * 100.0f, 'f', 1))
-                            .arg(windows));
-    if (label == QStringLiteral("normal"))
-        mDiagLabel->setStyleSheet(QStringLiteral("color:#2ed573;"));
-    else
-        mDiagLabel->setStyleSheet(QStringLiteral("color:#ffa502;"));
-}
-
-void TabBeatErrorTrace::setDiagError(const QString &message)
-{
-    if (!mDiagLabel) return;
-    mDiagLabel->setText(QStringLiteral("[diag] %1").arg(message));
-    mDiagLabel->setStyleSheet(QStringLiteral("color:#ff4757;"));
-}
-
 void TabBeatErrorTrace::onResetSession()
 {
     mAnchored = false; mTstart = 0; mN = 0; mLastA = 0; mBph = 0;
@@ -267,10 +236,6 @@ void TabBeatErrorTrace::onResetSession()
     mRateSd = 0.0; mRateValid = false;
     mAlertTier = kTierUnknown;
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
-    if (mDiagLabel) {
-        mDiagLabel->setText(QStringLiteral("Waiting for diagnosis…"));
-        mDiagLabel->setStyleSheet(QStringLiteral("color:#9e9e9e;"));
-    }
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
     if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }

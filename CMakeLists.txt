@@ -176,6 +176,13 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
         src/ui/tabs/TabRateScope.cpp
         src/ui/WarmupOverlay.h
         src/ui/WarmupOverlay.cpp
+        # [diag UI] 진단 결과 배너 + 상세 가이드 창 (자기완결 · diag 토글과 무관하게 컴파일)
+        src/ui/diag/DiagCatalog.h
+        src/ui/diag/DiagCatalog.cpp
+        src/ui/diag/DiagBanner.h
+        src/ui/diag/DiagBanner.cpp
+        src/ui/diag/DiagDetailDialog.h
+        src/ui/diag/DiagDetailDialog.cpp
         Splash.qrc
         src/audio/capture/LinuxAudio.cpp
         src/audio/capture/LinuxAudio.h
