@@ -6,7 +6,7 @@ The diagram shows seven top-level packages and their `«uses»` dependencies.
 Key pattern applied:
 - **Layered** — dependencies flow top-down (ui → engine → core, ui → audio → core). No upward or circular dependencies are permitted. watchdog is a cross-cutting exception, referenced by all layers for system health monitoring.
   
-![Package Diagram](../images/Top-Level_Module_Uses_View.jpg)
+![Package Diagram](../images/Top-Level_Module_Uses_View.png)
 
 
 ## Element Catalog
@@ -20,7 +20,7 @@ Key pattern applied:
 #### engine
 - Domain orchestration. CaptureController acts as a Facade over audio sources, DSP pipeline, and measurement calculation. MeasurementEngine computes rate, beat error, and amplitude from detected events.
 
-#### vision
+#### tinyml
 - Watch position detection via USB camera. Classifies the watch's current position among 6 standard positions (DU, DD, CU, CD, CR, CL). The detected position is passed to engine for correlation with timing measurements (Modifiability: Increase cohesion — vision logic is isolated from audio and engine).
 
 #### render
