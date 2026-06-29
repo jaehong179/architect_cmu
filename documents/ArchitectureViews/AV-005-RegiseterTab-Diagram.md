@@ -37,5 +37,5 @@ The runtime broadcast side — `broadcastWave()` calling `onWave()` on every reg
 [ADR-003: Register display tabs through a Tab Manager](../ADRs/ADR-003-register-display-tabs.md)
 
 ## Related Views
-- [AV-003: Live Microphone to Graph Runtime View](./AV-003-MicToGraph-SeqenceDiagram.md) — shares the `onWave` broadcast interaction; AV-003 covers the runtime/thread context, this view covers the static tab hierarchy and registration.
-- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md) — the `ui/tabs` module that contains these classes.
+- [AV-003: Live Microphone to Graph Runtime View](./AV-003-MicToGraph-SeqenceDiagram.md) 
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md)
