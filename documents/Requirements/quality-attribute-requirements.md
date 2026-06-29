@@ -284,7 +284,7 @@ Importance: Medium Difficulty: Medium
 
 - [EXP-07](../Experiments/EXP-07-cross-platform-build-deployment.md) (Cross-platform build·deployment)
 
-#### QAS-11 / Microphone-Disconnect User Notification
+### QAS-11 / Microphone-Disconnect User Notification
 
 *Usability*
 
@@ -311,7 +311,7 @@ Importance: High Difficulty: Medium
 
 - [EXP-07](../Experiments/EXP-07-cross-platform-build-deployment.md) (Cross-platform build·deployment)
 
-# QAS-12 / Measurement History Aggregation & Overhaul-Timing Provision
+### QAS-12 / Measurement History Aggregation & Overhaul-Timing Provision
 
 **Usability → Aggregate**
 
