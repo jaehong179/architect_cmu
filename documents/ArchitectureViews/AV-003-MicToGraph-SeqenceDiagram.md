@@ -36,5 +36,5 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 - [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
-- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md) — the modules that host these runtime components.
-- [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) — how `TabManager` broadcasts to the `TabViews` shown here (shared `onWave` path).
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md)
+- [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) 
