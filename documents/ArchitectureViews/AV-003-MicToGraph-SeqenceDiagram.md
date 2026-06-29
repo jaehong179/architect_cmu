@@ -7,17 +7,15 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 
 ## Element Catalog
 
-#### SharedAudio
-- A ring buffer used to process the audio input and processing asynchronously. (Not changed from the existing source code.)
+#### Audio source thread «Producer»
+- runs the active audio worker; captures PCM and writes it to the shared ring buffer.
 
-#### AudioInput
-- Responsible for storing the watch's audio data into the ring buffer.
+#### MAIN / GUI thread «Consumer»
+- pulls audio, runs measurement (DSP), and updates the graph widgets.
 
-#### TimeGrapher
-- Responsible for calculating the watch's audio data into data (T1/T2/T3) that can be displayed by the TimeGrapher.
-
-#### TabView
-- The graph displayed by the TimeGrapher.
+#### WATCHDOG thread (500 ms tick) 
+- periodically snapshots liveness state and raises fault events.
+- 
 
 ## Behavior
 
