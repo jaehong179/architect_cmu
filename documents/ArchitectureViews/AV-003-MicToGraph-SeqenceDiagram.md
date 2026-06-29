@@ -7,15 +7,23 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 
 ## Element Catalog
 
-#### Audio source thread «Producer»
-- runs the active audio worker; captures PCM and writes it to the shared ring buffer.
+### Threads
 
-#### MAIN / GUI thread «Consumer»
-- pulls audio, runs measurement (DSP), and updates the graph widgets.
+- **Audio source thread (Producer)** — captures audio and writes it to the shared buffer.
+- **MAIN / GUI thread (Consumer)** — reads audio, runs measurement, and updates the graphs.
+- **WATCHDOG thread** — wakes every 500 ms to check liveness and raise fault events.
 
-#### WATCHDOG thread (500 ms tick) 
-- periodically snapshots liveness state and raises fault events.
-- 
+### Components
+
+- **TAudioWorker / TPlaybackWorker / TSimWorker** — the active audio source (live / playback / sim). Writes audio into SharedAudio and signals AudioDataReady.
+- **SharedAudio** — ring buffer that decouples capture from processing so the two threads run asynchronously.
+- **CaptureController** — the Consumer. Reads SharedAudio, runs tg_process(), drives the displays, and publishes liveness to WatchdogState.
+- **MeasurementEngine** — computes rate, beat error, and amplitude.
+- **TabManager** — broadcasts results to every graph tab (fan-out 1:N).
+- **TabViews**  — the graph widgets that render the signal (onWave / onMeasurement).
+- **WatchdogState** — shared state holding liveness timestamps; published by the Consumer, read by the watchdog.
+- **WatchdogWorker** — runs the checks (AudioDeviceTimeout 1 s, NoSignalTimeout 10 s) and raises an event on fault.
+- **EventHandler** — shows the user alert on a watchdog event.
 
 ## Behavior
 
@@ -25,7 +33,8 @@ Through this diagram, you can identify the parts needed to verify whether the pr
 ![Sequence Diagram](../images/MicToGraph_SeqenceDiagram.png)
 
 ## Related ADRs
-- N/A
+- [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
-- N/A
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md) — the modules that host these runtime components.
+- [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) — how `TabManager` broadcasts to the `TabViews` shown here (shared `onWave` path).
