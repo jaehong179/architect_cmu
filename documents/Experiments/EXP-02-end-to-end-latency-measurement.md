@@ -2,11 +2,11 @@
 
 ## Objective
 
-Measure end-to-end latency from a microphone impulse to the GUI update and verify it stays within 100 ms under peak load.
+Measure end-to-end latency from a microphone impulse to the GUI update and verify it stays within 100 ms under peak load (12 tabs active).
 
 ## Status
 
-- [Planned | **In progress** | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | Canceled | **Concluded**]
 
 ## Expected outcomes
 
@@ -18,17 +18,17 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Resources required
 
-- Source code analysis
-
 - Raspberry Pi 5 + audio capture setup
-
+  
 - Timestamped logging across pipeline stages
+
+- Peak-load scenario (12 tabs active)
 
 ## Experiment description
 
-- Source code based analysis: Analyze the computational complexity of the processing whole graph.
+- Insert timestamp logging at each pipeline stage: (1) audio block captured, (2) block processed for beat detection/measurement, (3) waveform and readings displayed in the GUI.
 
-- Log based analysis: Measure elapsed time from microphone input to GUI update under peak load (12 tabs active)
+- Measure elapsed time from microphone input to GUI update under peak load (12 tabs active), reporting capture-to-processing, processing-to-display, and total latency (average and worst-case), plus dropped blocks and missed beats.
 
 ## Duration
 
@@ -42,6 +42,4 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 ## Results and recommendations
 
-- Source code based analysis: All required graphs use the same Tic/Toc calculations and wave signal processing as the Rate/Scope tab and Sound Print graph. Therefore, they have the same algorithmic and computational complexity, and no additional processing overhead is expected based on the provided source code.
-
-- Log based : TBD
+TBD
