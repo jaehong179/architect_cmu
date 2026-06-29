@@ -33,6 +33,36 @@ int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
     return -1;
 }
 
+bool TabSequenceDisplay::isPositionMeasuredInTable(int row) const
+{
+    if (!mTable || row < 0 || row >= 6)
+        return false;
+    const QTableWidgetItem *rateItem = mTable->item(row, 1);
+    return rateItem && rateItem->text() != QStringLiteral("--");
+}
+
+QList<int> TabSequenceDisplay::measuredPositionIndices() const
+{
+    QList<int> indices;
+    for (int step = 0; step < corePositionSequenceLength(); ++step) {
+        const int row = corePositionSequenceIndices()[step];
+        if (isPositionMeasuredInTable(row))
+            indices.append(row);
+    }
+    return indices;
+}
+
+QList<int> TabSequenceDisplay::remainingPositionIndices() const
+{
+    QList<int> indices;
+    for (int step = 0; step < corePositionSequenceLength(); ++step) {
+        const int row = corePositionSequenceIndices()[step];
+        if (!isPositionMeasuredInTable(row))
+            indices.append(row);
+    }
+    return indices;
+}
+
 TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 {
     // 전체 다크 테마 적용
