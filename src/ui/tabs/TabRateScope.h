@@ -27,6 +27,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;   // [③] 정지 중 트렌드 클릭 → 그 시점으로 스코프 이동
+    void onResumeLive(bool seeked) override;  // [③] seek 후 resume 시 이력으로 그린 임시 상태 정리
 
     // 8분 이력 버퍼 주입(MainWindow 소유). pause 중 이 버퍼를 queryWindow 로 그린다.
     void setHistory(WaveLodHistory *h) { mHistory = h; }

@@ -385,18 +385,32 @@ void TabRateScope::setPaused(bool paused)
         // 상단 rate 플롯은 '라이브 형태 그대로 동결' — 재렌더/재스케일 안 함(정지해도 모습 불변).
         //  seek/스크롤 시엔 커서선만 라이브 좌표 위에서 이동(데이터·축 불변). onSeek 참고.
     } else {
-        // 라이브 복귀: 클리어 + 카운터 리셋 + 축 원복.
+        // Resume: restore live axis interaction only — keep waveform/markers/counters so
+        // the amplitude trace continues from the pause point (seek cleanup is onResumeLive).
         mHistActive = false;
-        if (mRateCursor) mRateCursor->setVisible(false);   // 상단 클릭 커서 숨김
-        mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0; mSweepArmed = false; mHaveFirstTick = false;   // 재무장
-        mScopePlot->graph(0)->data()->clear();
-        mScopePlot->graph(1)->data()->clear();
-        mScopePlot->clearItems();
+        if (mRateCursor) mRateCursor->setVisible(false);
         mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
     }
+}
+
+void TabRateScope::onResumeLive(bool seeked)
+{
+    if (!seeked)
+        return;
+
+    mHistActive = false;
+    if (mRateCursor) mRateCursor->setVisible(false);
+    mDecimCount = 0;
+    mScopePlot->graph(0)->data()->clear();
+    mScopePlot->graph(1)->data()->clear();
+    mScopePlot->clearItems();
+    mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
+    mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
+    mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+    mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 잘라 그린다(라이브와 같은 좌표).
