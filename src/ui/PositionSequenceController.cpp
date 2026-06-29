@@ -36,6 +36,21 @@ void PositionSequenceController::stop()
     emit phaseChanged(QString(), QStringLiteral("idle"), 0);
 }
 
+void PositionSequenceController::pause()
+{
+    if (mPhase == Phase::Idle || mAwaitingConfirm)
+        return;
+    mTimer->stop();
+}
+
+void PositionSequenceController::resume()
+{
+    if (mPhase == Phase::Idle || mAwaitingConfirm)
+        return;
+    if (!mTimer->isActive())
+        mTimer->start();
+}
+
 void PositionSequenceController::confirmPositionChange()
 {
     if (!mAwaitingConfirm) return;

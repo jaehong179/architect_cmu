@@ -136,6 +136,9 @@ void MainWindow::updateDetectedPositionUiSync(const QString &detectedLabel)
     if (!mSequenceDisplay)
         return;
 
+    if (mIsPaused)
+        return;
+
     const QString normalizedLabel = detectedLabel.trimmed().toUpper();
 
     const int detectedIndex = sequenceIndexFromDetectedPosition(detectedLabel);
@@ -639,6 +642,16 @@ bool MainWindow::isRunning() const
     return mIsRunning; 
 }
 
+bool MainWindow::isPaused() const
+{
+    return mIsPaused;
+}
+
+bool MainWindow::inWarmup() const
+{
+    return mInWarmup;
+}
+
 QString MainWindow::detectedPosition() const
 {
     return mDetectedPosition;
@@ -830,6 +843,75 @@ void MainWindow::stopSession()
     finishSession(true);
 }
 
+void MainWindow::togglePauseSession()
+{
+    if (!mIsRunning || mInWarmup)
+        return;
+
+    if (mIsPaused) {
+        if (mCapture)    mCapture->setPaused(false);
+        if (mTabManager) mTabManager->setPaused(false);
+        if (mRateScope)  mRateScope->setPaused(false);
+        if (mPositionSequence)
+            mPositionSequence->resume();
+
+        mIsPaused = false;
+        emit isPausedChanged();
+
+        if (mLastPhaseLabel.isEmpty() || mLastPhaseLabel == QStringLiteral("idle"))
+            statusBar()->showMessage(QStringLiteral("Running"));
+        else {
+            const QString phaseText = (mLastPhaseLabel == QStringLiteral("stabilizing"))
+                ? QStringLiteral("Stabilizing") : QStringLiteral("Measuring");
+            statusBar()->showMessage(QStringLiteral("%1 %2 — %3 s remaining")
+                .arg(phaseText, mLastPhaseName)
+                .arg(mLastPhaseRemainingSec));
+        }
+    } else {
+        if (mCapture)    mCapture->setPaused(true);
+        if (mTabManager) mTabManager->setPaused(true);
+        if (mRateScope)  mRateScope->setPaused(true);
+        if (mPositionSequence)
+            mPositionSequence->pause();
+
+        mIsPaused = true;
+        emit isPausedChanged();
+        updatePauseStatusMessage();
+    }
+}
+
+void MainWindow::clearPauseState(void)
+{
+    if (mCapture)    mCapture->setPaused(false);
+    if (mTabManager) mTabManager->setPaused(false);
+    if (mRateScope)  mRateScope->setPaused(false);
+
+    if (mIsPaused) {
+        mIsPaused = false;
+        emit isPausedChanged();
+    }
+}
+
+void MainWindow::updatePauseStatusMessage(void)
+{
+    if (!mIsPaused) {
+        if (mLastPhaseLabel.isEmpty() || mLastPhaseLabel == QStringLiteral("idle"))
+            statusBar()->showMessage(QStringLiteral("Running"));
+        return;
+    }
+
+    if (mLastPhaseLabel.isEmpty() || mLastPhaseLabel == QStringLiteral("idle")) {
+        statusBar()->showMessage(QStringLiteral("Paused"));
+        return;
+    }
+
+    const QString phaseText = (mLastPhaseLabel == QStringLiteral("stabilizing"))
+        ? QStringLiteral("Stabilizing") : QStringLiteral("Measuring");
+    statusBar()->showMessage(QStringLiteral("Paused — %1 %2 — %3 s remaining")
+        .arg(phaseText, mLastPhaseName)
+        .arg(mLastPhaseRemainingSec));
+}
+
 void MainWindow::finishSession(bool runDiag)
 {
     if (!mIsRunning)
@@ -878,6 +960,7 @@ static const int kWarmupSecs[] = {0, 5, 10, 15, 20};
 void MainWindow::startWarmup(int seconds)
 {
     mInWarmup = true;
+    emit inWarmupChanged();
     if (mTabManager) mTabManager->setWarmup(true);
     mWarmupOverlay->startCountdown(seconds);
     statusBar()->showMessage("Warming up...");
@@ -887,6 +970,7 @@ void MainWindow::cancelWarmup()
 {
     if (!mInWarmup) return;
     mInWarmup = false;
+    emit inWarmupChanged();
     if (mWarmupOverlay) mWarmupOverlay->cancel();
     if (mTabManager) mTabManager->setWarmup(false);
 }
@@ -894,6 +978,7 @@ void MainWindow::cancelWarmup()
 void MainWindow::onWarmupFinished()
 {
     mInWarmup = false;
+    emit inWarmupChanged();
     // [측정 대기] 워밍업 종료 시점을 rate 그래프 x축 원점(0)으로 → 워밍업 시간 갭 제거
     if (mCapture && mCurrentSamplesPerSecond > 0) {
         const double originSec = (double)mCapture->totalSamples() / (double)mCurrentSamplesPerSecond;
@@ -1215,8 +1300,7 @@ void MainWindow::Reset(void)
     qInfo()<<"RESET";
     if (mTabManager) mTabManager->broadcastReset();
     mWaveHistory.clear();
-    if (mCapture)    mCapture->setPaused(false);
-    if (mTabManager) mTabManager->setPaused(false);
+    clearPauseState();
     if (mSeekLabel)  mSeekLabel->clear();
     EventsReset();
 }
@@ -1333,9 +1417,12 @@ void MainWindow::SetGuiRunMode(void)
 
 void MainWindow::SetGuiStopMode(void)
 {
-    if (mCapture)    mCapture->setPaused(false);
-    if (mTabManager) mTabManager->setPaused(false);
+    clearPauseState();
     if (mSeekLabel)  mSeekLabel->clear();
+
+    mLastPhaseName.clear();
+    mLastPhaseLabel.clear();
+    mLastPhaseRemainingSec = 0;
 
     mIsRunning = false;
     emit isRunningChanged();
@@ -1359,8 +1446,17 @@ QObject *MainWindow::positionTiming() const
 void MainWindow::onPositionPhaseChanged(const QString &positionName,
                                         const QString &phaseLabel, int remainingSec)
 {
+    mLastPhaseName = positionName;
+    mLastPhaseLabel = phaseLabel;
+    mLastPhaseRemainingSec = remainingSec;
+
     if (mSequenceDisplay)
         mSequenceDisplay->setPhaseStatus(phaseLabel, remainingSec);
+
+    if (mIsPaused) {
+        updatePauseStatusMessage();
+        return;
+    }
 
     if (phaseLabel.isEmpty() || phaseLabel == QStringLiteral("idle")) {
         statusBar()->showMessage(QStringLiteral("Stopped"));

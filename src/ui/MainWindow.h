@@ -59,6 +59,8 @@ class MainWindow : public QMainWindow
     Q_PROPERTY(int averagingPeriodIndex READ averagingPeriodIndex WRITE setAveragingPeriodIndex NOTIFY averagingPeriodIndexChanged)
     Q_PROPERTY(QString selectedWavFile READ selectedWavFile NOTIFY selectedWavFileChanged)
     Q_PROPERTY(bool isRunning READ isRunning NOTIFY isRunningChanged)
+    Q_PROPERTY(bool isPaused READ isPaused NOTIFY isPausedChanged)
+    Q_PROPERTY(bool inWarmup READ inWarmup NOTIFY inWarmupChanged)
     Q_PROPERTY(bool recordSessionEnabled READ recordSessionEnabled WRITE setRecordSessionEnabled NOTIFY recordSessionEnabledChanged)
     Q_PROPERTY(QString detectedPosition READ detectedPosition NOTIFY detectedPositionChanged)
     
@@ -98,6 +100,7 @@ public:
     // =========================================================================
     Q_INVOKABLE void startSession();
     Q_INVOKABLE void stopSession();
+    Q_INVOKABLE void togglePauseSession();
     Q_INVOKABLE void refreshDevices();
     Q_INVOKABLE bool choosePlaybackFile();
     Q_INVOKABLE void onControlPanelToggled(bool collapsed);
@@ -122,6 +125,8 @@ public:
 
     QString selectedWavFile() const;
     bool isRunning() const;
+    bool isPaused() const;
+    bool inWarmup() const;
     QString detectedPosition() const;
 
     bool recordSessionEnabled() const;
@@ -183,6 +188,8 @@ signals:
     void averagingPeriodIndexChanged();
     void selectedWavFileChanged();
     void isRunningChanged();
+    void isPausedChanged();
+    void inWarmupChanged();
     void detectedPositionChanged();
     void recordSessionEnabledChanged();
     void detectorBphIndexChanged();
@@ -259,6 +266,8 @@ private:
     bool   SetPlaybackFile(const QString &fileName);
     void   SetGuiRunMode(void);
     void   SetGuiStopMode(void);
+    void   clearPauseState(void);
+    void   updatePauseStatusMessage(void);
     // 세션 종료 공통 정리(수동 Stop·Playback/Sim 자동 종료). wasRunning==false 면 no-op(중복 호출 방지).
     void   finishSession(bool runDiag);
     void   triggerDiagnosis();
@@ -302,6 +311,10 @@ private:
     QString                    mEngineer;
 
     bool                       mIsRunning = false;
+    bool                       mIsPaused = false;
+    QString                    mLastPhaseName;
+    QString                    mLastPhaseLabel;
+    int                        mLastPhaseRemainingSec = 0;
     bool                       mRecordSessionEnabled = false;
     QString                    mDetectedPosition;
     int                        mDetectedStableCandidateIndex = -1;

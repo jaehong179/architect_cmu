@@ -290,7 +290,7 @@ Rectangle {
             HoverHandler { id: posHover }
         }
 
-        // ── Start / Stop 토글 버튼 ──
+        // ── Start / Stop / Pause ──
         Rectangle {
             id: miniStartStopBtn
             width: 34
@@ -324,7 +324,6 @@ Rectangle {
                 }
             }
 
-            // Tooltip
             ToolTip.visible: ssHover.containsMouse
             ToolTip.text: cppBackend.isRunning ? "Stop Session" : "Start Session"
             ToolTip.delay: 400
@@ -339,6 +338,40 @@ Rectangle {
                     else
                         cppBackend.startSession()
                 }
+            }
+        }
+
+        Rectangle {
+            id: miniPauseBtn
+            width: 34
+            height: 34
+            radius: 8
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: cppBackend.isRunning
+            opacity: (cppBackend.isRunning && !cppBackend.inWarmup) ? 1.0 : 0.35
+            color: cppBackend.isPaused ? "#e65100" : "#f57c00"
+            border.color: cppBackend.isPaused ? "#ff9800" : "#ffb74d"
+            border.width: 1
+
+            Text {
+                anchors.centerIn: parent
+                text: cppBackend.isPaused ? "▶" : "⏸"
+                font.pixelSize: 15
+                color: "#ffffff"
+            }
+
+            ToolTip.visible: miniPauseHover.containsMouse
+            ToolTip.text: cppBackend.inWarmup
+                ? "Pause unavailable during warm-up"
+                : (cppBackend.isPaused ? "Resume Session" : "Pause Session")
+            ToolTip.delay: 400
+
+            HoverHandler { id: miniPauseHover }
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: cppBackend.isRunning && !cppBackend.inWarmup
+                onClicked: { cppBackend.togglePauseSession() }
             }
         }
     }
@@ -1145,6 +1178,34 @@ Rectangle {
                             contentItem: Text {
                                 text: parent.text
                                 color: parent.enabled ? "#ffffff" : "#608060"
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        Button {
+                            id: pauseBtn
+                            Layout.fillWidth: true
+                            text: cppBackend.isPaused ? "▶ RESUME" : "⏸ PAUSE"
+                            enabled: cppBackend.isRunning && !cppBackend.inWarmup
+                            onClicked: { cppBackend.togglePauseSession() }
+
+                            ToolTip.visible: pauseBtn.hovered
+                            ToolTip.text: cppBackend.inWarmup
+                                ? "Pause unavailable during warm-up"
+                                : (cppBackend.isPaused ? "Resume Session" : "Pause Session")
+                            ToolTip.delay: 400
+
+                            background: Rectangle {
+                                color: parent.enabled
+                                    ? (cppBackend.isPaused ? "#e65100" : "#f57c00")
+                                    : "#3d3020"
+                                radius: 4
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: parent.enabled ? "#ffffff" : "#806040"
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
