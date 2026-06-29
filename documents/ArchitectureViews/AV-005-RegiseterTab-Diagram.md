@@ -1,4 +1,4 @@
-# Register Tab Hierarchy
+# Graph Tab Hierarchy
 
 This view shows the design that makes adding graph tabs to TimeGrapher easy. It satisfies [QAS-08](../Requirements/quality-attribute-requirements.md#qas-08--new-tab-extensibility): adding a graph tab must not require modifying unrelated code. To add a tab, a developer implements one new class that inherits the `TabView` abstract base class and registers it with one `TabManager::registerTab()` call (OCP).
 
