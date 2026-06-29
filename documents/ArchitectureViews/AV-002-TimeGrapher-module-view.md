@@ -1,4 +1,4 @@
-# Top-Level Module Uses View (Package Diagram)
+# Top-Level Module Uses View 
 
 The scope is the static code structure of the TimeGrapher application.
 The diagram shows seven top-level packages and their `«uses»` dependencies.
@@ -66,5 +66,6 @@ Key pattern applied:
 [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
-- [AV-003: Live Microphone to Graph Behavior Diagram](./AV-003-MicToGraph-SeqenceDiagram.md) 
+- [AV-003: Live Microphone to Graph Behavior Diagram](./AV-003-MicToGraph-SeqenceDiagram.md)
+- [AV-004: Position-Detection Runtime View](.AV-004-Position_Detection_Runtime_View.md).
 - [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) 
