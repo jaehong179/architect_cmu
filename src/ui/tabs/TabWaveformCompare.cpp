@@ -302,7 +302,7 @@ void TabWaveformCompare::drawPaperstrip()
     const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
     const int beat = mBuf.samplesPerBeat();
     if (beat <= 0 || mAOnsetHist.isEmpty() || !mHaveAnchor) {
-        mPaper->graph(0)->data()->clear(); mPaper->graph(1)->data()->clear(); mPaper->graph(2)->data()->clear(); mPaper->clearItems(); mPaper->replot(); return;
+        mPaper->graph(0)->data()->clear(); mPaper->graph(1)->data()->clear(); mPaper->clearItems(); mPaper->replot(); return;
     }
     // tg paperstrip: 폴딩창 W = 비트주기/zoom. 고정 앵커(점프 없음) + 고정 0.5 오프셋(초기 가운데).
     //  → tic·tac 이 거의 같은 x 로 접히되 'beat error' 만큼 벌어지고, rate 드리프트는 기울기/ wrap 으로 보임.
