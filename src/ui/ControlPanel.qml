@@ -138,61 +138,82 @@ Rectangle {
                 border.width: 1
             }
             Item {
-                id: hamburgerIcon
+                id: toggleIcon
                 anchors.fill: parent
 
                 readonly property bool collapsed: cppBackend.controlPanelCollapsed
+                readonly property color iconColor: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
 
-                Rectangle {
-                    id: bar1
-                    width: hamburgerIcon.collapsed ? 14 : 11
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 11 : 18
-                    transformOrigin: Item.Center
-                    rotation: hamburgerIcon.collapsed ? 0 : 45
+                // Collapsed: hamburger menu
+                Item {
+                    anchors.fill: parent
+                    opacity: toggleIcon.collapsed ? 1 : 0
+                    visible: opacity > 0
 
-                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
-                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 11
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 15
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 14; height: 2; radius: 1
+                        color: toggleIcon.iconColor
+                        x: (parent.width - width) / 2
+                        y: 19
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
                 }
 
-                Rectangle {
-                    id: bar2
-                    width: 14
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: 15
-                    opacity: hamburgerIcon.collapsed ? 1 : 0
-                    transformOrigin: Item.Center
+                // Expanded: collapse chevron (←) — geometry-based for true centering
+                Item {
+                    width: 12
+                    height: 12
+                    anchors.centerIn: parent
+                    opacity: toggleIcon.collapsed ? 0 : 1
+                    visible: opacity > 0
 
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
-                }
+                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
 
-                Rectangle {
-                    id: bar3
-                    width: hamburgerIcon.collapsed ? 14 : 11
-                    height: 2
-                    radius: 1
-                    color: toggleBtn.hovered ? root.colorPrimaryLight : root.colorTextMain
-                    x: (parent.width - width) / 2
-                    y: hamburgerIcon.collapsed ? 19 : 12
-                    transformOrigin: Item.Center
-                    rotation: hamburgerIcon.collapsed ? 0 : -45
-
-                    Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on rotation { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    Rectangle {
+                        width: 8
+                        height: 2
+                        radius: 1
+                        color: toggleIcon.iconColor
+                        x: 2
+                        y: 6
+                        rotation: -45
+                        transformOrigin: Item.Left
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
+                    Rectangle {
+                        width: 8
+                        height: 2
+                        radius: 1
+                        color: toggleIcon.iconColor
+                        x: 2
+                        y: 6
+                        rotation: 45
+                        transformOrigin: Item.Left
+                        Behavior on color { ColorAnimation { duration: 100 } }
+                    }
                 }
             }
+
+            ToolTip.visible: toggleBtn.hovered
+            ToolTip.text: cppBackend.controlPanelCollapsed ? "Expand panel" : "Collapse panel"
+            ToolTip.delay: 400
+
             onClicked: { cppBackend.controlPanelCollapsed = !cppBackend.controlPanelCollapsed }
         }
     }
