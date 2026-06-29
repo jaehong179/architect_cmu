@@ -41,14 +41,17 @@ public slots:
 signals:
     // 추론 결과(라벨 + 신뢰도). UI 연결용(현재는 단순 print 보조).
     void resultReady(const QString &label, float confidence);
+    // 카메라 사용 가능/분리 상태 변화. UI 가 watch-position 아이콘 활성/비활성에 사용.
+    void cameraAvailabilityChanged(bool available);
 
 private slots:
     void onFrame(const QVideoFrame &frame);
     void onTick();
-    void onVideoInputsChanged();   // ② videoInputs 목록 변화 → cameraAlive 갱신(분리 즉시 감지)
+    void onVideoInputsChanged();   // ② videoInputs 목록 변화 → 카메라 분리/연결 자동 정지/재개
 
 private:
-    void refreshCameraPresence();  // 활성 카메라가 현재 videoInputs 목록에 있는지 → cameraAlive
+    void openCamera();    // 카메라 오픈 + 캡처/추론 시작(cameraActive/Alive publish)
+    void closeCamera();   // 카메라/캡처 정지(추론 중단)
 
 private:
     std::unique_ptr<TfliteApi> mTflite;

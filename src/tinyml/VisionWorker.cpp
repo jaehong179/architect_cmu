@@ -36,7 +36,7 @@ VisionWorker::~VisionWorker()
 
 void VisionWorker::start()
 {
-    // ── TFLite 라이브러리/모델 로드 ───────────────────────────────────────────
+    // ── TFLite 라이브러리/모델 로드(1회) ───────────────────────────────────────
     if (!mTflite->loadLibrary()) {
         qWarning() << "[vision] TFLite load failed:" << QString::fromStdString(mTflite->lastError());
         return;
@@ -58,21 +58,43 @@ void VisionWorker::start()
             << "output elems:" << mTflite->outputElementCount()
             << "| build model:" << (kUseInt8Model ? "int8(quantized)" : "fp32");
 
-    // ── 카메라 선택/오픈 ──────────────────────────────────────────────────────
+    // ② videoInputs 목록 변화 구독 — USB 카메라 분리/연결을 즉시 감지.
+    //    카메라 오픈 여부와 무관하게 워커 수명 동안 유지 → 분리 후 재연결을 자동으로 감지한다.
+    mDevices = new QMediaDevices(this);
+    connect(mDevices, &QMediaDevices::videoInputsChanged, this, &VisionWorker::onVideoInputsChanged);
+
+    // 캡처 세션 + 비디오 싱크는 워커 수명 동안 1회만 생성·유지한다.
+    //  재연결 시 QCamera 만 교체하고 싱크(프레임 전달 경로)는 그대로 두어야
+    mSession = new QMediaCaptureSession(this);
+    mSink    = new QVideoSink(this);
+    mSession->setVideoSink(mSink);
+    connect(mSink, &QVideoSink::videoFrameChanged, this, &VisionWorker::onFrame);
+
+    // 1Hz 추론 타이머(카메라가 열려 있을 때만 start/stop).
+    mTimer = new QTimer(this);
+    mTimer->setInterval(kInferIntervalMs);
+    connect(mTimer, &QTimer::timeout, this, &VisionWorker::onTick);
+
+    // 연결된 카메라가 있으면 즉시 오픈, 없으면 연결될 때까지 대기(아이콘 비활성).
+    if (!QMediaDevices::videoInputs().isEmpty())
+        openCamera();
+    else
+        qInfo() << "[vision] no webcam found — waiting for connection";
+}
+
+// 카메라 오픈 + 캡처/추론 시작. cameraActive/cameraAlive 를 워치독에 publish.
+void VisionWorker::openCamera()
+{
+    if (mCamera || !mSession) return;   // 이미 열림 / 세션 미준비
+
     const QList<QCameraDevice> cams = QMediaDevices::videoInputs();
-    if (cams.isEmpty()) {
-        qWarning() << "[vision] no webcam found";
-        return;
-    }
+    if (cams.isEmpty()) return;
     const int camIdx = (kCameraId >= 0 && kCameraId < cams.size()) ? kCameraId : 0;
     const QCameraDevice dev = cams.at(camIdx);
     mActiveCamId = dev.id();   // ② 이 카메라의 분리를 추적
 
-    mCamera  = new QCamera(dev, this);
-    mSession = new QMediaCaptureSession(this);
-    mSink    = new QVideoSink(this);
+    mCamera = new QCamera(dev, this);
     mSession->setCamera(mCamera);
-    mSession->setVideoSink(mSink);
 
     // 1280×720 에 가장 가까운 포맷 선택(best effort)
     QCameraFormat best;
@@ -80,26 +102,20 @@ void VisionWorker::start()
     const auto formats = dev.videoFormats();
     for (const QCameraFormat &f : formats) {
         const QSize r = f.resolution();
-        qInfo().noquote() << QStringLiteral("[vision] supported format: %1x%2 @ %3-%4fps")
-                                 .arg(r.width())
-                                 .arg(r.height())
-                                 .arg(f.minFrameRate())
-                                 .arg(f.maxFrameRate());
         const int score = -(std::abs(r.width() - kCamWidth) + std::abs(r.height() - kCamHeight));
         if (score > bestScore) { bestScore = score; best = f; }
     }
     if (!best.isNull())
         mCamera->setCameraFormat(best);
 
-    connect(mSink, &QVideoSink::videoFrameChanged, this, &VisionWorker::onFrame);
+    // 카메라 오류(분리 직후 재오픈 실패 등)를 콘솔에 남겨 진단을 돕는다.
+    connect(mCamera, &QCamera::errorOccurred, this,
+            [](QCamera::Error err, const QString &msg) {
+                if (err != QCamera::NoError)
+                    qWarning() << "[vision] camera error:" << msg;
+            });
 
-    // ② videoInputs 목록 변화 구독 — USB 카메라 분리를 즉시 감지(오디오 DevicePresenceMonitor 동일 패턴).
-    mDevices = new QMediaDevices(this);
-    connect(mDevices, &QMediaDevices::videoInputsChanged, this, &VisionWorker::onVideoInputsChanged);
-
-    mTimer = new QTimer(this);
-    mTimer->setInterval(kInferIntervalMs);
-    connect(mTimer, &QTimer::timeout, this, &VisionWorker::onTick);
+    { QMutexLocker lock(&mFrameMutex); mLatestFrame = QImage(); }   // 이전 프레임 잔상 제거
 
     mReady = true;
     mCamera->start();
@@ -112,30 +128,57 @@ void VisionWorker::start()
         mWatchdog->cameraActive.store(true, std::memory_order_relaxed);
     }
     qInfo() << "[vision] webcam started:" << dev.description();
+    emit cameraAvailabilityChanged(true);
+}
+
+// 카메라/캡처 정지(추론 중단). 세션/싱크/타이머/모델은 유지(재오픈 대비).
+void VisionWorker::closeCamera()
+{
+    if (mTimer) mTimer->stop();
+    mReady = false;
+    if (mCamera) {
+        mCamera->stop();
+        if (mSession) mSession->setCamera(nullptr);   // 세션에서 분리(싱크는 유지)
+        delete mCamera;
+        mCamera = nullptr;
+    }
+    mActiveCamId.clear();
+    QMutexLocker lock(&mFrameMutex);
+    mLatestFrame = QImage();
 }
 
 void VisionWorker::stop()
 {
-    if (mTimer) { mTimer->stop(); }
-    if (mCamera) { mCamera->stop(); }
-    mReady = false;
+    closeCamera();
+    delete mSession; mSession = nullptr;
+    delete mSink;    mSink    = nullptr;
     if (mWatchdog) mWatchdog->cameraActive.store(false, std::memory_order_relaxed);  // 감시 해제
 }
 
-// ② 카메라 열거 변화 → 활성 카메라가 목록에 아직 있는지 검사해 cameraAlive 갱신.
+// ② 카메라 열거 변화 → 분리/연결을 판정해 추론 스레드를 자동으로 정지/재개.
 void VisionWorker::onVideoInputsChanged()
 {
-    refreshCameraPresence();
-}
-
-void VisionWorker::refreshCameraPresence()
-{
-    if (!mWatchdog || mActiveCamId.isEmpty()) return;
-    bool present = false;
     const QList<QCameraDevice> cams = QMediaDevices::videoInputs();
-    for (const QCameraDevice &d : cams)
-        if (d.id() == mActiveCamId) { present = true; break; }
-    mWatchdog->cameraAlive.store(present, std::memory_order_relaxed);
+
+    if (mCamera) {
+        // 카메라가 열린 상태 — 활성 카메라가 아직 목록에 있는지 확인.
+        bool present = false;
+        for (const QCameraDevice &d : cams)
+            if (d.id() == mActiveCamId) { present = true; break; }
+        if (!present) {
+            // USB 분리: 워치독에 분리 보고(모달 유지) → 추론 정지 → 아이콘 비활성.
+            if (mWatchdog) mWatchdog->cameraAlive.store(false, std::memory_order_relaxed);
+            closeCamera();
+            qInfo() << "[vision] webcam disconnected — inference stopped";
+            emit cameraAvailabilityChanged(false);
+        }
+    } else {
+        // 카메라가 닫힌 상태 — 사용할 수 있는 카메라가 생기면 자동 재개.
+        if (!cams.isEmpty()) {
+            qInfo() << "[vision] webcam connected — restarting inference";
+            openCamera();
+        }
+    }
 }
 
 void VisionWorker::onFrame(const QVideoFrame &frame)

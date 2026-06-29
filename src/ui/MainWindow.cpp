@@ -291,6 +291,16 @@ MainWindow::MainWindow(QWidget *parent)
                 updateDetectedPositionUiSync(label);
             });
 
+    // [vision · UI] 카메라 분리 시 watch-position 인식이 멈추므로 아이콘을 비활성(Camera Disconnected)으로
+    //  되돌린다. 재연결 시에는 추론이 재개되어 다음 결과가 도착하면 아이콘이 다시 활성화된다.
+    connect(mVisionWorker, &vision::VisionWorker::cameraAvailabilityChanged, this,
+            [this, visionLabel](bool available) {
+                if (!available) {
+                    visionLabel->setText(QStringLiteral("watch: --"));
+                    updateDetectedPositionUiSync(QString());
+                }
+            });
+
     mVisionThread->start();
 #endif
 
