@@ -1379,8 +1379,6 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
                                           const QString &nextPositionName,
                                           bool sequenceComplete)
 {
-    Q_UNUSED(sequenceComplete);
-
     const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
         && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
 
@@ -1398,6 +1396,15 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
             dlg.exec();
             mActivePositionDialog = nullptr;
         }
+    }
+
+    // [MPS 포지션 전환] 다음 포지션으로 넘어가기 직전에 엔진 누적 통계를 비운다.
+    //  → 포지션 이동/안정화 구간(다이얼로그 동안 들어온 핸들링 노이즈 포함)이 다음
+    //    포지션 측정값에 섞이지 않게 한다. BPH 락은 보존되어 즉시 깨끗하게 재수렴.
+    if (!sequenceComplete) {
+        mEngine.resetForPositionChange();
+        if (mTabManager) mTabManager->broadcastReset();   // 트레이스/히스토리 탭 표시도 새 포지션 기준으로 리셋
+        DisplayResults();
     }
 
     if (mPositionSequence)

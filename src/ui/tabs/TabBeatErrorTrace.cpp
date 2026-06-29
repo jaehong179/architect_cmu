@@ -23,17 +23,6 @@ const char *bedTierLabel(int tier)
 TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    QFont statusFont = font();
-    statusFont.setPointSizeF(14.0 * 1.5);   // 기존 diag 라벨(14pt) 대비 1.5배
-    statusFont.setBold(true);
-    const int statusAreaH = QFontMetrics(statusFont).height() * 2 + 8;
-
-    mAlert = new QLabel(this);
-    mAlert->setWordWrap(true);
-    mAlert->setFont(statusFont);
-    mAlert->setFixedHeight(statusAreaH);
-    mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));
-    lay->addWidget(mAlert);
 
     mPlot = new QCustomPlot(this);
     // 두 선 모델(문서 §탭5): 짝수 비트=Tic 선, 홀수 비트=Toc 선. 점을 선으로 이어 두 trace 로 보이게 함.
@@ -86,16 +75,7 @@ void TabBeatErrorTrace::onMeasurement(const MeasurementSnapshot &s)
 
 void TabBeatErrorTrace::updateStatusAlert()
 {
-    if (!mAlert || !mAnchored) return;
-
-    const QString gapTxt  = mBeatErrValid ? QString("%1 ms").arg(mBeatErrMs, 0, 'f', 2) : QStringLiteral("--");
-    const QString rateTxt = mRateValid ? QString("%1 s/d").arg(mRateSd, 0, 'f', 1) : QStringLiteral("--");
-
-    if (!mBeatErrValid) {
-        mAlert->setText(QStringLiteral("Measuring beat error…"));
-        mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
-        return;
-    }
+    if (!mAnchored || !mBeatErrValid) return;
 
     int tier = kTierGood;
     if (mBeatErrMs > kServiceMs)
@@ -116,29 +96,6 @@ void TabBeatErrorTrace::updateStatusAlert()
                                  .arg(traceRate, 0, 'f', 2)
                                  .arg(mN);
         mAlertTier = tier;
-    }
-
-    switch (tier) {
-    case kTierGood:
-        mAlert->setText(QString("Good — beat error (gap between the two lines) %1 · rate ≈ %2")
-                            .arg(gapTxt, rateTxt));
-        mAlert->setStyleSheet(QStringLiteral("color:#2ed573; font-weight:bold;"));
-        break;
-    case kTierCaution:
-        mAlert->setText(QString("Caution — beat error %1 (> %2 ms; monitor · service if > %3 ms) · rate ≈ %4")
-                            .arg(gapTxt)
-                            .arg(kGoodMs, 0, 'f', 1)
-                            .arg(kServiceMs, 0, 'f', 1)
-                            .arg(rateTxt));
-        mAlert->setStyleSheet(QStringLiteral("color:#ffa502; font-weight:bold;"));
-        break;
-    default:
-        mAlert->setText(QString("⚠ beat error too high: %1 (> %2 ms — adjust balance/beat error) · rate ≈ %3")
-                            .arg(gapTxt)
-                            .arg(kServiceMs, 0, 'f', 1)
-                            .arg(rateTxt));
-        mAlert->setStyleSheet(QStringLiteral("color:#ff4757; font-weight:bold;"));
-        break;
     }
 }
 
@@ -235,7 +192,6 @@ void TabBeatErrorTrace::onResetSession()
     mBeatErrMs = 0.0; mBeatErrValid = false;
     mRateSd = 0.0; mRateValid = false;
     mAlertTier = kTierUnknown;
-    mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
     if (mGapLine) mGapLine->setVisible(false);
     if (mGapText) mGapText->setVisible(false);
     if (mPlot) { PlotHelpers::clearAllGraphs(mPlot); mPlot->replot(); }

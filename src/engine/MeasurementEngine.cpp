@@ -95,6 +95,43 @@ void MeasurementEngine::reset()
     mPlotTimeOriginSec = 0.0;   // [측정 대기] 원점 초기화(웜업 종료 시 별도 설정)
 }
 
+void MeasurementEngine::resetForPositionChange()
+{
+    // [MPS 포지션 전환] 포지션 간 이동/안정화 구간의 데이터가 다음 포지션 측정값에
+    //  섞이지 않도록 누적 통계(rate RLS·beat·amplitude 롤링평균·시리즈)를 비운다.
+    //  단, 같은 시계이므로 BPH 락(BPH·BPH_Valid·WatchHertz)은 보존해 재검출 없이
+    //  새 포지션을 즉시 깨끗하게 재수렴시킨다.
+    mAmp.Have_A_Event = false;
+    mAmp.Amplitude_Tic_Valid = false;
+    mAmp.RollAmplitude->Reset();
+
+    mBeat.BeatErrorIdx = 0;
+    mBeat.RollBeatError->Reset();
+
+    // [이상치] 검출기·플래그 초기화
+    mRate.Outlier.reset(); mBeat.Outlier.reset(); mAmp.Outlier.reset();
+    mRate.LastOutlier = mBeat.LastOutlier = mAmp.LastOutlier = false;
+
+    // rate 회귀/시리즈 비움 — BPH(BPH·BPH_Valid·WatchHertz)는 일부러 보존.
+    mRate.xTicIndex = 0;
+    mRate.xTocIndex = 0;
+    mRate.StartTime = 0;
+    mRate.HaveStartTime = false;
+    mRate.HaveZeroOffset = false;
+    mRate.ZeroOffsetValue = 0.0;
+    mRate.xTic.clear();
+    mRate.xToc.clear();
+    mRate.yTic.clear();
+    mRate.yToc.clear();
+    mRate.yTicOut.clear();
+    mRate.yTocOut.clear();
+    mRate.RlsTicRate->Reset();
+    mRate.RlsTocRate->Reset();
+    mRate.DetrendTic->Reset();
+    mRate.DetrendToc->Reset();
+    mRate.RlsRateValid = false;
+}
+
 void MeasurementEngine::clearPlotsKeepState()
 {
     // [측정 대기] 워밍업 종료 시 호출: 플롯에 그려지는 tic/toc 시리즈만 비우고

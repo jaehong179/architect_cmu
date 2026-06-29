@@ -36,6 +36,11 @@ public:
     void setConfig(int sampleRateHz, int averagingPeriodSec, int liftAngleDeg);
     void reset();                                                  // 측정 상태/시리즈 비움(UI 무관)
 
+    // [MPS 포지션 전환] 포지션 간 전환 시 호출: 누적 통계(rate RLS·beat·amp 롤링평균·시리즈)는
+    //  비우되, 같은 시계의 BPH 락(BPH·BPH_Valid·WatchHertz)은 보존한다 → 전환/안정화 구간
+    //  데이터를 다음 포지션 측정에서 배제하면서 재검출 없이 즉시 깨끗하게 재수렴.
+    void resetForPositionChange();
+
     // [측정 대기] 워밍업 종료 전용: 수렴된 추정치(RLS·롤링평균·baseline)는 보존하고
     //  플롯 시리즈(tic/toc 점)만 비운다. 워밍업 동안 이미 수렴한 값을 버리지 않아
     //  종료 직후 안정된 값부터 그래프가 시작된다(콜드 재시작 transient 스파이크 방지).
