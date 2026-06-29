@@ -229,12 +229,13 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
 {
     mLast = s; mHaveLast = true;
-    mLive->setText(QString("Current[%1]:  rate=%2 s/d   beat=%3 ms   amp=%4°   bph=%5")
-        .arg(mPos->currentText())
-        .arg(s.rateValid ? QString::asprintf("%+.1f", s.rate) : QStringLiteral("--"))
-        .arg(s.beatErrorValid ? QString::number(s.beatErrorMs,'f',2) : QStringLiteral("--"))
-        .arg(s.amplitudeValid ? QString::number(s.amplitudeDeg,'f',0) : QStringLiteral("--"))
-        .arg(s.bphValid ? QString::number(s.bph) : QStringLiteral("--")));
+    if (mLive)
+        mLive->setText(QString("Current[%1]:  rate=%2 s/d   beat=%3 ms   amp=%4°   bph=%5")
+            .arg(mPos->currentText())
+            .arg(s.rateValid ? QString::asprintf("%+.1f", s.rate) : QStringLiteral("--"))
+            .arg(s.beatErrorValid ? QString::number(s.beatErrorMs,'f',2) : QStringLiteral("--"))
+            .arg(s.amplitudeValid ? QString::number(s.amplitudeDeg,'f',0) : QStringLiteral("--"))
+            .arg(s.bphValid ? QString::number(s.bph) : QStringLiteral("--")));
 
     // 실시간 측정 중인 포지션 행에 수치 실시간 업데이트
     int r = getRowIndexForPosition(mPos->currentText());
