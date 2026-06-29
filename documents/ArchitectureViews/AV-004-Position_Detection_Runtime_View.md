@@ -35,6 +35,6 @@ One detection cycle: VisionWorker wakes on its 1 Hz timer, asks TfliteApi to cla
 
 ##  Related views
 
-[AV-003: Live Microphone to Graph Runtime View — the measurement path that produces the values labeled by position](AV-003-MicToGraph-SeqenceDiagram.md)
+[AV-003: Live Microphone to Graph Runtime View](AV-003-MicToGraph-SeqenceDiagram.md)
 
-[AV-002: Top-Level Module Uses View — the vision module containing these components.](documents/ArchitectureViews/AV-002-TimeGrapher-module-view.md)
+[AV-002: Top-Level Module Uses View](documents/ArchitectureViews/AV-002-TimeGrapher-module-view.md)
