@@ -52,6 +52,10 @@ private:
     void     clampOffset();
     void     followLiveColumn();
     void     resetView();
+    void     selectAt(const QPointF &widgetPos);     // 클릭한 비트(컬럼) 선택 → 초록↔파랑 간격 표시
+    bool     findPairAtColumn(double colX, SoundImageRenderer::OverlayMarker &green,
+                              SoundImageRenderer::OverlayMarker &blue) const;
+    void     drawSelection(QPainter &painter, const Viewport &vp) const;
 
     QImage  *image = nullptr;
     double   mViewScale  = 1.0;   // 1.0 = 전체 fit, >1 = 확대
@@ -61,6 +65,11 @@ private:
     bool     mPanning    = false;
     QPointF  mPanStartWidget;
     QPointF  mPanStartOffset;
+    bool     mLeftDown   = false;   // 좌클릭 누름 중(클릭/드래그 구분용)
+    bool     mPressMoved = false;   // 누른 뒤 이동 발생(드래그) → 클릭 아님
+    QPointF  mPressWidgetPos;
+    bool     mHasSelection = false; // 비트 점 선택됨 → 간격 표시
+    double   mSelColX    = 0.0;      // 선택된 이미지 컬럼 x
     std::vector<SoundImageRenderer::OverlayMarker> mOverlayMarkers;   // 또렷 마커(이미지 좌표)
     double   mBeatPeriodMs = 0.0;   // 한 비트 길이(ms); 0 = 미확정(눈금 숫자 생략)
 

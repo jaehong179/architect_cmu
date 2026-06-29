@@ -165,6 +165,7 @@ void SoundImageWidget::resetView()
     mViewOffset = QPointF();
     mPanning = false;
     mUserViewLocked = false;
+    mHasSelection = false;   // 전체 보기로 돌아가면 선택 해제
     unsetCursor();
     update();
 }
@@ -188,9 +189,9 @@ void SoundImageWidget::paintEvent(QPaintEvent * /*event*/)
     //  크기를 배율에 비례시키면 3px 마커가 확대 시 거대한 블록이 되어 '뭉개진' 띠로 보인다. 그래서
     //  배율과 무관한 '고정 작은 점'으로 그린다 → 확대해도 작은 점(각 비트 구분), 축소 시엔 겹쳐 선으로 보임.
     if (!mOverlayMarkers.empty() && vp.sourceRect.width() > 0.0 && vp.sourceRect.height() > 0.0) {
-        constexpr double kDotPx = 4.0;   // 마커 점 한 변(위젯 픽셀, 고정)
+        constexpr double kDotPx = 4.5;   // 마커 점 지름(위젯 픽셀, 고정)
         painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
-        painter.setRenderHint(QPainter::Antialiasing, false);              // 또렷한 사각 에지
+        painter.setRenderHint(QPainter::Antialiasing, true);               // 매끄러운 동그라미
         painter.setClipRect(vp.destRect);                                  // 레터박스 여백으로 번지지 않게
         painter.setPen(Qt::NoPen);
         for (const SoundImageRenderer::OverlayMarker &m : mOverlayMarkers) {
@@ -198,13 +199,15 @@ void SoundImageWidget::paintEvent(QPaintEvent * /*event*/)
             const double v = (m.y + 0.5 - vp.sourceRect.top())  / vp.sourceRect.height();
             const double cx = vp.destRect.left() + u * vp.destRect.width();
             const double cy = vp.destRect.top()  + v * vp.destRect.height();
-            painter.fillRect(QRectF(cx - kDotPx * 0.5, cy - kDotPx * 0.5, kDotPx, kDotPx),
-                             QColor::fromRgba(m.color));
+            painter.setBrush(QColor::fromRgba(m.color));
+            painter.drawEllipse(QPointF(cx, cy), kDotPx * 0.5, kDotPx * 0.5);
         }
+        painter.setBrush(Qt::NoBrush);
         painter.setClipping(false);
     }
 
-    drawAxes(painter, vp);   // x(시간)·y(비트 내 ms) 눈금·단위
+    drawSelection(painter, vp);   // 선택한 비트: 초록↔파랑 점선 + 간격(ms)
+    drawAxes(painter, vp);        // x(시간)·y(비트 내 ms) 눈금·단위
 }
 
 // '좋은' 눈금 간격(1·2·5 ×10^k) 선택.
@@ -231,6 +234,11 @@ void SoundImageWidget::drawAxes(QPainter &painter, const Viewport &vp) const
 
     painter.setRenderHint(QPainter::Antialiasing, false);
     QFont f = painter.font(); f.setPointSizeF(8.0); painter.setFont(f);
+
+    // 축선(L자): 확대/이동과 무관하게 항상 표시. 눈금 값만 스케일에 맞춰 바뀐다.
+    painter.setPen(QPen(axisCol, 1.0));
+    painter.drawLine(QPointF(dst.left(), dst.top()), QPointF(dst.left(), dst.bottom()));      // y축
+    painter.drawLine(QPointF(dst.left(), dst.bottom()), QPointF(dst.right(), dst.bottom()));  // x축
 
     // ── y축: 비트 내 시간(ms) ──
     if (mBeatPeriodMs > 0.0) {
@@ -281,6 +289,91 @@ void SoundImageWidget::drawAxes(QPainter &painter, const Viewport &vp) const
     }
 }
 
+// 한 비트(컬럼) 안의 초록(A)·파랑(C) 마커 쌍을 찾는다(선택된 컬럼 x 에 가장 가까운 것).
+bool SoundImageWidget::findPairAtColumn(double colX,
+                                        SoundImageRenderer::OverlayMarker &green,
+                                        SoundImageRenderer::OverlayMarker &blue) const
+{
+    bool hg = false, hb = false;
+    double bg = 1e18, bb = 1e18;
+    for (const SoundImageRenderer::OverlayMarker &m : mOverlayMarkers) {
+        const int r = qRed(m.color), g = qGreen(m.color), b = qBlue(m.color);
+        const double d = std::abs(m.x - colX);
+        if (g > 128 && r < 128 && b < 128) { if (d < bg) { bg = d; green = m; hg = true; } }     // A=green
+        else if (b > 128 && r < 128 && g < 128) { if (d < bb) { bb = d; blue = m; hb = true; } } // C=blue
+    }
+    // 같은 비트로 볼 수 있게 두 점의 컬럼이 충분히 가까울 때만 쌍 성립.
+    return hg && hb && std::abs(green.x - blue.x) <= 2;
+}
+
+void SoundImageWidget::selectAt(const QPointF &widgetPos)
+{
+    if (mOverlayMarkers.empty()) { mHasSelection = false; update(); return; }
+    const Viewport vp = computeViewport();
+    if (vp.destRect.isEmpty() || vp.sourceRect.isEmpty() || !vp.destRect.contains(widgetPos)) {
+        mHasSelection = false; update(); return;
+    }
+    const QPointF img = widgetToImage(widgetPos, vp);   // 위젯 → 이미지 좌표(px)
+
+    // 클릭 위치에서 가장 가까운 마커(이미지 거리)를 찾아 그 컬럼을 선택.
+    double best = 1e18; double selX = 0.0; bool found = false;
+    for (const SoundImageRenderer::OverlayMarker &m : mOverlayMarkers) {
+        const double dx = m.x - img.x(), dy = m.y - img.y();
+        const double d2 = dx * dx + dy * dy;
+        if (d2 < best) { best = d2; selX = m.x; found = true; }
+    }
+    // 너무 먼 곳(빈 영역) 클릭은 선택 해제. (이미지 px 기준 ~24px 반경)
+    if (!found || best > 24.0 * 24.0) { mHasSelection = false; update(); return; }
+    mSelColX = selX;
+    mHasSelection = true;
+    update();
+}
+
+// 선택한 비트의 초록(A)·파랑(C)을 점선으로 잇고 두 점 사이 시간(ms)을 표시.
+void SoundImageWidget::drawSelection(QPainter &painter, const Viewport &vp) const
+{
+    if (!mHasSelection || vp.destRect.isEmpty() || vp.sourceRect.isEmpty()) return;
+    SoundImageRenderer::OverlayMarker g{}, b{};
+    if (!findPairAtColumn(mSelColX, g, b)) return;
+
+    auto toWidget = [&](const SoundImageRenderer::OverlayMarker &m) {
+        const double u = (m.x + 0.5 - vp.sourceRect.left()) / vp.sourceRect.width();
+        const double v = (m.y + 0.5 - vp.sourceRect.top())  / vp.sourceRect.height();
+        return QPointF(vp.destRect.left() + u * vp.destRect.width(),
+                       vp.destRect.top()  + v * vp.destRect.height());
+    };
+    const QPointF pg = toWidget(g), pb = toWidget(b);
+
+    painter.setClipRect(vp.destRect);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    // 점선 연결선(흰색).
+    QPen dash(QColor(245, 245, 245), 1.4, Qt::DashLine);
+    painter.setPen(dash);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawLine(pg, pb);
+
+    // 선택 강조 링(초록·파랑 각각).
+    painter.setPen(QPen(QColor(0, 255, 0), 1.6));
+    painter.drawEllipse(pg, 5.5, 5.5);
+    painter.setPen(QPen(QColor(80, 120, 255), 1.6));
+    painter.drawEllipse(pb, 5.5, 5.5);
+    painter.setClipping(false);
+
+    // 간격(ms): 두 점의 행 차이를 비트 길이로 환산. (A onset → C drop)
+    QString label = QStringLiteral("A↔C");
+    if (mBeatPeriodMs > 0.0 && image && image->height() > 0) {
+        const double dMs = std::abs((double)g.y - (double)b.y) / image->height() * mBeatPeriodMs;
+        label = QStringLiteral("A→C: %1 ms").arg(dMs, 0, 'f', 2);
+    }
+    const QPointF mid = (pg + pb) * 0.5;
+    QFont f = painter.font(); f.setPointSizeF(8.5); f.setBold(true); painter.setFont(f);
+    const QRectF box(mid.x() + 8, mid.y() - 9, 96, 18);
+    painter.fillRect(box, QColor(0, 0, 0, 160));
+    painter.setPen(QColor(255, 255, 255));
+    painter.drawText(box, Qt::AlignVCenter | Qt::AlignLeft, label);
+}
+
 void SoundImageWidget::wheelEvent(QWheelEvent *event)
 {
     if (!image || image->isNull()) {
@@ -326,26 +419,36 @@ void SoundImageWidget::wheelEvent(QWheelEvent *event)
 
 void SoundImageWidget::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton || mViewScale <= 1.0) {
+    if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
         return;
     }
-
     const Viewport vp = computeViewport();
     if (!vp.destRect.contains(event->position())) {
         QWidget::mousePressEvent(event);
         return;
     }
 
-    mPanning = true;
-    mPanStartWidget = event->position();
-    mPanStartOffset = mViewOffset;
-    setCursor(Qt::ClosedHandCursor);
+    // 좌클릭 누름 추적: 이동 없으면 '클릭=점 선택', 이동하면 '드래그=팬'(확대 시).
+    mLeftDown = true;
+    mPressMoved = false;
+    mPressWidgetPos = event->position();
+    if (mViewScale > 1.0) {            // 팬은 확대 상태에서만
+        mPanning = true;
+        mPanStartWidget = event->position();
+        mPanStartOffset = mViewOffset;
+        setCursor(Qt::ClosedHandCursor);
+    }
     event->accept();
 }
 
 void SoundImageWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    if (mLeftDown &&
+        (event->position() - mPressWidgetPos).manhattanLength() > 3) {
+        mPressMoved = true;           // 임계 이상 이동 → 클릭 아님(드래그)
+    }
+
     if (!mPanning) {
         if (mViewScale > 1.0) {
             const Viewport vp = computeViewport();
@@ -371,14 +474,22 @@ void SoundImageWidget::mouseMoveEvent(QMouseEvent *event)
 
 void SoundImageWidget::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (mPanning && event->button() == Qt::LeftButton) {
-        mPanning = false;
-        mUserViewLocked = true;
-        setCursor(mViewScale > 1.0 ? Qt::OpenHandCursor : Qt::ArrowCursor);
-        event->accept();
+    if (event->button() != Qt::LeftButton) {
+        QWidget::mouseReleaseEvent(event);
         return;
     }
-    QWidget::mouseReleaseEvent(event);
+    const bool wasClick = mLeftDown && !mPressMoved;
+    const bool wasPan   = mPanning && mPressMoved;
+    mLeftDown = false;
+    mPanning = false;
+
+    if (wasClick) {
+        selectAt(event->position());        // 클릭 = 비트 점 선택(초록↔파랑 간격 표시)
+    } else if (wasPan) {
+        mUserViewLocked = true;             // 드래그 = 팬 → 자동 추적 중단
+    }
+    setCursor(mViewScale > 1.0 ? Qt::OpenHandCursor : Qt::ArrowCursor);
+    event->accept();
 }
 
 void SoundImageWidget::mouseDoubleClickEvent(QMouseEvent *event)
