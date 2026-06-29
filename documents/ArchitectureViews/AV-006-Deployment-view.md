@@ -15,10 +15,6 @@ This view shows the physical deployment of the TimeGrapher system. A **client ma
 
 * Lightweight embedded deployment target. Runs Raspberry Pi OS with Qt6 and ALSA. Audio input via ALSA (`libasound.so`), camera input via V4L2.
 
-### macOS Apple Silicon
-
-* Additional desktop deployment target. Runs macOS with Qt 6 Framework. Audio input via CoreAudio, camera input via AVFoundation.
-
 ### USB Mic Device
 
 * External USB microphone that captures the mechanical watch's tick sound as a PCM audio stream. Platform-specific audio driver (WASAPI / ALSA / CoreAudio) provides the communication path to the application.
@@ -91,7 +87,9 @@ This view shows the physical deployment of the TimeGrapher system. A **client ma
 - N/A
 
 ## Related ADRs
-- N/A
+- [ADR-005: Cloud Storage Architecture for Measurement Data](../ADRs/ADR-005-cloud-storage-architecture-en.md)
 
 ## Related Views
-- N/A
+- [AV-001: Contest-view](./AV-001-Context-view.md)
+- [AV-002: Top-Level Module Uses View](./AV-002-TimeGrapher-module-view.md)
+
