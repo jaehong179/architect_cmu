@@ -2,6 +2,7 @@
 #include "../PositionNames.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QFontMetrics>
 #include <cmath>
 #include <algorithm>
 
@@ -65,7 +66,22 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
 
     // 2. 좌표 설정
     QPointF center(width() / 2.0, height() / 2.0);
-    double R = std::min(width(), height()) / 2.0 * 0.75; // 라벨 표시 공간 확보 위해 0.75배
+    const QFont labelFont(QStringLiteral("Segoe UI"), 8, QFont::Bold);
+    const QFontMetrics labelFm(labelFont);
+    const QString labels[6] = {
+        QStringLiteral("Dial Down"), QStringLiteral("Dial Up"), QStringLiteral("Crown Down"),
+        QStringLiteral("Crown Left"), QStringLiteral("Crown Up"), QStringLiteral("Crown Right")
+    };
+    int maxLabelWidth = 0;
+    for (const QString &label : labels) {
+        maxLabelWidth = std::max(maxLabelWidth, labelFm.horizontalAdvance(label));
+    }
+
+    const double labelGap = 12.0;
+    const double edgePadding = 8.0;
+    const double maxRadiusX = width() / 2.0 - (labelGap + maxLabelWidth + edgePadding);
+    const double maxRadiusY = height() / 2.0 - (labelGap + labelFm.height() + edgePadding);
+    double R = std::min(maxRadiusX, maxRadiusY);
     double R_0 = R * 0.5; // 0 s/d 기준선 반경
 
     if (R <= 10.0) return;
@@ -129,7 +145,7 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
         QStringLiteral("3H"), QStringLiteral("6H"), QStringLiteral("9H")
     };
 
-    painter.setFont(QFont(QStringLiteral("Segoe UI"), 8, QFont::Bold));
+    painter.setFont(labelFont);
 
     for (const QString &pos : corePos) {
         double rad = getPositionAngleRad(pos);
@@ -142,20 +158,10 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
         painter.setPen(QPen(QColor(60, 60, 60, 120), 1, Qt::DashLine));
         painter.drawLine(center, endPt);
 
-        // 포지션 라벨 텍스트 배치
-        QPointF labelPt = center + dir * (R + 15);
+        // 포지션 라벨 텍스트 배치 (라벨 길이에 맞춰 동적 배치 + 경계 클램프)
+        QPointF labelAnchor = center + dir * (R + labelGap);
         painter.setPen(QColor(150, 150, 150));
-        
-        // 텍스트 위치 정렬 튜닝
-        QRectF rect(labelPt.x() - 20, labelPt.y() - 10, 40, 20);
-        int align = Qt::AlignCenter;
-        if (std::abs(dir.x()) < 0.1) {
-            // 수직 방향 (CH, 6H)
-            align = Qt::AlignCenter | (dir.y() < 0 ? Qt::AlignBottom : Qt::AlignTop);
-        } else if (std::abs(dir.y()) < 0.1) {
-            // 수평 방향 (9H, 12H)
-            align = Qt::AlignVCenter | (dir.x() > 0 ? Qt::AlignLeft : Qt::AlignRight);
-        }
+
         QString label;
         if (pos == QStringLiteral("CH")) label = QStringLiteral("Dial Up");
         else if (pos == QStringLiteral("CB")) label = QStringLiteral("Dial Down");
@@ -164,7 +170,28 @@ void RadarChartWidget::paintEvent(QPaintEvent *event)
         else if (pos == QStringLiteral("3H")) label = QStringLiteral("Crown Up");
         else if (pos == QStringLiteral("12H")) label = QStringLiteral("Crown Down");
         else label = pos;
-        painter.drawText(rect, align, label);
+
+        const double textWidth = labelFm.horizontalAdvance(label);
+        const double textHeight = labelFm.height();
+
+        double x = 0.0;
+        double y = 0.0;
+
+        if (std::abs(dir.y()) > 0.95) {
+            x = labelAnchor.x() - textWidth / 2.0;
+            y = (dir.y() < 0) ? (labelAnchor.y() - textHeight) : labelAnchor.y();
+        } else if (dir.x() > 0) {
+            x = labelAnchor.x();
+            y = labelAnchor.y() - textHeight / 2.0;
+        } else {
+            x = labelAnchor.x() - textWidth;
+            y = labelAnchor.y() - textHeight / 2.0;
+        }
+
+        x = std::clamp(x, edgePadding, width() - edgePadding - textWidth);
+        y = std::clamp(y, edgePadding, height() - edgePadding - textHeight);
+
+        painter.drawText(QRectF(x, y, textWidth, textHeight), Qt::AlignCenter, label);
     }
 
     // 5. 측정 데이터 플로팅 및 폐곡선 그리기
