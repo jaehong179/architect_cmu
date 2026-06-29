@@ -63,6 +63,15 @@ QList<int> TabSequenceDisplay::remainingPositionIndices() const
     return indices;
 }
 
+bool TabSequenceDisplay::hasAllPositionsMeasured() const
+{
+    for (int r = 0; r < 6; ++r) {
+        if (!isPositionMeasuredInTable(r))
+            return false;
+    }
+    return true;
+}
+
 TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 {
     // 전체 다크 테마 적용
@@ -325,12 +334,13 @@ void TabSequenceDisplay::recomputeSummary()
 void TabSequenceDisplay::updateComplete()
 {
     // 6개 핵심 포지션이 모두 채워졌는지 검사
-    bool haveAll = true;
-    for (int r = 0; r < 6; ++r) {
-        if (mTable->item(r, 1)->text() == QStringLiteral("--")) {
-            haveAll = false;
-            break;
-        }
+    const bool haveAll = hasAllPositionsMeasured();
+
+    if (haveAll && !mAllPositionsCompleteNotified) {
+        mAllPositionsCompleteNotified = true;
+        emit allPositionsMeasured();
+    } else if (!haveAll) {
+        mAllPositionsCompleteNotified = false;
     }
 
     int n = 0;
@@ -459,6 +469,7 @@ void TabSequenceDisplay::onResetSession()
 
     mPrevPos = mPos->currentText(); // 포지션 리셋
     mHaveLast = false;
+    mAllPositionsCompleteNotified = false;
 
     recomputeSummary();
     updateRadarChart();
