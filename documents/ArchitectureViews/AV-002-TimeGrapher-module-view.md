@@ -15,7 +15,7 @@ Key pattern applied:
 - User interface layer. Contains MainWindow (thin coordinator for widget wiring and low-frequency display updates) and TabManager (Publish–Subscribe hub that broadcasts data to display tabs without them knowing the data source).
 
 #### ui/tabs
-- TabView abstract interface and 13 concrete subclasses (RateScope, SoundPrint, TraceDisplay, Spectrogram, etc.). Adding a new tab requires only 1 subclass + 1 registration line — no changes to existing code (OCP).
+- TabView abstract base class and 13 concrete subclasses (RateScope, SoundPrint, TraceDisplay, Spectrogram, etc.). Adding a new tab requires only 1 subclass + 1 registration line — no changes to existing code (OCP).
 
 #### engine
 - Domain orchestration. CaptureController acts as a Facade over audio sources, DSP pipeline, and measurement calculation. MeasurementEngine computes rate, beat error, and amplitude from detected events.
@@ -66,4 +66,5 @@ Key pattern applied:
 [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](../ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 
 ## Related Views
-- TBD
+- [AV-003: Live Microphone to Graph Behavior Diagram](./AV-003-MicToGraph-SeqenceDiagram.md) 
+- [AV-005: Graph Tab Hierarchy](./AV-005-RegiseterTab-Diagram.md) 
