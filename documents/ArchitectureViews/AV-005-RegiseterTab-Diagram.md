@@ -6,7 +6,7 @@ This view shows the design that makes adding graph tabs to TimeGrapher easy. It 
 
 ## Element Catalog
 
-#### TabManager
+#### TabView
 - An **abstract base class** derived from `QWidget` (not a pure interface — Qt disallows multiple `QObject` inheritance, so a `QWidget`-derived abstract class is used). Declares the contract every tab implements: `tabTitle()` (pure virtual) plus the virtual hooks `onWave()`, `onMeasurement()`, and `onResetSession()`. A concrete tab overrides the hooks it needs.
 
 
