@@ -6,7 +6,7 @@
 
 ## Status
 
-- [Planned | **In progress** | Suspended | Canceled | Concluded]
+- [Planned | In progress | Suspended | Canceled | **Concluded**]
 
 ## Expected outcomes
 
@@ -30,6 +30,6 @@
 
 ## Results and recommendations
 
-- Generated synthetic audio for 14 fault types in TimeGrapherTestFilesWeishiMic/fault_wavs/ (17th June)
-- Plan to generate a variety of synthetic audio for AI training
-*(to be completed after the experiment)*
+- Generated synthetic audio for 14 fault types in TimeGrapherTestFilesWeishiMic/fault_wavs/
+
+
