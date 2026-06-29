@@ -158,10 +158,10 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     ctl->addStretch(1);
     lay->addLayout(ctl);
 
-    // 실시간 상태 라벨
-    mLive = new QLabel(QStringLiteral("Current: Waiting for signal…"), this);
-    mLive->setStyleSheet(QStringLiteral("font-family: monospace; color: #AAAAAA; padding: 2px 0px;"));
-    lay->addWidget(mLive);
+    // // 실시간 상태 라벨
+    // mLive = new QLabel(QStringLiteral("Current: Waiting for signal…"), this);
+    // mLive->setStyleSheet(QStringLiteral("font-family: monospace; color: #AAAAAA; padding: 2px 0px;"));
+    // lay->addWidget(mLive);
 
     // 메인 하단 영역 (좌우 2분할)
     auto *mainLay = new QHBoxLayout();

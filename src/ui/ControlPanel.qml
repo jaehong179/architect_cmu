@@ -1097,7 +1097,7 @@ Rectangle {
                         // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                         RowLayout {
                             Layout.fillWidth: true
-                            Text { text: "High Pass Cutoff (Hz)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
+                            Text { text: "High Pass Cutoff"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
                             SpinBox {
                                 Layout.preferredWidth: 110
                                 from: 10
