@@ -142,9 +142,9 @@ Importance: Medium Difficulty: High
 
 ### QAS-06 / Watch-Position Auto-Detection Accuracy
 
-#### *Usability/Dependability -\> Reliability (Accuracy)*
+#### Usability/Dependability -\> Reliability (Accuracy)
 
-#### When the watch's physical measurement position is changed, the system shall automatically classify and display the correct standard position without false positives.
+When the watch's physical measurement position is changed, the system shall automatically classify and display the correct standard position without false positives.
 
 ####
 
