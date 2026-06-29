@@ -1,15 +1,9 @@
 #include "SequenceResultSaveDialog.h"
 
-#include <QDateTime>
-#include <QDir>
 #include <QDialogButtonBox>
-#include <QFileDialog>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QPushButton>
-#include <QRegularExpression>
-#include <QStandardPaths>
 #include <QVBoxLayout>
 
 SequenceResultSaveDialog::SequenceResultSaveDialog(const QString &watchId,
@@ -17,15 +11,15 @@ SequenceResultSaveDialog::SequenceResultSaveDialog(const QString &watchId,
                                                    QWidget *parent)
     : QDialog(parent)
 {
-    setWindowTitle(QStringLiteral("Save Multi-Position Result"));
+    setWindowTitle(QStringLiteral("Upload Multi-Position Result"));
     setModal(true);
-    resize(560, 240);
+    resize(480, 200);
 
     auto *mainLayout = new QVBoxLayout(this);
     mainLayout->setContentsMargins(16, 16, 16, 16);
     mainLayout->setSpacing(12);
 
-    auto *title = new QLabel(QStringLiteral("Save completed 6-position measurement"), this);
+    auto *title = new QLabel(QStringLiteral("Upload completed 6-position measurement"), this);
     title->setStyleSheet(QStringLiteral("font-weight: 600; color: #e6e6e6;"));
     mainLayout->addWidget(title);
 
@@ -49,74 +43,22 @@ SequenceResultSaveDialog::SequenceResultSaveDialog(const QString &watchId,
     engineerRow->addWidget(mEngineerLabel, 1);
     mainLayout->addLayout(engineerRow);
 
-    auto *uploadNote = new QLabel(QStringLiteral("Results will be saved locally and uploaded to the cloud."),
-                                  this);
+    auto *uploadNote = new QLabel(QStringLiteral("Results will be uploaded to the cloud."), this);
     uploadNote->setStyleSheet(QStringLiteral("color: #9e9e9e; font-size: 11px;"));
     mainLayout->addWidget(uploadNote);
 
-    auto *pathRow = new QHBoxLayout();
-    pathRow->setSpacing(8);
-
-    mPathEdit = new QLineEdit(this);
-    mPathEdit->setPlaceholderText(QStringLiteral("Select file path..."));
-
-    QString baseDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-    if (baseDir.isEmpty()) {
-        baseDir = QDir::homePath();
-    }
-    const QString fileName = QStringLiteral("timegrapher_%1_%2.csv")
-                                 .arg(sanitizeWatchIdForFileName(watchId),
-                                      QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss")));
-    mPathEdit->setText(baseDir + QLatin1Char('/') + fileName);
-
-    auto *browse = new QPushButton(QStringLiteral("Browse"), this);
-    connect(browse, &QPushButton::clicked, this, &SequenceResultSaveDialog::browsePath);
-
-    pathRow->addWidget(mPathEdit, 1);
-    pathRow->addWidget(browse);
-    mainLayout->addLayout(pathRow);
-
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
+    if (QPushButton *uploadBtn = buttons->button(QDialogButtonBox::Save)) {
+        uploadBtn->setText(QStringLiteral("Upload to Cloud"));
+    }
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     mainLayout->addWidget(buttons);
 
     setStyleSheet(QStringLiteral(
         "QDialog { background-color: #181818; color: #f4f4f4; }"
-        "QLineEdit { background-color: #222; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; }"
         "QPushButton { background-color: #2f2f2f; color: #fff; border: 1px solid #4a4a4a; padding: 6px 10px; border-radius: 4px; }"
         "QPushButton:hover { background-color: #3a3a3a; }"
         "QPushButton:pressed { background-color: #252525; }"
     ));
-}
-
-QString SequenceResultSaveDialog::sanitizeWatchIdForFileName(const QString &watchId) const
-{
-    QString safe = watchId.trimmed();
-    if (safe.isEmpty())
-        return QStringLiteral("unknown");
-
-    safe.replace(QRegularExpression(QStringLiteral(R"([\\/:*?"<>|])")), QStringLiteral("_"));
-    return safe;
-}
-
-QString SequenceResultSaveDialog::selectedPath() const
-{
-    return mPathEdit ? mPathEdit->text().trimmed() : QString();
-}
-
-void SequenceResultSaveDialog::browsePath()
-{
-    if (!mPathEdit) return;
-
-    const QString current = mPathEdit->text().trimmed();
-    const QString path = QFileDialog::getSaveFileName(
-        this,
-        QStringLiteral("Save sequence result"),
-        current,
-        QStringLiteral("CSV Files (*.csv);;All Files (*)"));
-
-    if (!path.isEmpty()) {
-        mPathEdit->setText(path);
-    }
 }

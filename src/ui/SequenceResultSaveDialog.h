@@ -3,7 +3,6 @@
 
 #include <QDialog>
 
-class QLineEdit;
 class QLabel;
 
 class SequenceResultSaveDialog : public QDialog
@@ -14,17 +13,9 @@ public:
                                       const QString &engineer,
                                       QWidget *parent = nullptr);
 
-    QString selectedPath() const;
-
-private slots:
-    void browsePath();
-
 private:
-    QString sanitizeWatchIdForFileName(const QString &watchId) const;
-
     QLabel *mWatchIdLabel = nullptr;
     QLabel *mEngineerLabel = nullptr;
-    QLineEdit *mPathEdit = nullptr;
 };
 
 #endif // SEQUENCERESULTSAVEDIALOG_H

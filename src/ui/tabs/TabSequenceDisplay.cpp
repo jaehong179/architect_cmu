@@ -10,9 +10,7 @@
 #include <QPushButton>
 #include <QTableWidget>
 #include <QHeaderView>
-#include <QFile>
 #include <QMessageBox>
-#include <QTextStream>
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -115,7 +113,7 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     ));
     ctl->addWidget(mClear);
 
-    mSave = new QPushButton(QStringLiteral("Save"), this);
+    mSave = new QPushButton(QStringLiteral("Upload to Cloud"), this);
     mSave->setStyleSheet(QStringLiteral(
         "QPushButton { background-color: #1e6f46; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; }"
         "QPushButton:hover { background-color: #258b58; }"
@@ -229,13 +227,14 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 void TabSequenceDisplay::onMeasurement(const MeasurementSnapshot &s)
 {
     mLast = s; mHaveLast = true;
-    if (mLive)
+    if (mLive) {
         mLive->setText(QString("Current[%1]:  rate=%2 s/d   beat=%3 ms   amp=%4°   bph=%5")
             .arg(mPos->currentText())
             .arg(s.rateValid ? QString::asprintf("%+.1f", s.rate) : QStringLiteral("--"))
             .arg(s.beatErrorValid ? QString::number(s.beatErrorMs,'f',2) : QStringLiteral("--"))
             .arg(s.amplitudeValid ? QString::number(s.amplitudeDeg,'f',0) : QStringLiteral("--"))
             .arg(s.bphValid ? QString::number(s.bph) : QStringLiteral("--")));
+    }
 
     // 실시간 측정 중인 포지션 행에 수치 실시간 업데이트
     int r = getRowIndexForPosition(mPos->currentText());
@@ -371,7 +370,7 @@ void TabSequenceDisplay::onSaveRequested()
     if (watchId.isEmpty()) {
         QMessageBox::warning(this,
                              QStringLiteral("Watch ID required"),
-                             QStringLiteral("Set a Watch ID in Control Panel → Advanced / Tuning before saving."));
+                             QStringLiteral("Set a Watch ID in Control Panel → Advanced / Tuning before uploading."));
         return;
     }
 
@@ -379,7 +378,7 @@ void TabSequenceDisplay::onSaveRequested()
     if (engineer.isEmpty()) {
         QMessageBox::warning(this,
                              QStringLiteral("Engineer required"),
-                             QStringLiteral("Set an Engineer name in Control Panel → Advanced / Tuning before saving."));
+                             QStringLiteral("Set an Engineer name in Control Panel → Advanced / Tuning before uploading."));
         return;
     }
 
@@ -387,61 +386,19 @@ void TabSequenceDisplay::onSaveRequested()
     if (dlg.exec() != QDialog::Accepted)
         return;
 
-    const QString path = dlg.selectedPath();
-    if (path.isEmpty()) {
-        QMessageBox::warning(this, QStringLiteral("Save"), QStringLiteral("Please select a file path."));
-        return;
-    }
-
-    QFile file(path);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QMessageBox::critical(this,
-                              QStringLiteral("Save failed"),
-                              QStringLiteral("Could not write file:\n%1").arg(path));
-        return;
-    }
-
-    QTextStream out(&file);
-    out << buildCurrentSequenceCsv(watchId);
-    file.close();
-
     const QJsonObject measurements = buildMeasurementsPayload();
     const MeasurementUploadClient::UploadResult uploadResult =
         MeasurementUploadClient::uploadMeasurement(watchId, engineer, measurements);
 
     if (uploadResult.success) {
         QMessageBox::information(this,
-                                 QStringLiteral("Saved"),
-                                 QStringLiteral("Sequence result saved to:\n%1\n\nCloud upload: %2")
-                                     .arg(path, uploadResult.message));
+                                 QStringLiteral("Upload complete"),
+                                 uploadResult.message);
     } else {
         QMessageBox::warning(this,
-                             QStringLiteral("Saved locally"),
-                             QStringLiteral("Sequence result saved to:\n%1\n\nCloud upload failed: %2")
-                                 .arg(path, uploadResult.message));
+                             QStringLiteral("Upload failed"),
+                             uploadResult.message);
     }
-}
-
-QString TabSequenceDisplay::buildCurrentSequenceCsv(const QString &watchId) const
-{
-    if (!mTable) return QString();
-
-    QString csv;
-    QTextStream stream(&csv);
-    stream << QStringLiteral("# watch_id,") << watchId << QLatin1Char('\n');
-    stream << QStringLiteral("Position,Rate,Amplitude,Beat error\n");
-
-    for (int r = 0; r < 8; ++r) {
-        const QString pos = mTable->item(r, 0) ? mTable->item(r, 0)->text() : QStringLiteral("");
-        const QString rate = mTable->item(r, 1) ? mTable->item(r, 1)->text() : QStringLiteral("--");
-        const QString amp = mTable->item(r, 2) ? mTable->item(r, 2)->text() : QStringLiteral("--");
-        const QString beat = mTable->item(r, 3) ? mTable->item(r, 3)->text() : QStringLiteral("--");
-        stream << QStringLiteral("\"") << pos << QStringLiteral("\",\"")
-               << rate << QStringLiteral("\",\"")
-               << amp << QStringLiteral("\",\"")
-               << beat << QStringLiteral("\"\n");
-    }
-    return csv;
 }
 
 QJsonObject TabSequenceDisplay::buildMeasurementsPayload() const

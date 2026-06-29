@@ -48,7 +48,6 @@ private:
     void recomputeSummary();
     void updateComplete();                          // 6개 핵심 포지션 모두 캡처 시 완료 표시
     void updateRadarChart();                        // 차트 실시간 및 정적 데이터 갱신 헬퍼
-    QString buildCurrentSequenceCsv(const QString &watchId) const;
     QJsonObject buildMeasurementsPayload() const;
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
     int getRowIndexForPosition(const QString &posName) const;
