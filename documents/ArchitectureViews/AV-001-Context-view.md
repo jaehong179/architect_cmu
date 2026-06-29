@@ -29,6 +29,6 @@ In the architecture views we find a description of the external entities in the 
 - N/A
 
 ## Related Views
-- [AV-006: Deployment View](./AV-006-Deployment-view.md) — how these external entities map to physical nodes (devices, cloud, mobile).
-- [AV-003: Live Microphone to Graph Runtime View](./AV-003-MicToGraph-SeqenceDiagram.md) — how the PCM audio input is processed inside the system.
-- [AV-004: Position-Detection Runtime View](./AV-004-Position_Detection_Runtime_View.md) — how the camera video frames are used for position detection.
+- [AV-006: Deployment View](./AV-006-Deployment-view.md) 
+- [AV-003: Live Microphone to Graph Runtime View](./AV-003-MicToGraph-SeqenceDiagram.md) 
+- [AV-004: Position-Detection Runtime View](./AV-004-Position_Detection_Runtime_View.md) 
