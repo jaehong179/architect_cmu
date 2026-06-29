@@ -25,6 +25,7 @@ public:
     void setTimingModel(PositionTimingModel *model);
     QList<int> measuredPositionIndices() const;
     QList<int> remainingPositionIndices() const;
+    bool hasAllPositionsMeasured() const;
 
 public slots:
     void setCurrentPositionByIndex(int index);
@@ -33,6 +34,9 @@ public slots:
     void onTimingDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
     void onTimingModelReset();
     void onRunningStateChanged(bool isRunning);
+
+signals:
+    void allPositionsMeasured();
 
 private:
     void capture();
@@ -61,5 +65,6 @@ private:
     PositionTimingModel *mTiming = nullptr;
     QComboBox           *mMeasTimeCombo = nullptr;
     bool                 mProgrammaticPositionChange = false;
+    bool                 mAllPositionsCompleteNotified = false;
 };
 #endif // TABSEQUENCEDISPLAY_H

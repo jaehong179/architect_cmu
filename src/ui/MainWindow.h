@@ -212,6 +212,7 @@ private:
     void   onPositionPhaseChanged(const QString &positionName, const QString &phaseLabel, int remainingSec);
     void   onPositionMeasurementEnded(int positionIndex, const QString &positionName,
                                       const QString &nextPositionName, bool sequenceComplete);
+    void   onAllPositionsMeasured();
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   LoadAudioDevices(void);

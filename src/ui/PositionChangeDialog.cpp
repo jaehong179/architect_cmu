@@ -9,12 +9,13 @@
 
 PositionChangeDialog::PositionChangeDialog(const QList<int> &measuredIndices,
                                            const QList<int> &remainingIndices,
+                                           Mode mode,
                                            QWidget *parent)
     : QDialog(parent, Qt::Dialog | Qt::FramelessWindowHint)
 {
     setAttribute(Qt::WA_TranslucentBackground, false);
     setFixedSize(500, 440);
-    setupUi(measuredIndices, remainingIndices);
+    setupUi(measuredIndices, remainingIndices, mode);
 }
 
 QString PositionChangeDialog::getShortCode(const QString &fullName) const
@@ -93,103 +94,9 @@ QWidget *PositionChangeDialog::createListPanel(const QString &title,
     return panel;
 }
 
-void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
-                                   const QList<int> &remainingIndices)
+void PositionChangeDialog::applyStyleSheet(Mode mode)
 {
-    setObjectName(QStringLiteral("PositionChangeDialog"));
-
-    const int totalSteps = corePositionSequenceLength();
-    const int measuredCount = measuredIndices.size();
-
-    auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
-
-    // Header
-    auto *headerWidget = new QWidget(this);
-    headerWidget->setObjectName(QStringLiteral("HeaderWidget"));
-    headerWidget->setFixedHeight(50);
-    auto *headerLayout = new QHBoxLayout(headerWidget);
-    headerLayout->setContentsMargins(20, 0, 20, 0);
-
-    auto *titleIcon = new QLabel(QStringLiteral("\u27F3"), this);
-    titleIcon->setObjectName(QStringLiteral("TitleIcon"));
-    auto *titleLabel = new QLabel(QStringLiteral("CHANGE POSITION"), this);
-    titleLabel->setObjectName(QStringLiteral("TitleLabel"));
-    auto *stepLabel = new QLabel(QStringLiteral("Step %1 of %2").arg(measuredCount).arg(totalSteps), this);
-    stepLabel->setObjectName(QStringLiteral("StepLabel"));
-
-    headerLayout->addWidget(titleIcon);
-    headerLayout->addWidget(titleLabel);
-    headerLayout->addStretch();
-    headerLayout->addWidget(stepLabel);
-
-    mainLayout->addWidget(headerWidget);
-
-    // Body
-    auto *bodyWidget = new QWidget(this);
-    bodyWidget->setObjectName(QStringLiteral("BodyWidget"));
-    auto *bodyLayout = new QVBoxLayout(bodyWidget);
-    bodyLayout->setContentsMargins(24, 18, 24, 20);
-    bodyLayout->setSpacing(16);
-
-    // Progress row
-    auto *progressRow = new QHBoxLayout();
-    progressRow->setSpacing(12);
-
-    auto *progressLayout = new QHBoxLayout();
-    progressLayout->setSpacing(6);
-    for (int i = 0; i < totalSteps; ++i) {
-        auto *segment = new QFrame(this);
-        segment->setFixedHeight(4);
-        segment->setFixedWidth(56);
-        segment->setObjectName(i < measuredCount ? QStringLiteral("SegmentActive") : QStringLiteral("SegmentInactive"));
-        progressLayout->addWidget(segment);
-    }
-    progressRow->addLayout(progressLayout, 1);
-
-    auto *countLabel = new QLabel(QStringLiteral("%1 / %2 measured").arg(measuredCount).arg(totalSteps), this);
-    countLabel->setObjectName(QStringLiteral("CountLabel"));
-    countLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    progressRow->addWidget(countLabel);
-
-    bodyLayout->addLayout(progressRow);
-
-    // Measured / Remaining columns
-    auto *listsLayout = new QHBoxLayout();
-    listsLayout->setSpacing(12);
-
-    listsLayout->addWidget(
-        createListPanel(QStringLiteral("MEASURED (%1)").arg(measuredIndices.size()),
-                        measuredIndices,
-                        true,
-                        this),
-        1);
-    listsLayout->addWidget(
-        createListPanel(QStringLiteral("REMAINING (%1)").arg(remainingIndices.size()),
-                        remainingIndices,
-                        false,
-                        this),
-        1);
-
-    bodyLayout->addLayout(listsLayout, 1);
-
-    auto *hintLabel = new QLabel(QStringLiteral("Rotate the watch to any remaining position, then confirm."), this);
-    hintLabel->setObjectName(QStringLiteral("HintLabel"));
-    hintLabel->setWordWrap(true);
-    hintLabel->setAlignment(Qt::AlignCenter);
-    bodyLayout->addWidget(hintLabel);
-
-    auto *confirmButton = new QPushButton(QStringLiteral("\u2713 Confirm \u2013 Continue to next position"), this);
-    confirmButton->setObjectName(QStringLiteral("ConfirmButton"));
-    confirmButton->setFixedHeight(48);
-    confirmButton->setDefault(true);
-    confirmButton->setAutoDefault(true);
-    connect(confirmButton, &QPushButton::clicked, this, &QDialog::accept);
-    bodyLayout->addWidget(confirmButton);
-
-    mainLayout->addWidget(bodyWidget);
-
+    const bool complete = (mode == Mode::SequenceComplete);
     setStyleSheet(QStringLiteral(
         "QDialog#PositionChangeDialog {"
         "  background-color: #18181f;"
@@ -200,13 +107,13 @@ void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
         "  border-bottom: 1px solid #2e2e3a;"
         "}"
         "QLabel#TitleIcon {"
-        "  color: #ab47bc;"
+        "  color: %1;"
         "  font-size: 18px;"
         "  font-weight: bold;"
         "  margin-right: 5px;"
         "}"
         "QLabel#TitleLabel {"
-        "  color: #df78ef;"
+        "  color: %2;"
         "  font-size: 14px;"
         "  font-weight: bold;"
         "  font-family: 'Segoe UI', sans-serif;"
@@ -221,7 +128,7 @@ void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
         "  background-color: #18181f;"
         "}"
         "QLabel#CountLabel {"
-        "  color: #df78ef;"
+        "  color: %2;"
         "  font-size: 12px;"
         "  font-weight: bold;"
         "  font-family: 'Segoe UI', sans-serif;"
@@ -280,7 +187,7 @@ void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
         "  font-family: 'Segoe UI', sans-serif;"
         "}"
         "QFrame#SegmentActive {"
-        "  background-color: #ab47bc;"
+        "  background-color: %3;"
         "  border: none;"
         "  border-radius: 2px;"
         "}"
@@ -293,18 +200,138 @@ void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
         "  color: #ffffff;"
         "  border: none;"
         "  border-radius: 4px;"
-        "  background-color: #007acc;"
+        "  background-color: %4;"
         "  font-size: 13px;"
         "  font-weight: bold;"
         "  font-family: 'Segoe UI', sans-serif;"
         "}"
         "QPushButton#ConfirmButton:hover {"
-        "  background-color: #0098ff;"
+        "  background-color: %5;"
         "}"
         "QPushButton#ConfirmButton:pressed {"
-        "  background-color: #005999;"
+        "  background-color: %6;"
         "}"
-    ));
+    ).arg(complete ? QStringLiteral("#00ff66") : QStringLiteral("#ab47bc"),
+          complete ? QStringLiteral("#00ff66") : QStringLiteral("#df78ef"),
+          complete ? QStringLiteral("#00ff66") : QStringLiteral("#ab47bc"),
+          complete ? QStringLiteral("#1e6f46") : QStringLiteral("#007acc"),
+          complete ? QStringLiteral("#258b58") : QStringLiteral("#0098ff"),
+          complete ? QStringLiteral("#175637") : QStringLiteral("#005999")));
+}
 
+void PositionChangeDialog::setupUi(const QList<int> &measuredIndices,
+                                   const QList<int> &remainingIndices,
+                                   Mode mode)
+{
+    setObjectName(QStringLiteral("PositionChangeDialog"));
+
+    const bool complete = (mode == Mode::SequenceComplete);
+    const int totalSteps = corePositionSequenceLength();
+    const int measuredCount = measuredIndices.size();
+
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    auto *headerWidget = new QWidget(this);
+    headerWidget->setObjectName(QStringLiteral("HeaderWidget"));
+    headerWidget->setFixedHeight(50);
+    auto *headerLayout = new QHBoxLayout(headerWidget);
+    headerLayout->setContentsMargins(20, 0, 20, 0);
+
+    auto *titleIcon = new QLabel(complete ? QStringLiteral("\u2713") : QStringLiteral("\u27F3"), this);
+    titleIcon->setObjectName(QStringLiteral("TitleIcon"));
+    auto *titleLabel = new QLabel(complete ? QStringLiteral("SEQUENCE COMPLETE")
+                                           : QStringLiteral("CHANGE POSITION"),
+                                  this);
+    titleLabel->setObjectName(QStringLiteral("TitleLabel"));
+    auto *stepLabel = new QLabel(QStringLiteral("%1 / %2 measured").arg(measuredCount).arg(totalSteps), this);
+    stepLabel->setObjectName(QStringLiteral("StepLabel"));
+
+    headerLayout->addWidget(titleIcon);
+    headerLayout->addWidget(titleLabel);
+    headerLayout->addStretch();
+    headerLayout->addWidget(stepLabel);
+
+    mainLayout->addWidget(headerWidget);
+
+    auto *bodyWidget = new QWidget(this);
+    bodyWidget->setObjectName(QStringLiteral("BodyWidget"));
+    auto *bodyLayout = new QVBoxLayout(bodyWidget);
+    bodyLayout->setContentsMargins(24, 18, 24, 20);
+    bodyLayout->setSpacing(16);
+
+    auto *progressRow = new QHBoxLayout();
+    progressRow->setSpacing(12);
+
+    auto *progressLayout = new QHBoxLayout();
+    progressLayout->setSpacing(6);
+    for (int i = 0; i < totalSteps; ++i) {
+        auto *segment = new QFrame(this);
+        segment->setFixedHeight(4);
+        segment->setFixedWidth(56);
+        const bool active = complete ? true : (i < measuredCount);
+        segment->setObjectName(active ? QStringLiteral("SegmentActive") : QStringLiteral("SegmentInactive"));
+        progressLayout->addWidget(segment);
+    }
+    progressRow->addLayout(progressLayout, 1);
+
+    auto *countLabel = new QLabel(QStringLiteral("%1 / %2 measured").arg(measuredCount).arg(totalSteps), this);
+    countLabel->setObjectName(QStringLiteral("CountLabel"));
+    countLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    progressRow->addWidget(countLabel);
+
+    bodyLayout->addLayout(progressRow);
+
+    if (complete) {
+        bodyLayout->addWidget(
+            createListPanel(QStringLiteral("ALL POSITIONS MEASURED (%1)").arg(measuredIndices.size()),
+                            measuredIndices,
+                            true,
+                            this),
+            1);
+    } else {
+        auto *listsLayout = new QHBoxLayout();
+        listsLayout->setSpacing(12);
+
+        listsLayout->addWidget(
+            createListPanel(QStringLiteral("MEASURED (%1)").arg(measuredIndices.size()),
+                            measuredIndices,
+                            true,
+                            this),
+            1);
+        listsLayout->addWidget(
+            createListPanel(QStringLiteral("REMAINING (%1)").arg(remainingIndices.size()),
+                            remainingIndices,
+                            false,
+                            this),
+            1);
+
+        bodyLayout->addLayout(listsLayout, 1);
+    }
+
+    auto *hintLabel = new QLabel(complete
+        ? QStringLiteral("All core positions in the sequence are done.")
+        : QStringLiteral("Rotate the watch to any remaining position, then confirm."),
+        this);
+    hintLabel->setObjectName(QStringLiteral("HintLabel"));
+    hintLabel->setWordWrap(true);
+    hintLabel->setAlignment(Qt::AlignCenter);
+    bodyLayout->addWidget(hintLabel);
+
+    auto *confirmButton = new QPushButton(complete
+        ? QStringLiteral("\u2713 Close")
+        : QStringLiteral("\u2713 Confirm \u2013 Continue to next position"),
+        this);
+    confirmButton->setObjectName(QStringLiteral("ConfirmButton"));
+    confirmButton->setFixedHeight(48);
+    confirmButton->setDefault(true);
+    confirmButton->setAutoDefault(true);
+    connect(confirmButton, &QPushButton::clicked, this, &QDialog::accept);
+    bodyLayout->addWidget(confirmButton);
+
+    mainLayout->addWidget(bodyWidget);
+
+    applyStyleSheet(mode);
     confirmButton->setFocus();
 }
