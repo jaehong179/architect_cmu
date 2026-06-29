@@ -984,6 +984,62 @@ Rectangle {
                         visible: advancedTuningCard.advancedTuningExpanded
                         spacing: 8
 
+                        // Watch ID (cloud save key)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Watch ID"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. rolex_123456"
+                                text: cppBackend.watchId
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    cppBackend.watchId = text.trim()
+                                }
+                            }
+                        }
+
+                        // Engineer (required by cloud API)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Engineer"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. Mr. Park"
+                                text: cppBackend.engineer
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    cppBackend.engineer = text.trim()
+                                }
+                            }
+                        }
+
                         // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                         RowLayout {
                             Layout.fillWidth: true
