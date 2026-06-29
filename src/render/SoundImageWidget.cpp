@@ -3,6 +3,9 @@
 #include <QPainter>
 #include <QtMath>
 #include <QWheelEvent>
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 SoundImageWidget::SoundImageWidget(QWidget *parent)
     : QWidget{parent}
@@ -38,10 +41,33 @@ void SoundImageWidget::setLiveColumn(int column)
     mLiveColumn = column;
 }
 
+void SoundImageWidget::setOverlayMarkers(std::vector<SoundImageRenderer::OverlayMarker> markers)
+{
+    mOverlayMarkers = std::move(markers);   // 갱신은 DrawImage()/update() 가 담당
+}
+
 void SoundImageWidget::DrawImage(void)
 {
     followLiveColumn();
     update();
+}
+
+void SoundImageWidget::setBeatPeriodMs(double ms)
+{
+    if (ms > 0.0 && ms != mBeatPeriodMs) { mBeatPeriodMs = ms; update(); }
+}
+
+void SoundImageWidget::resetZoom(void)
+{
+    resetView();   // 확대/이동 초기화 → 전체 보기(fit)
+}
+
+// 축 라벨 여백을 뺀 이미지 표시 영역.
+QRectF SoundImageWidget::plotRect() const
+{
+    const double w = qMax(0.0, (double)width()  - kMarginLeft - kMarginRight);
+    const double h = qMax(0.0, (double)height() - kMarginTop  - kMarginBottom);
+    return QRectF(kMarginLeft, kMarginTop, w, h);
 }
 
 SoundImageWidget::Viewport SoundImageWidget::computeViewport() const
@@ -51,15 +77,18 @@ SoundImageWidget::Viewport SoundImageWidget::computeViewport() const
 
     const double iw = image->width();
     const double ih = image->height();
-    const double ww = width();
-    const double wh = height();
+    const QRectF pr = plotRect();
+    const double ww = pr.width();
+    const double wh = pr.height();
     if (iw <= 0.0 || ih <= 0.0 || ww <= 0.0 || wh <= 0.0) return vp;
 
     const double fitScale = qMin(ww / iw, wh / ih);
     vp.displayScale = fitScale * mViewScale;
 
     const QSizeF drawnSize(iw * vp.displayScale, ih * vp.displayScale);
-    const QPointF topLeft((ww - drawnSize.width()) * 0.5, (wh - drawnSize.height()) * 0.5);
+    // 가로는 좌측 정렬(사운드프린트는 왼→오로 시간 진행이라 왼쪽부터 시작해야 자연스럽다 — 가운데
+    //  정렬 시 왼쪽에 빈 여백이 생김). 세로는 그대로 가운데 정렬. (plotRect 기준 오프셋)
+    const QPointF topLeft(pr.left(), pr.top() + (wh - drawnSize.height()) * 0.5);
     vp.destRect = QRectF(topLeft, drawnSize);
 
     const double visibleW = iw / mViewScale;
@@ -150,7 +179,106 @@ void SoundImageWidget::paintEvent(QPaintEvent * /*event*/)
     const Viewport vp = computeViewport();
     if (vp.destRect.isEmpty() || vp.sourceRect.isEmpty()) return;
 
+    // 고정 캔버스(1019×654)를 위젯/확대 배율에 맞춰 키울 때 최근접 보간이면 픽셀이 블록으로 깨진다.
+    //  bilinear 보간(SmoothPixmapTransform)으로 그래스를 부드럽게 업스케일.
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
     painter.drawImage(vp.destRect, *image, vp.sourceRect);
+
+    // 마커(A/C)는 저해상 이미지에 굽지 않고 표시 시점에 벡터로 또렷하게 덧그린다 → 확대해도 선명·정확.
+    //  크기를 배율에 비례시키면 3px 마커가 확대 시 거대한 블록이 되어 '뭉개진' 띠로 보인다. 그래서
+    //  배율과 무관한 '고정 작은 점'으로 그린다 → 확대해도 작은 점(각 비트 구분), 축소 시엔 겹쳐 선으로 보임.
+    if (!mOverlayMarkers.empty() && vp.sourceRect.width() > 0.0 && vp.sourceRect.height() > 0.0) {
+        constexpr double kDotPx = 4.0;   // 마커 점 한 변(위젯 픽셀, 고정)
+        painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+        painter.setRenderHint(QPainter::Antialiasing, false);              // 또렷한 사각 에지
+        painter.setClipRect(vp.destRect);                                  // 레터박스 여백으로 번지지 않게
+        painter.setPen(Qt::NoPen);
+        for (const SoundImageRenderer::OverlayMarker &m : mOverlayMarkers) {
+            const double u = (m.x + 0.5 - vp.sourceRect.left()) / vp.sourceRect.width();
+            const double v = (m.y + 0.5 - vp.sourceRect.top())  / vp.sourceRect.height();
+            const double cx = vp.destRect.left() + u * vp.destRect.width();
+            const double cy = vp.destRect.top()  + v * vp.destRect.height();
+            painter.fillRect(QRectF(cx - kDotPx * 0.5, cy - kDotPx * 0.5, kDotPx, kDotPx),
+                             QColor::fromRgba(m.color));
+        }
+        painter.setClipping(false);
+    }
+
+    drawAxes(painter, vp);   // x(시간)·y(비트 내 ms) 눈금·단위
+}
+
+// '좋은' 눈금 간격(1·2·5 ×10^k) 선택.
+static double niceTickStep(double rough)
+{
+    if (rough <= 0.0) return 1.0;
+    const double mag = std::pow(10.0, std::floor(std::log10(rough)));
+    const double n = rough / mag;
+    const double m = (n < 1.5) ? 1.0 : (n < 3.5) ? 2.0 : (n < 7.5) ? 5.0 : 10.0;
+    return m * mag;
+}
+
+// 축 눈금/라벨/단위. y=한 비트 안의 시간(ms, 위=0 → 아래=beat period),
+//  x=가시 창의 경과 시간(s, 좌→우). 캔버스를 fold 한 상대 스케일이라 절대 0 위치는 fold 원점.
+void SoundImageWidget::drawAxes(QPainter &painter, const Viewport &vp) const
+{
+    if (!image || vp.destRect.isEmpty() || vp.sourceRect.isEmpty()) return;
+
+    const double ih = image->height();
+    const QRectF dst = vp.destRect;
+    const QRectF src = vp.sourceRect;
+    const QColor axisCol(190, 190, 198);
+    const QColor tickCol(120, 120, 130);
+
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    QFont f = painter.font(); f.setPointSizeF(8.0); painter.setFont(f);
+
+    // ── y축: 비트 내 시간(ms) ──
+    if (mBeatPeriodMs > 0.0) {
+        const double topMs = (src.top()) / ih * mBeatPeriodMs;
+        const double botMs = (src.top() + src.height()) / ih * mBeatPeriodMs;
+        const double step  = niceTickStep((botMs - topMs) / 6.0);
+        painter.setPen(QPen(tickCol, 1.0));
+        const double startMs = std::ceil(topMs / step) * step;
+        for (double ms = startMs; ms <= botMs + 1e-6; ms += step) {
+            const double row = ms / mBeatPeriodMs * ih;
+            const double y = dst.top() + (row - src.top()) / src.height() * dst.height();
+            if (y < dst.top() - 0.5 || y > dst.bottom() + 0.5) continue;
+            painter.setPen(QPen(tickCol, 1.0));
+            painter.drawLine(QPointF(dst.left() - 4, y), QPointF(dst.left(), y));
+            painter.setPen(axisCol);
+            painter.drawText(QRectF(0, y - 7, kMarginLeft - 6, 14),
+                             Qt::AlignRight | Qt::AlignVCenter, QString::number(ms, 'f', 0));
+        }
+        painter.setPen(axisCol);
+        painter.save();
+        painter.translate(11, dst.center().y());
+        painter.rotate(-90);
+        painter.drawText(QRectF(-80, -10, 160, 14), Qt::AlignCenter,
+                         QStringLiteral("time in beat (ms)"));
+        painter.restore();
+    }
+
+    // ── x축: 가시 창 경과 시간(s) ──
+    if (mBeatPeriodMs > 0.0) {
+        const double periodS = mBeatPeriodMs / 1000.0;   // 1 컬럼(=1 비트) = periodS 초
+        const double spanS = src.width() * periodS;
+        const double step  = niceTickStep(spanS / 7.0);
+        painter.setPen(QPen(tickCol, 1.0));
+        for (double s = 0.0; s <= spanS + 1e-6; s += step) {
+            const double col = src.left() + s / periodS;
+            const double x = dst.left() + (col - src.left()) / src.width() * dst.width();
+            if (x < dst.left() - 0.5 || x > dst.right() + 0.5) continue;
+            painter.setPen(QPen(tickCol, 1.0));
+            painter.drawLine(QPointF(x, dst.bottom()), QPointF(x, dst.bottom() + 4));
+            painter.setPen(axisCol);
+            const QString lbl = (step < 1.0) ? QString::number(s, 'f', 1) : QString::number(s, 'f', 0);
+            painter.drawText(QRectF(x - 24, dst.bottom() + 5, 48, 13),
+                             Qt::AlignHCenter | Qt::AlignTop, lbl);
+        }
+        painter.setPen(axisCol);
+        painter.drawText(QRectF(dst.left(), height() - 14, dst.width(), 13),
+                         Qt::AlignHCenter | Qt::AlignTop, QStringLiteral("time across window (s) →"));
+    }
 }
 
 void SoundImageWidget::wheelEvent(QWheelEvent *event)

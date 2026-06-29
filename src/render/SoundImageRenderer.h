@@ -251,6 +251,26 @@ public:
             For highest speed, set false and draw only completed columns.
         */
         bool live_preview_current_column = true;
+
+        /**
+            If true, event markers (A/C) are baked into the output image as filled
+            squares. If false, the renderer only tracks marker positions and the
+            caller draws them as a crisp display-time overlay (so markers stay sharp
+            when the low-res canvas is upscaled). See overlayMarkers().
+        */
+        bool draw_markers_into_image = true;
+    };
+
+    /**
+        @brief One marker mapped to current image pixel coordinates, for callers
+               that draw a crisp overlay instead of baking markers into the image.
+    */
+    struct OverlayMarker
+    {
+        int x = 0;        // image pixel x
+        int y = 0;        // image pixel y
+        QRgb color = 0;
+        int side = 1;     // intended marker side in image pixels (1/3/9)
     };
 
     SoundImageRenderer();
@@ -350,6 +370,15 @@ public:
             1, 3, 9
     */
     void markCEventAbsoluteSampleIndex(quint64 absolute_sample_index, QRgb color, int marker_side_pixels);
+
+    /**
+        @brief Current marker positions in image pixel coordinates.
+
+        Returns only markers that map to a currently-rendered column. Intended for
+        callers that set Config::draw_markers_into_image=false and overlay markers
+        crisply at display time.
+    */
+    std::vector<OverlayMarker> overlayMarkers() const;
 
     int imageWidth() const { return width_; }
     int imageHeight() const { return height_; }
