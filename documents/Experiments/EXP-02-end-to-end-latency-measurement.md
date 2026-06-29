@@ -2,7 +2,7 @@
 
 ## Objective
 
-Measure end-to-end latency from a microphone impulse to the GUI update and verify it stays within 100 ms under peak load (12 tabs active).
+Measure end-to-end latency from a microphone impulse to the GUI update and verify it stays within 100 ms under peak load (13 tabs active).
 
 ## Status
 
@@ -22,7 +22,7 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
   
 - Timestamped logging across pipeline stages
 
-- Peak-load scenario (12 tabs active)
+- Peak-load scenario (13 tabs active)
 
 ## Experiment description
 
