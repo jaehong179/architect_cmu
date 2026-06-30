@@ -16,6 +16,8 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QMessageBox>
+#include <QTabWidget>
+#include <QMouseEvent>
 #include <QDebug>
 #include <QtMath>
 #include "WaveHeader.h"
@@ -487,11 +489,13 @@ void MainWindow::RegisterDisplayTabs(void)
     ));
 
     auto *tabBar = ui->GraphicsTabWidget->tabBar();
-    auto shiftTab = [tabBar](int step) {
+    auto shiftTab = [this, tabBar](int step) {
         if (!tabBar) return;
         const int count = tabBar->count();
         if (count <= 0) return;
         const int next = qBound(0, tabBar->currentIndex() + step, count - 1);
+        if (next == tabBar->currentIndex()) return;
+        if (!maybeConfirmLeaveSequence(next)) return;   // [MPS 탭 이탈 보호] 측정 중 확인
         tabBar->setCurrentIndex(next);
     };
 
@@ -521,6 +525,11 @@ void MainWindow::RegisterDisplayTabs(void)
     mWarmupOverlay = new WarmupOverlay(ui->GraphicsTabWidget);
     connect(mWarmupOverlay, &WarmupOverlay::warmupFinished,
             this, &MainWindow::onWarmupFinished);
+
+    // [MPS 탭 이탈 보호] 측정 중 시퀀스 탭을 벗어나면 중단 확인 팝업.
+    //  탭바 클릭을 전환 '이전'에 가로채기 위해 이벤트 필터 설치.
+    if (ui->GraphicsTabWidget->tabBar())
+        ui->GraphicsTabWidget->tabBar()->installEventFilter(this);
 }
 
 void MainWindow::updateSeekLabel(double absSample)
@@ -1016,6 +1025,7 @@ void MainWindow::ConfigureSoundCard(void)
 
 void MainWindow::EventsReset(void)
 {
+    mReadoutFrozen = false;   // [MPS 포지션 전환] 세션 시작/정지 시 요약바 고정 해제
     mEngine.reset();
     DisplayResults();
 }
@@ -1241,6 +1251,7 @@ void MainWindow::SimStart(void)
 void MainWindow::DisplayResults(void)
 {
     if (mInWarmup) return;   // [측정 대기] 웜업 중에는 readout/그래프 갱신 차단
+    if (mReadoutFrozen) return;   // [MPS 포지션 전환] 대기 구간 동안 요약바/탭 갱신 고정
     MeasurementEngine::Results res = mEngine.results();
     QString BeatsPerHour,RateError,BeatError,Amplitude, Results;
     if (res.bphValid) {
@@ -1450,6 +1461,13 @@ void MainWindow::onPositionPhaseChanged(const QString &positionName,
     mLastPhaseLabel = phaseLabel;
     mLastPhaseRemainingSec = remainingSec;
 
+    // [MPS 포지션 전환] 다음 포지션이 실제 측정에 진입하면 요약바 고정 해제.
+    //  대기 팝업/안정화(stabilizing) 동안에는 계속 고정 상태를 유지한다.
+    if (phaseLabel == QStringLiteral("measuring") && mReadoutFrozen) {
+        mReadoutFrozen = false;
+        DisplayResults();
+    }
+
     if (mSequenceDisplay)
         mSequenceDisplay->setPhaseStatus(phaseLabel, remainingSec);
 
@@ -1478,7 +1496,16 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
     const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
         && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
 
+    // [MPS 탭 한정] 포지션 전환 부수효과(요약바 고정 · 엔진 리셋 · 트레이스 탭 리셋)는
+    //  사용자가 Multi-Position Sequence Display 탭을 보고 있을 때만 수행한다.
+    //  다른 그래프 탭을 보는 중이라면 그 그래프에 영향을 주지 않도록 아무것도 하지 않는다.
     if (onSequenceTab) {
+        // [MPS 포지션 전환] 측정 창이 끝나는 즉시 상단 요약바를 고정한다.
+        //  → 대기 팝업/안정화 동안 직전 포지션의 마지막 값이 그대로 유지되고 흔들리지 않는다.
+        //    다음 포지션이 'measuring' 으로 진입하면 onPositionPhaseChanged 에서 해제.
+        if (!sequenceComplete)
+            mReadoutFrozen = true;
+
         Q_UNUSED(positionIndex);
         Q_UNUSED(positionName);
         Q_UNUSED(nextPositionName);
@@ -1492,19 +1519,58 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
             dlg.exec();
             mActivePositionDialog = nullptr;
         }
-    }
 
-    // [MPS 포지션 전환] 다음 포지션으로 넘어가기 직전에 엔진 누적 통계를 비운다.
-    //  → 포지션 이동/안정화 구간(다이얼로그 동안 들어온 핸들링 노이즈 포함)이 다음
-    //    포지션 측정값에 섞이지 않게 한다. BPH 락은 보존되어 즉시 깨끗하게 재수렴.
-    if (!sequenceComplete) {
-        mEngine.resetForPositionChange();
-        if (mTabManager) mTabManager->broadcastReset();   // 트레이스/히스토리 탭 표시도 새 포지션 기준으로 리셋
-        DisplayResults();
+        // [MPS 포지션 전환] 다음 포지션으로 넘어가기 직전에 엔진 누적 통계를 비운다.
+        //  → 포지션 이동/안정화 구간(다이얼로그 동안 들어온 핸들링 노이즈 포함)이 다음
+        //    포지션 측정값에 섞이지 않게 한다. BPH 락은 보존되어 즉시 깨끗하게 재수렴.
+        if (!sequenceComplete) {
+            mEngine.resetForPositionChange();
+            // 트레이스/스코프 표시만 새 포지션 기준으로 비우고, 시퀀스 누적표(포지션별
+            //  측정값)는 보존한다. 요약바는 mReadoutFrozen 으로 이미 고정된 상태.
+            if (mTabManager) mTabManager->broadcastResetExcept(mSequenceDisplay);
+        }
     }
 
     if (mPositionSequence)
         mPositionSequence->confirmPositionChange();
+}
+
+bool MainWindow::maybeConfirmLeaveSequence(int targetIndex)
+{
+    // [MPS 탭 이탈 보호] 측정 중 Multi-Position Sequence Display 탭에서 다른 탭으로
+    //  나가려 할 때만 중단 확인. 그 외(시퀀스 탭 아님 · 비측정 · 같은 탭)는 그대로 허용.
+    const int seqIdx = (mSequenceDisplay && ui && ui->GraphicsTabWidget)
+        ? ui->GraphicsTabWidget->indexOf(mSequenceDisplay) : -1;
+    if (seqIdx < 0) return true;
+    if (!mIsRunning) return true;
+    if (ui->GraphicsTabWidget->currentIndex() != seqIdx) return true;   // 시퀀스 탭에서 나가는 경우만
+    if (targetIndex == seqIdx) return true;
+
+    const QMessageBox::StandardButton btn = QMessageBox::question(this,
+        tr("Stop measurement"),
+        tr("Leaving the Multi-Position Sequence will stop the current measurement.\n\n"
+           "Stop the measurement and switch to the selected tab?"),
+        QMessageBox::Ok | QMessageBox::Cancel, QMessageBox::Cancel);
+
+    if (btn == QMessageBox::Ok) {
+        stopSession();    // 측정 중단 → 이후 탭 전환 허용
+        return true;
+    }
+    return false;          // 취소 → 탭 전환 차단(시퀀스 탭 유지)
+}
+
+bool MainWindow::eventFilter(QObject *obj, QEvent *event)
+{
+    // [MPS 탭 이탈 보호] 탭바 클릭을 전환 '이전'에 가로채 확인 팝업을 띄운다.
+    //  → 취소 시 탭이 아예 움직이지 않고, OK 시 먼저 측정을 중단한 뒤 전환이 진행된다.
+    if (ui && ui->GraphicsTabWidget && obj == ui->GraphicsTabWidget->tabBar()
+        && event->type() == QEvent::MouseButtonPress) {
+        auto *tabBar = ui->GraphicsTabWidget->tabBar();
+        const int target = tabBar->tabAt(static_cast<QMouseEvent *>(event)->pos());
+        if (target >= 0 && !maybeConfirmLeaveSequence(target))
+            return true;   // 취소 → 클릭 소비(전환 차단)
+    }
+    return QMainWindow::eventFilter(obj, event);
 }
 
 void MainWindow::onAllPositionsMeasured()

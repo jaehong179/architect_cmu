@@ -94,6 +94,14 @@ void TabManager::broadcastReset()
         if (t) t->onResetSession();
 }
 
+void TabManager::broadcastResetExcept(TabView *skip)
+{
+    // [MPS 포지션 전환] 트레이스/스코프 표시만 새 포지션 기준으로 비우고,
+    //  skip(시퀀스 누적표)은 보존한다. mPaused 전역 상태는 건드리지 않는다.
+    for (TabView *t : mTabs)
+        if (t && t != skip) t->onResetSession();
+}
+
 bool TabManager::eventFilter(QObject *watched, QEvent *event)
 {
     if (!mHost) return QObject::eventFilter(watched, event);

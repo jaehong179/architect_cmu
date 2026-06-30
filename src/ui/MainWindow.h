@@ -212,6 +212,7 @@ public slots:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
+    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -231,6 +232,9 @@ private:
     void   onPositionMeasurementEnded(int positionIndex, const QString &positionName,
                                       const QString &nextPositionName, bool sequenceComplete);
     void   onAllPositionsMeasured();
+    // [MPS 탭 이탈 보호] 측정 중 시퀀스 탭을 벗어나려 하면 중단 확인 팝업.
+    //  switch 허용이면 true(필요 시 stopSession 수행), 취소면 false 반환.
+    bool   maybeConfirmLeaveSequence(int targetIndex);
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   LoadAudioDevices(void);
@@ -295,6 +299,10 @@ private:
     int                        mWarmupDelayIndex = 1;   // 기본 5초 (0/5/10/15/20)
     bool                       mInWarmup = false;
     WarmupOverlay             *mWarmupOverlay = nullptr;
+
+    // [MPS 포지션 전환] 대기 팝업~다음 포지션 안정화 동안 상단 요약바(readout) 고정.
+    //  포지션 측정 종료 시 true → 다음 포지션이 'measuring' 진입하면 false.
+    bool                       mReadoutFrozen = false;
 
     int                        mDeviceIndex = -1;
     int                        mSampleRateIndex = -1;

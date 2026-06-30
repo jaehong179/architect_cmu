@@ -48,6 +48,9 @@ public:
     // 세션 리셋을 모든 탭에 전파.
     void broadcastReset();
 
+    // 세션 리셋을 skip 탭만 제외하고 전파. (MPS 포지션 전환 시 시퀀스 누적표는 보존)
+    void broadcastResetExcept(TabView *skip);
+
     // [③ 시점 동기화] 선택한 절대 샘플 인덱스를 모든 탭에 전파(정지 중 트렌드 클릭 → 스코프 점프).
     void broadcastSeek(double absSample);
 
