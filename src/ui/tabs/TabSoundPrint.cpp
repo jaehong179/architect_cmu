@@ -121,9 +121,12 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
                 mRenderer.markCEventAbsoluteSampleIndex(e.markSample, qRgba(0, 0, 255, 255), kMarkerPixelSize);
         }
     }
-    if (mHasBph) {
+    // 폴딩 누적(processSamples)·마커 등록은 위에서 항상 수행(숨김에도 이미지 완성도 유지).
+    //  단, 오버레이 마커 벡터 빌드 + 재그리기는 보일 때만 — 숨김 탭 부하↓(표시 전환 시 위젯이 자동 repaint).
+    if (mHasBph && isVisible()) {
         mImage->setLiveColumn(mRenderer.currentColumn());
         mImage->setOverlayMarkers(mRenderer.overlayMarkers());   // 또렷 마커 좌표 갱신
+        mImage->DrawImage();
     }
     if (isVisible())
         mImage->DrawImage();

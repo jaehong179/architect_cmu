@@ -170,20 +170,32 @@ void TabFilterViews::drawPanel(int k, const QVector<double> &out, int warm, int 
     const bool mirror = kScopeMirror[k];               // F0·F1 미러(±), F2·F3 upper(+만)
 
     // 워밍업 구간 제거 → 표시 윈도우. 미러: ±out, upper: +out. x=(i-preS) → T1=0ms.
+    //  sweep(수만 샘플)은 화면 폭 대비 과하므로, 실제 플롯 픽셀 폭에 맞춰(픽셀당 ~2점) 버킷별 '최대'
+    //  (엔벨로프 피크 보존)로 데시메이션 → setData/replot 부하↓(패널 4개라 효과 큼). 마커는 원샘플 기준.
     //  축 고정을 위해 '스무딩된 피크(mNorm)'로 정규화(AGC식) → y범위 흔들림 억제.
-    QVector<double> up(sweep), lo(sweep), x(sweep);
+    const int pxW = p->axisRect() ? std::max(1, p->axisRect()->width()) : 1200;
+    const int targetPoints = std::min(sweep, std::max(400, pxW * 2));
+    const int step = std::max(1, sweep / targetPoints);
+    const int nOut = (sweep + step - 1) / step;
+    QVector<double> up(nOut), lo(nOut), x(nOut), pooled(nOut);
     double curPeak = 1e-9;
-    for (int i = 0; i < sweep; ++i) {
-        const double v = (warm + i < out.size() ? out[warm + i] : 0.0);
-        if (v > curPeak) curPeak = v;                  // out 은 비음수 엔벨로프
-        x[i] = 1000.0 * (i - preS) / sr;
+    for (int b = 0; b < nOut; ++b) {
+        const int i0 = b * step, i1 = std::min(sweep, i0 + step);
+        double m = 0.0;
+        for (int i = i0; i < i1; ++i) {
+            const double v = (warm + i < out.size() ? out[warm + i] : 0.0);   // out 은 비음수 엔벨로프
+            if (v > m) m = v;
+        }
+        pooled[b] = m;
+        if (m > curPeak) curPeak = m;
+        x[b] = 1000.0 * ((i0 + (i1 - i0) * 0.5) - preS) / sr;   // 버킷 중심, T1=0ms
     }
     double &nrm = mNorm[k];                             // 상승은 즉시, 하강은 천천히(흔들림 억제)
     if (curPeak > nrm) nrm = curPeak; else nrm = 0.92 * nrm + 0.08 * curPeak;
     if (nrm < 1e-9) nrm = 1e-9;
-    for (int i = 0; i < sweep; ++i) {
-        const double m = (warm + i < out.size() ? out[warm + i] : 0.0) / nrm;
-        up[i] = m; lo[i] = mirror ? -m : 0.0;
+    for (int b = 0; b < nOut; ++b) {
+        const double m = pooled[b] / nrm;
+        up[b] = m; lo[b] = mirror ? -m : 0.0;
     }
     p->graph(0)->setData(x, up, true);
     if (mirror) p->graph(1)->setData(x, lo, true);

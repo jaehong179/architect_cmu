@@ -369,6 +369,10 @@ void TabRateScope::onWave(const WaveBlock &wave)
         }
     }
 
+    purgeHistory();             // 항상 — 누적 그래프/마커 메모리 바운드(점 수 무관)
+    if (!isVisible()) return;   // 이하 마커·스코프 프레이밍·축·replot 은 보일 때만 → 숨김 탭 부하↓
+                                //  (데이터 누적/decim 은 위에서 이미 처리)
+
     const double inwardLenSec = (500.0 * (mSampleRateHz / 48000.0)) / mSampleRateHz;
     // 마커 높이는 비트별 peak 가 아니라 '현재 y축 범위' 기준 고정 비율 → 모든 비트가 같은 높이.
     const double H = mScopePlot->yAxis->range().upper;
@@ -403,7 +407,6 @@ void TabRateScope::onWave(const WaveBlock &wave)
         }
     }
 
-    purgeHistory();
     frameScope();   // roll(미검출 시 흐름) → 검출되면 트리거락(정지)
 
     // Scope Y축: purgeHistory 후 남은 그래프 데이터 전체의 실제 max를 기반으로 smoothPeak 적용.
