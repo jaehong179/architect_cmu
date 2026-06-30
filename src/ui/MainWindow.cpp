@@ -16,6 +16,7 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QMessageBox>
+#include <QTimer>   // [포지션 토스트] 표시 후 자동 숨김 타이머
 #include <QTabWidget>
 #include <QMouseEvent>
 #include <QDebug>
@@ -258,6 +259,35 @@ MainWindow::MainWindow(QWidget *parent)
     QVBoxLayout *cpLayout = new QVBoxLayout(ui->ControlPanelPlaceholder);
     cpLayout->setContentsMargins(0, 0, 0, 0);
     cpLayout->addWidget(mControlPanelQuickWidget);
+
+    // [포지션 토스트] 탭(그래프) 위에 떠서 감지 포지션 변경을 잠깐 보여주는 투명 오버레이.
+    //  투명 배경 + 마우스 통과 → 그래프를 가리거나 클릭을 막지 않는다. 지오메트리는 applyPanelLayout 에서 탭 영역에 맞춤.
+    mPositionToast = new QQuickWidget(ui->CentralWidget);
+    mPositionToast->rootContext()->setContextProperty("cppBackend", this);
+    mPositionToast->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    mPositionToast->setClearColor(Qt::transparent);
+    mPositionToast->setAttribute(Qt::WA_TranslucentBackground);
+    mPositionToast->setAttribute(Qt::WA_TransparentForMouseEvents);
+    mPositionToast->setSource(QUrl(QStringLiteral("qrc:/qml/src/ui/PositionToast.qml")));
+    mPositionToast->hide();   // 평소엔 숨김(탭/그래프 안 가림). 포지션 변경 때만 잠깐 표시.
+
+    // [포지션 토스트] 감지 포지션이 바뀌면 잠깐 띄우고, 마지막 변경 2.3초 뒤 다시 숨긴다.
+    mPositionToastHideTimer = new QTimer(this);
+    mPositionToastHideTimer->setSingleShot(true);
+    mPositionToastHideTimer->setInterval(2300);
+    connect(mPositionToastHideTimer, &QTimer::timeout, this, [this]() {
+        if (mPositionToast) mPositionToast->hide();
+    });
+    connect(this, &MainWindow::detectedPositionChanged, this, [this]() {
+        if (!mPositionToast) return;
+        const QString dp = mDetectedPosition.trimmed();
+        if (dp.isEmpty() || dp == QStringLiteral("?"))
+            return;   // 유효 포지션일 때만 토스트
+        applyPanelLayout();          // 탭 영역에 맞춰 지오메트리 갱신
+        mPositionToast->show();
+        mPositionToast->raise();
+        mPositionToastHideTimer->start();
+    });
 
     // Initial geometry sync: use the whole available central area (no fixed tab height).
     onControlPanelToggled(mControlPanelCollapsed);
@@ -1697,6 +1727,12 @@ void MainWindow::applyPanelLayout()
     const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
     ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
+
+    // [포지션 토스트] 탭 영역과 동일 지오메트리로 그 위에 띄운다(투명·마우스 통과).
+    if (mPositionToast) {
+        mPositionToast->setGeometry(contentX, TAB_Y, contentW, tabH);
+        mPositionToast->raise();
+    }
 }
 
 void MainWindow::showHistoryQr()

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- Synthetic watch-tick pulse train -->
+  <path d="M2 17h2l1-9 1.5 9h2l1-6 1 6h2l1-9 1.5 9H20"
+        stroke="#ab47bc" stroke-width="2" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

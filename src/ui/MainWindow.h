@@ -22,6 +22,7 @@ QT_END_NAMESPACE
 
 class QLabel;
 class QQuickWidget;
+class QTimer;
 class TabManager;   
 class TabRateScope; 
 class TabBeatErrorTrace;
@@ -231,6 +232,8 @@ private:
     WaveLodHistory  mWaveHistory;
 
     QQuickWidget   *mControlPanelQuickWidget = nullptr; // Embedding QML widget
+    QQuickWidget   *mPositionToast = nullptr;           // [포지션 토스트] 탭 위 플로팅 알림(투명)
+    QTimer         *mPositionToastHideTimer = nullptr;  // [포지션 토스트] 표시 후 자동 숨김
 
     void   RegisterDisplayTabs(void);
     void   PublishMeasurementToTabs(void);

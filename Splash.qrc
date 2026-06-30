@@ -19,8 +19,12 @@
         <file>src/ui/images/ic_stop.svg</file>
         <file>src/ui/images/ic_qr.svg</file>
         <file>src/ui/images/ic_settings.svg</file>
+        <file>src/ui/images/ic_mode_live.svg</file>
+        <file>src/ui/images/ic_mode_playback.svg</file>
+        <file>src/ui/images/ic_mode_sim.svg</file>
     </qresource>
     <qresource prefix="/qml">
         <file>src/ui/ControlPanel.qml</file>
+        <file>src/ui/PositionToast.qml</file>
     </qresource>
 </RCC>

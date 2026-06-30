@@ -435,20 +435,19 @@ Rectangle {
             border.width: 1
             anchors.horizontalCenter: parent.horizontalCenter
 
-            Text {
+            Image {
                 anchors.centerIn: parent
-                text: root.modeIcons[cppBackend.currentMode] || "●"
-                font.pixelSize: 32
-                color: {
+                width: 42
+                height: 42
+                fillMode: Image.PreserveAspectFit
+                source: {
                     switch (cppBackend.currentMode) {
-                        case 0: return "#ef5350"  // Live  → red
-                        case 1: return "#42a5f5"  // Play  → blue
-                        case 2: return "#ab47bc"  // Sim   → purple
-                        default: return root.colorTextMain
+                        case 0: return "qrc:/images/src/ui/images/ic_mode_live.svg"      // Live
+                        case 1: return "qrc:/images/src/ui/images/ic_mode_playback.svg"  // Playback
+                        case 2: return "qrc:/images/src/ui/images/ic_mode_sim.svg"       // Sim
+                        default: return "qrc:/images/src/ui/images/ic_mode_live.svg"
                     }
                 }
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
             }
 
             ToolTip.visible: modeHover.hovered
@@ -457,8 +456,9 @@ Rectangle {
             HoverHandler { id: modeHover }
         }
 
-        // ── Position badge (camera/detected watch) ──
+        // ── Position badge (camera/detected watch) — 변경 시 팝 애니메이션 ──
         Rectangle {
+            id: posBadge
             width: 68
             height: 68
             radius: 14
@@ -466,6 +466,7 @@ Rectangle {
             border.color: root.colorBorder
             border.width: 1
             anchors.horizontalCenter: parent.horizontalCenter
+            transformOrigin: Item.Center
 
             Image {
                 anchors.centerIn: parent
