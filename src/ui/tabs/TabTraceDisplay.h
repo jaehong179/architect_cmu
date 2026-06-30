@@ -32,7 +32,7 @@ protected:
 private:
     // 클릭한 x(초) → 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples).
     double sampleAtX(double xSeconds) const;
-    void   showCursor(double xSeconds);          // [③] 클릭 지점 세로 커서선(선택 확인용)
+    void   showCursor(double xSeconds, double labelSample);   // [③] 커서 위치(x초) + 라벨용 절대샘플(타 탭 통일)
     // [이상치] 엔진 snapshot 플래그 → 배경 빨강 음영 마킹(상승엣지 1회). rate/amplitude 각각.
     void   redrawAnomalies(QCustomPlot *plot, QVector<double> &anomX, QVector<QCPItemRect*> &marks);
     QVector<double> mRateAnomX, mAmpAnomX;

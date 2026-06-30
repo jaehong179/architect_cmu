@@ -40,7 +40,7 @@ TabBeatErrorTrace::TabBeatErrorTrace(QWidget *parent) : TabView(parent)
     mPlot->graph(2)->setLineStyle(QCPGraph::lsNone);
     mPlot->graph(2)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, QColor(255,140,0), 6));
     mPlot->graph(2)->setName(QStringLiteral("outlier"));
-    mPlot->xAxis->setLabel(QStringLiteral("beat #"));
+    mPlot->xAxis->setLabel(QStringLiteral("time (s)"));   // 측정 시작 기준 경과 초(툴팁 t 와 동일 좌표)
     mPlot->yAxis->setLabel(QStringLiteral("timing error (ms) · gap between the two lines = beat error"));
     mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);
     mPlot->legend->setVisible(true);
@@ -70,6 +70,7 @@ void TabBeatErrorTrace::onMeasurement(const MeasurementSnapshot &s)
 {
     mBeatErrValid = s.beatErrorValid; mBeatErrMs = s.beatErrorMs;
     mRateValid    = s.rateValid;      mRateSd    = s.rate;
+    mPlotOriginSec = s.plotTimeOriginSec;   // x축·툴팁 t 의 공통 원점(측정 시작=워밍업 종료)
     updateStatusAlert();
 }
 
@@ -132,9 +133,12 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         double y = std::fmod(-En + kWrapMs / 2.0, kWrapMs);
         if (y < 0) y += kWrapMs;
         y -= kWrapMs / 2.0;
-        mPlot->graph(n % 2 == 0 ? 0 : 1)->addData((double)n, y);
-        if (e.outlier) mPlot->graph(2)->addData((double)n, y);   // [이상치] rate 이상치 비트에 주황 점 겹침
-        mSeek.addPoint((double)n, (double)e.sample);   // [③] beat# → 절대 샘플(클릭→시점)
+        // X = 측정 시작(워밍업 종료) 기준 경과 초 — 툴팁 t 와 동일 좌표.  비트 번호 n 은
+        //  tic/toc 위상(n%2)·기울기(ΔE/Δn) 계산용으로만 유지하고, 화면 x 는 시간으로 그린다.
+        const double xSec = (double)e.sample / sr - mPlotOriginSec;
+        mPlot->graph(n % 2 == 0 ? 0 : 1)->addData(xSec, y);
+        if (e.outlier) mPlot->graph(2)->addData(xSec, y);   // [이상치] rate 이상치 비트에 주황 점 겹침
+        mSeek.addPoint(xSec, (double)e.sample);   // [③] 시간(초) → 절대 샘플(클릭→시점)
 
         // E6: 기울기 m = ΔE/Δn (ms/비트) — 검출 누락으로 비트 번호가 건너뛰어도
         //  '비트당'으로 정규화해야 rate 환산이 맞는다. 지수평활로 안정화.
@@ -145,12 +149,14 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         mPrevE = En; mPrevN = n; mHavePrevE = true;
     }
 
-    // 메모리 바운드: 오래된 점 제거.
-    if (mPlot->graph(0)->dataCount() > kMaxDots) {
-        const double cut = (double)mN - kMaxDots;
-        mPlot->graph(0)->data()->removeBefore(cut);
-        mPlot->graph(1)->data()->removeBefore(cut);
-        mPlot->graph(2)->data()->removeBefore(cut);
+    // 메모리 바운드: 오래된 점 제거. x 가 시간(초)이므로 beat# 대신 보존 점 수 기준으로
+    //  컷오프 '시각'을 구해 그 이전을 버린다(최근 kMaxDots 틱 지점 + 같은 구간 toc/이상치 유지).
+    auto tic = mPlot->graph(0)->data();
+    if (tic->size() > kMaxDots) {
+        const double cutKey = tic->at(tic->size() - kMaxDots)->key;
+        mPlot->graph(0)->data()->removeBefore(cutKey);
+        mPlot->graph(1)->data()->removeBefore(cutKey);
+        mPlot->graph(2)->data()->removeBefore(cutKey);
     }
 
     // 최신 Tic·Toc 점 사이 간격(=beat error)을 양방향 화살표로 표시.
@@ -175,11 +181,18 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
         mGapText->setVisible(shown);
     }
 
-    if (isVisible()) {
-        mPlot->xAxis->rescale();
-        mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);   // Y 는 랩 창 고정
-        mPlot->replot(QCustomPlot::rpQueuedReplot);
+    // x 범위는 숨김 중에도 데이터에 맞춰 갱신해 둔다(축 갱신은 저렴) → 정지 중 타 탭 seek 가
+    //  도착해도 기본(0~5) 폭으로 확대되지 않고, 그 폭 그대로 선택 지점을 중심에 보여준다.
+    mPlot->xAxis->rescale();
+    // 최신 비트가 우측 경계에 딱 붙어, 그 자리에 그려지는 초록 gap 화살표·"gap=beat error …" 라벨이
+    //  잘리지 않도록 우측에 라벨 폭(≈160px)만큼 여백을 더한다.
+    if (const int rectW = mPlot->axisRect()->width()) {
+        const double pad = mPlot->xAxis->range().size() / (double)rectW * 160.0;
+        mPlot->xAxis->setRange(mPlot->xAxis->range().lower, mPlot->xAxis->range().upper + pad);
     }
+    mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);   // Y 는 랩 창 고정
+    if (isVisible())
+        mPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 void TabBeatErrorTrace::onShown() { if (mPlot) mPlot->replot(); }
@@ -187,6 +200,7 @@ void TabBeatErrorTrace::onShown() { if (mPlot) mPlot->replot(); }
 void TabBeatErrorTrace::onResetSession()
 {
     mAnchored = false; mTstart = 0; mN = 0; mLastA = 0; mBph = 0;
+    mPlotOriginSec = 0.0;
     mSeek.clear();
     mPrevE = 0.0; mPrevN = 0; mHavePrevE = false; mSlopeAvg = 0.0;
     mBeatErrMs = 0.0; mBeatErrValid = false;

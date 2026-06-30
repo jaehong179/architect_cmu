@@ -63,10 +63,10 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 }
 
 // [③] 선택한 시각(x초)에 두 그래프 롤리팝 커서를 표시(툴팁=선택 시각).
-void TabTraceDisplay::showCursor(double xSeconds)
+void TabTraceDisplay::showCursor(double xSeconds, double labelSample)
 {
-    // 모든 트렌드 탭 공통 라벨(t · rate · amp · error) — 두 그래프 동일 표시.
-    const QString lbl = SeekInfo::labelAt(sampleAtX(xSeconds));
+    // 모든 트렌드 탭 공통 라벨 — 선택한 '원본 절대샘플' 기준이라 어느 탭에서 봐도 t·rate 가 같다.
+    const QString lbl = SeekInfo::labelAt(labelSample);
     TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, lbl);
     TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, lbl);
     if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
@@ -82,7 +82,7 @@ void TabTraceDisplay::onSeek(double absSample)
         const double err = qAbs(p.second - absSample);
         if (err < bestErr) { bestErr = err; bestX = p.first; }
     }
-    showCursor(bestX);   // 롤리팝 툴팁이 선택 시각을 표시(전역 코너 라벨은 제거됨)
+    showCursor(bestX, absSample);   // 위치=로컬 최근접 x, 라벨=원본 절대샘플(모든 탭 동일 값)
 }
 
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
@@ -109,7 +109,11 @@ double TabTraceDisplay::sampleAtX(double xSeconds) const
 void TabTraceDisplay::onMeasurement(const MeasurementSnapshot &s)
 {
     if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
-    const double x = (s.timeMs - mT0) / 1000.0;
+    // x = 데이터-시간(측정 시작=워밍업 종료 기준 초) = 툴팁 t·다른 트렌드 탭과 동일 좌표.
+    //  (예전 벽시계 x 는 정지/재개 후 누적 정지시간만큼 툴팁 t 와 어긋났다.) sr 미상 시에만 벽시계 폴백.
+    const double x = (s.sampleRateHz > 0)
+        ? (double)s.totalSamples / (double)s.sampleRateHz - s.plotTimeOriginSec
+        : (s.timeMs - mT0) / 1000.0;
     mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
 
     double smoothed = 0.0; bool haveSmoothed = false;

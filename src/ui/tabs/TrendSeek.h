@@ -43,6 +43,7 @@ public:
         p.amp  = s.amplitudeDeg;  p.ampV  = s.amplitudeValid;
         p.be   = s.beatErrorMs;   p.beV   = s.beatErrorValid;
         if (s.sampleRateHz > 0) sr() = s.sampleRateHz;
+        origin() = s.plotTimeOriginSec;   // 워밍업 종료(=plot x원점) 기준 시각으로 라벨 t 를 통일
         QVector<Pt> &v = store();
         v.push_back(p);
         if (v.size() > kMax) v.remove(0, v.size() - kMax);   // 메모리 바운드(오래된 점 제거)
@@ -53,7 +54,9 @@ public:
     static QString labelAt(double absSample)
     {
         const int rate = sr();
-        QString lbl = QString("t=%1 s").arg(rate > 0 ? absSample / (double)rate : 0.0, 0, 'f', 1);
+        // t 는 그래프 x축과 동일하게 '워밍업 종료' 원점 기준(절대샘플/sr − 원점) — 워밍업 지연(예:5초)만큼의 어긋남 제거.
+        const double t = rate > 0 ? absSample / (double)rate - origin() : 0.0;
+        QString lbl = QString("t=%1 s").arg(t, 0, 'f', 1);
         const QVector<Pt> &v = store();
         if (v.isEmpty()) return lbl;
         int best = 0; double bestErr = qAbs(v.first().sample - absSample);
@@ -62,9 +65,7 @@ public:
             if (e < bestErr) { bestErr = e; best = i; }
         }
         const Pt &p = v[best];
-        if (p.rateV) lbl += QString("\nrate=%1 s/d").arg(p.rate, 0, 'f', 1);
-        if (p.ampV)  lbl += QString("\namp=%1°").arg(p.amp, 0, 'f', 0);
-        if (p.beV)   lbl += QString("\nerror=%1 ms").arg(p.be, 0, 'f', 2);
+        if (p.rateV) lbl += QString("\nrate=%1 s/d").arg(p.rate, 0, 'f', 1);   // 툴팁은 시간·rate 만 표시(amp·error 제외)
         return lbl;
     }
 
@@ -73,6 +74,8 @@ private:
     static constexpr int kMax = 60000;   // ≈ 2시간@8bps. 8분 seek 창을 충분히 덮음.
     static QVector<Pt> &store() { static QVector<Pt> s; return s; }
     static int &sr() { static int v = 0; return v; }
+    static double &origin() { static double v = 0; return v; }   // 워밍업 종료 시각(초) — plot x원점과 라벨 t 통일
+
 };
 
 class TrendSeek
@@ -105,7 +108,7 @@ public:
             const double err = qAbs(p.second - absSample);
             if (err < bestErr) { bestErr = err; bestX = p.first; }
         }
-        showCursor(bestX);
+        showCursor(bestX, absSample);   // 위치는 로컬 최근접 x, 라벨은 '선택한 원본 절대샘플'(모든 탭 동일 값)
     }
 
     // 플롯에 클릭 핸들러 + 롤리팝 커서(줄기+머리+툴팁) 부착. 클릭 시 onSeek(absSample) 호출.
@@ -178,7 +181,8 @@ public:
                 const QCPRange r = p->xAxis->range();
                 if (r.size() > 0.0) toLeft = (x > r.lower + r.size() * 0.7);
             }
-            tip->setPositionAlignment(Qt::AlignVCenter | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
+            // 박스를 머리에서 '아래로' 매달아(상단 정렬) 위쪽이 플롯 상단 밖으로 잘리지 않게 한다.
+            tip->setPositionAlignment(Qt::AlignTop | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
             tip->position->setCoords(x, kHeadRatio);
             tip->setVisible(true);
         }
@@ -203,7 +207,7 @@ private:
         }
         return best;
     }
-    void showCursor(double x)
+    void showCursor(double x, double labelSample)
     {
         for (PlotCur &pc : mPlots) {
             // 선택 지점을 가장자리에 붙이지 않고 '뷰 가운데'로 패닝(현재 폭 유지). 정지 중에만 seek 가
@@ -212,7 +216,7 @@ private:
                 const double w = pc.plot->xAxis->range().size();
                 if (w > 0.0) pc.plot->xAxis->setRange(x - w * 0.5, x + w * 0.5);
             }
-            showLollipop(pc.stem, pc.head, pc.tip, x, SeekInfo::labelAt(sampleAtX(x)));   // 공용 라벨(타 탭 통일)
+            showLollipop(pc.stem, pc.head, pc.tip, x, SeekInfo::labelAt(labelSample));   // 라벨=원본 절대샘플(타 탭 통일)
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
         }
     }

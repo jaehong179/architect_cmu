@@ -138,7 +138,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
                 if (d < bestD) { bestD = d; bestT = it->key; }
             }
         }
-        double absSel = bestT * sr + mHistOffset;         // 통일 좌표(초) → 절대 샘플
+        double absSel = (bestT + mPlotOriginSec) * sr;    // 상단(측정 시작 기준) 좌표(초) → 절대 샘플
         if (absSel < 0.0) absSel = 0.0;
         seekTo(absSel);                                   // 상·하단 창 동기 이동 + 상단 커서
         emit seekRequested(absSel);                       // seek 라벨/(전역 정지 시) 타 탭 동기
@@ -503,34 +503,18 @@ void TabRateScope::enterLockedView()
     if (!mPaused || !mHistory) return;
     const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
     if (sr <= 0) return;
-    // 상단 rate 점 x = absSample/sr − origin,  하단 scope x = (absSample − histOffset)/sr.
-    //  두 좌표차 shift = rateX − scopeX = histOffset/sr − origin (상수).
-    //  → 상단 점 전체를 이만큼 평행이동하면 상·하단이 '완전히 같은 시간 좌표'(캡처 시작 기준 초)가 된다.
-    //    이렇게 좌표계를 하나로 통일하면 두 x축 눈금 숫자가 정확히 일치하고 동기가 단순해진다.
-    const double shift = mHistOffset / sr - mPlotOriginSec;
-    const QCPRange curLive = mRatePlot->xAxis->range();   // 정지 직전 화면(라이브 스트립차트 윈도우) — 변환 전 좌표
-    for (int gi = 0; gi < mRatePlot->graphCount(); ++gi) {
-        auto data = mRatePlot->graph(gi)->data();
-        QVector<double> xs, ys; xs.reserve(data->size()); ys.reserve(data->size());
-        for (auto it = data->constBegin(); it != data->constEnd(); ++it) {
-            xs.push_back(it->key - shift); ys.push_back(it->value);
-        }
-        mRatePlot->graph(gi)->setData(xs, ys, true);   // 평행이동(순서 보존) → alreadySorted=true
-    }
-    mRateScopeShift = 0.0;   // 통일 완료 → 이후 상·하단 동기는 같은 좌표를 그대로 복사
-
-    // 정지 진입 화면 = '정지 직전 라이브 화면에 보이던 윈도우'를 통일 좌표로 시프트(그대로 멈춤).
-    //  이 범위를 '초기 시작 크기'로 저장 → Reset Zoom 시 상단을 여기로 복원한다.
-    double lo = curLive.lower - shift, hi = curLive.upper - shift;
-    if (hi <= lo) hi = lo + 1.0;
-    mEntryRateLo = lo; mEntryRateHi = hi;
-
-    // [정지 시 하단 스케일 보존] 상단만 제자리에 유지(데이터 시프트량만큼 축도 이동 → 화면상 그대로)하고,
-    //  하단 scope 의 x창·이력 렌더는 건드리지 않는다 → 정지 직전 파형 프레임을 그대로 동결한다.
-    //  하단 동기·이력 렌더는 사용자가 상단을 클릭(seekTo)하거나 드래그할 때 비로소 수행한다.
-    mInHistoryRender = true; mSyncingAxes = true;          // 프로그램 설정 → rangeChanged 동기/렌더 억제
-    mRatePlot->xAxis->setRange(lo, hi);
-    mSyncingAxes = false; mInHistoryRender = false;
+    // 상단 rate 점 x = absSample/sr − origin (= 엔진 ticX, '측정 시작' 기준 초 → 툴팁 t·다른 트렌드 탭과 동일 좌표).
+    //  하단 scope x = (absSample − histOffset)/sr (이력 인덱스 기준).  두 좌표차는 상수:
+    //    mRateScopeShift = rateX − scopeX = histOffset/sr − origin.
+    //  상단 데이터를 옮기지 않고(라이브 좌표 그대로 동결) 이 상수만 들고 있으면, 드래그/줌 동기(rangeChanged
+    //  핸들러가 ±mRateScopeShift 적용)는 그대로 되면서 상단 x축이 툴팁 t 와 정확히 일치한다.
+    //  (과거엔 상단을 하단 좌표로 평행이동해 두 축 숫자를 맞췄으나, 그 탓에 x축이 툴팁 t 와 어긋났다.)
+    mRateScopeShift = mHistOffset / sr - mPlotOriginSec;
+    const QCPRange curLive = mRatePlot->xAxis->range();   // 정지 직전 라이브 윈도우(이미 '측정 시작' 기준 좌표)
+    // Reset Zoom 시 복원할 '초기 시작 크기' = 정지 직전 라이브 윈도우 그대로.
+    mEntryRateLo = curLive.lower; mEntryRateHi = curLive.upper;
+    // 상단은 라이브 좌표·축 그대로 동결(데이터/축 이동 없음 → 화면상 그대로). 하단 scope 프레임도 건드리지 않는다
+    //  → 사용자가 상단을 클릭(seekTo)/드래그할 때 비로소 하단을 동기·렌더한다.
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -551,7 +535,7 @@ void TabRateScope::seekTo(double absSample)
 
     const double rateX = center + mRateScopeShift;          // = absSample/sr − origin (상단 좌표)
     TrendSeek::showLollipop(mRateCursor, mRateCursorHead, mRateCursorTip, rateX,
-                            SeekInfo::labelAt(absSample));   // 공용 라벨(t·rate·amp·error, 타 탭 통일)
+                            SeekInfo::labelAt(absSample));   // 공용 라벨(t·rate) — 원본 절대샘플 기준(타 탭 통일)
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 

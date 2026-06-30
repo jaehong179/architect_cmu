@@ -32,7 +32,7 @@ protected:
     void onShown() override;
 private:
     double sampleAtX(double xSeconds) const;     // 클릭 x(초) → 가장 가까운 점의 절대 샘플
-    void   showCursor(double xSeconds);          // 세 레인에 클릭 커서선
+    void   showCursor(double xSeconds, double labelSample);   // 세 레인 커서(x초) + 라벨용 절대샘플(타 탭 통일)
     QVector<QPair<double,double>> mXtoSample;    // (x초, totalSamples)
     QCPItemLine         *mCursors[3]    = {nullptr, nullptr, nullptr};   // 롤리팝 줄기
     QCPItemTracer       *mCursorHead[3] = {nullptr, nullptr, nullptr};   // 롤리팝 머리
