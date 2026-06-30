@@ -3,6 +3,7 @@
 // =============================================================================
 #include "TabManager.h"
 #include "TabView.h"
+#include "TrendSeek.h"             // [③] SeekInfo — 공용 seek 라벨 레지스트리
 #include "WaveSink.h"              // 비시각 청취자(8분 이력 버퍼 등)
 #include <QTabWidget>
 #include <QApplication>
@@ -38,6 +39,7 @@ void TabManager::broadcastMeasurement(const MeasurementSnapshot &snap)
 {
     if (mInWarmup) return;   // [측정 대기] 워밍업 중 스냅샷 전달 차단.
     if (mPaused) return;   // [8분 스크롤백] 전역 정지 중엔 모든 탭 동결.
+    SeekInfo::record(snap);   // [③] 공용 seek 라벨(rate·amp·error) 누적 — 모든 탭 롤리팝 통일
     // 모든 탭에 스냅샷 전달. 탭별 onMeasurement 소요시간을 측정해 병목 후보를 드러낸다.
     //  (탭 내부에서 무거운 replot 은 isVisible() 가드를 권장 → 숨은 탭은 데이터만 누적)
     for (TabView *t : mTabs) {
@@ -90,6 +92,8 @@ void TabManager::broadcastSeek(double absSample)
 void TabManager::broadcastReset()
 {
     mPaused = false;   // 새 세션 시작 = 정지 해제(전역).
+    SeekInfo::clear();   // [③] 세션 리셋 → 공용 seek 라벨 누적 비움
+
     for (TabView *t : mTabs)
         if (t) t->onResetSession();
 }

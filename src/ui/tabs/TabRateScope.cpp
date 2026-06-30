@@ -126,9 +126,8 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
         if (sr <= 0) return;
         const double px = e->position().x(), py = e->position().y();
-        // 클릭점에 픽셀상 가장 가까운 실제 데이터 점(tic=graph0, toc=graph1)으로 스냅 → 의미 있는 (x,y).
+        // 클릭점에 픽셀상 가장 가까운 실제 데이터 점(tic=graph0, toc=graph1)으로 스냅 → 의미 있는 x.
         double bestT = mRatePlot->xAxis->pixelToCoord(px);
-        double bestY = mRatePlot->yAxis->pixelToCoord(py);
         double bestD = std::numeric_limits<double>::max();
         for (int gi = 0; gi < 2; ++gi) {
             auto data = mRatePlot->graph(gi)->data();
@@ -136,10 +135,9 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
                 const double dx = mRatePlot->xAxis->coordToPixel(it->key) - px;
                 const double dy = mRatePlot->yAxis->coordToPixel(it->value) - py;
                 const double d  = dx * dx + dy * dy;
-                if (d < bestD) { bestD = d; bestT = it->key; bestY = it->value; }
+                if (d < bestD) { bestD = d; bestT = it->key; }
             }
         }
-        showRateClickLabel(bestT, bestY);                 // 떠있는 x/y 라벨(좌표는 통일된 캡처시간)
         double absSel = bestT * sr + mHistOffset;         // 통일 좌표(초) → 절대 샘플
         if (absSel < 0.0) absSel = 0.0;
         seekTo(absSel);                                   // 상·하단 창 동기 이동 + 상단 커서
@@ -465,7 +463,6 @@ void TabRateScope::setPaused(bool paused)
         // the amplitude trace continues from the pause point (seek cleanup is onResumeLive).
         mHistActive = false;
         TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);   // 상단 클릭 커서 숨김
-        if (mRateClickLabel) mRateClickLabel->setVisible(false);  // 떠있는 x/y 라벨 숨김
         if (mResetZoomBtn) mResetZoomBtn->setEnabled(false);
         mRatePlot->setInteractions(QCP::Interactions());   // 상단 상호작용 끔(라이브 중 줌/팬 금지)
         mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0; mSweepArmed = false; mHaveFirstTick = false;   // 재무장
@@ -489,7 +486,6 @@ void TabRateScope::onResumeLive(bool seeked)
 
     mHistActive = false;
     TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);
-    if (mRateClickLabel) mRateClickLabel->setVisible(false);
     mDecimCount = 0;
     mScopePlot->graph(0)->data()->clear();
     mScopePlot->graph(1)->data()->clear();
@@ -555,7 +551,7 @@ void TabRateScope::seekTo(double absSample)
 
     const double rateX = center + mRateScopeShift;          // = absSample/sr − origin (상단 좌표)
     TrendSeek::showLollipop(mRateCursor, mRateCursorHead, mRateCursorTip, rateX,
-                            QString("%1 s").arg(rateX, 0, 'f', 1));   // 선택 시각 툴팁
+                            SeekInfo::labelAt(absSample));   // 공용 라벨(t·rate·amp·error, 타 탭 통일)
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -575,27 +571,6 @@ void TabRateScope::resetZoomToEntry()
     mSyncingAxes = false; mInHistoryRender = false;
     renderHistoryWindow();                                  // 하단 파형(스코프 창) 렌더
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
-}
-
-// [클릭] 상단 위 떠있는 x/y 값 라벨(비모달). 데이터 좌표에 고정 → 팬/줌에도 점에 붙어 있음.
-void TabRateScope::showRateClickLabel(double t, double y)
-{
-    if (!mRateClickLabel) {
-        mRateClickLabel = new QCPItemText(mRatePlot);
-        mRateClickLabel->setColor(QColor(120, 0, 120));
-        mRateClickLabel->setFont(QFont("monospace", 9, QFont::Bold));
-        mRateClickLabel->position->setType(QCPItemPosition::ptPlotCoords);
-        mRateClickLabel->setPen(QPen(QColor(120, 0, 120)));
-        mRateClickLabel->setBrush(QBrush(Theme::kLabelBg));
-        mRateClickLabel->setPadding(QMargins(5, 2, 5, 2));
-    }
-    mRateClickLabel->setText(QString("t = %1 s\nrate = %2 ms").arg(t, 0, 'f', 2).arg(y, 0, 'f', 2));
-    // 라벨을 점 '옆'(기본 오른쪽, 우측 가장자리면 왼쪽)에 둔다 → 데이터를 위에서 가리지 않게.
-    const QCPRange r = mRatePlot->xAxis->range();
-    const bool toLeft = (r.size() > 0.0) && (t > r.lower + r.size() * 0.7);
-    mRateClickLabel->setPositionAlignment(Qt::AlignVCenter | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
-    mRateClickLabel->position->setCoords(t, y);
-    mRateClickLabel->setVisible(true);
 }
 
 // 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 잘라 그린다(라이브와 같은 좌표).
@@ -676,7 +651,6 @@ void TabRateScope::onResetSession()
     mPaused = false;
     mHistActive = false;
     if (mResetZoomBtn) mResetZoomBtn->setEnabled(false);
-    if (mRateClickLabel) mRateClickLabel->setVisible(false);   // 떠있는 x/y 라벨 숨김
     mRatePlot->setInteractions(QCP::Interactions());           // 상단 상호작용 끔(라이브)
     mScopePlot->xAxis->setTickLabels(true);
     mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
