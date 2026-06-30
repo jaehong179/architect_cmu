@@ -1,5 +1,4 @@
 #include "TabVarioStability.h"
-#include "LegendBox.h"
 #include "qcustomplot.h"
 #include <cmath>
 
@@ -29,14 +28,6 @@ static QCustomPlot *makeBar(QWidget *parent, const QString &xLabel)
 TabVarioStability::TabVarioStability(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Band&nbsp;:</b></td><td>"
-        "<font color='#00a000'>green</font>=normal range · <font color='#c8a000'>yellow</font>=mean±σ</td></tr>"
-        "<tr><td valign='top'><b>Arrow&nbsp;:</b></td><td>"
-        "<font color='#1e64dc'>blue</font>=measured min/max · <font color='#dc0000'>red</font>=mean</td></tr>"
-        "<tr><td valign='top'><b>Reading&nbsp;:</b></td><td>narrower min/max spread = more stable (rate·amplitude long-term stability)</td></tr>"
-        "</table>"), this));
 
     mRateLbl = new QLabel(this); mRateLbl->setStyleSheet(QStringLiteral("font-family:monospace;"));
     lay->addWidget(mRateLbl);

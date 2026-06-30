@@ -1,5 +1,4 @@
 #include "TabSyncSweepScope.h"
-#include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QSpinBox>
@@ -17,14 +16,6 @@ static const QColor kScopeMagenta(199, 125, 191);     // scope_mode.c 마젠타(
 TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>folded "
-        "<font color='#c77dbf'>|signal−mean|</font>(rectified, positive·negative halves merged) grass filled from baseline · "
-        "y-axis=amplitude(envelope, normalized)</td></tr>"
-        "<tr><td valign='top'><b>Sweep&nbsp;:</b></td><td>window width = tick period × N beats(free-running)</td></tr>"
-        "<tr><td valign='top'><b>Behavior&nbsp;:</b></td><td>on-rate=pattern frozen · fast/slow=horizontal drift</td></tr>"
-        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("sweep(beats):"), this));

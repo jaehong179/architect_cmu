@@ -1,5 +1,4 @@
 #include "TabSpectrogram.h"
-#include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek 대상 replay
 #include "qcustomplot.h"
 #include <QComboBox>
@@ -10,11 +9,6 @@
 TabSpectrogram::TabSpectrogram(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Axis&nbsp;:</b></td><td>horizontal=time(ms) · vertical=frequency(Hz) · color=intensity(dB)</td></tr>"
-        "<tr><td valign='top'><b>Reading&nbsp;:</b></td><td>observe the vertical stripe (energy burst) structure repeating each beat (raw STFT)</td></tr>"
-        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("Window:"), this));

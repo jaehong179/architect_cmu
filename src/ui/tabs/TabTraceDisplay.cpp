@@ -1,5 +1,4 @@
 #include "TabTraceDisplay.h"
-#include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
 #include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
@@ -8,14 +7,6 @@
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    // 그래프 읽는 법 설명(Project Plan §Trace: "short explanatory text or labels").
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Top rate&nbsp;:</b></td><td>"
-        "<font color='#143ca0'><b>bold line=smoothed</b></font> · flat=on-rate · rising=fast · falling=slow (s/d)</td></tr>"
-        "<tr><td valign='top'><b>Bottom amplitude&nbsp;:</b></td><td>"
-        "<font color='#00a000'>green band 270~300°</font> = normal range (°)</td></tr>"
-        "</table>"), this));
     mAlert = new QLabel(this);
     mAlert->setWordWrap(true);
     mAlert->setStyleSheet(QStringLiteral("font-weight:bold;"));

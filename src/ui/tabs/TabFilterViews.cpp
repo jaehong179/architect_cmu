@@ -1,6 +1,5 @@
 #include "TabFilterViews.h"
 #include "ScopeFilters.h"
-#include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
 #include <QCheckBox>
@@ -30,16 +29,6 @@ static QColor filterColor(int mode)
 TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Filter&nbsp;:</b></td><td>"
-        "<font color='#dc143c'><b>F0</b></font>=Raw mirror(original) · "
-        "<font color='#006e00'><b>F1</b></font>=moving average(smoothing·noise↓) · "
-        "<font color='#e17800'><b>F2</b></font>=rising-emphasis+exponential decay(T3·T2) · "
-        "<font color='#5a3cc8'><b>F3</b></font>=rectified+rising edge+parabolic decay(T1·T3)</td></tr>"
-        "<tr><td valign='top'><b>Display&nbsp;:</b></td><td>beat(T1)-aligned fixed window · "
-        "F0·F1·F2 mirror(±) · F3 upper(rectified) · y axis=amplitude(normalized) · center dashed lines=T1/T2/T3</td></tr>"
-        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();                       // 상태(정지는 전역 버튼이 담당)
     ctl->addStretch(1);

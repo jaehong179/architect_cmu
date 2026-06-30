@@ -9,28 +9,6 @@
 TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    // 접이식 범례(공간 확보): 버튼으로 펼침/접힘.
-    auto *legendBtn = new QPushButton(QStringLiteral("▾ Legend (collapse)"), this);
-    legendBtn->setCheckable(true); legendBtn->setChecked(true);   // 기본 펼침
-    legendBtn->setStyleSheet(QStringLiteral("QPushButton{ text-align:left; border:none; font-weight:bold; padding:2px; }"));
-    auto *key = new QLabel(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Tic·Toc&nbsp;:</b></td><td>"
-        "<font color='#1e78ff'><b>━ bold blue line</b></font>=measured amplitude · <font color='#1e78ff'>┊ blue(0ms)</font>=C(T3) time · "
-        "<font color='#b43c3c'><b>┊ red+number(50°)</b></font>·<font color='#149014'>┊ green(10°)</font>=amplitude-degree(°) scale(top axis) · bottom axis=time(ms)</td></tr>"
-        "<tr><td valign='top'><b>Period&nbsp;:</b></td><td>"
-        "<font color='#00b400'>┊ green</font>=A(T1, impulse pin→pallet fork strike) · "
-        "<font color='#dc2828'>┊ red</font>=C(T3, escape-wheel lock·fork→banking pin) · "
-        "<font color='#2840c8'>▮ blue shaded</font>=A(T1)→C(T3) span</td></tr>"
-        "</table>"), this);
-    key->setWordWrap(true);
-    key->setStyleSheet(QStringLiteral("QLabel{ background:#1e1e26; border:1px solid #3a3a4a; border-radius:4px; padding:5px; color:#e0e0e0; }"));
-    key->setVisible(true);                               // 기본 펼침
-    connect(legendBtn, &QPushButton::toggled, this, [key, legendBtn](bool on){
-        key->setVisible(on); legendBtn->setText(on ? QStringLiteral("▾ Legend (collapse)") : QStringLiteral("▸ Legend (expand)"));
-    });
-    lay->addWidget(legendBtn);
-    lay->addWidget(key);
 
     auto *ctl = new QHBoxLayout();
     ctl->addStretch(1);

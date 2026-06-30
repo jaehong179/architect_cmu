@@ -412,6 +412,10 @@ static void drawCell(QCustomPlot *p, const QVector<double> &tick, const QVector<
     r->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(110, 110, 120), selected ? 2 : 1));
     r->setBrush(Qt::NoBrush);
     // 우상단 배율 배지(×5 … ×40) — 이 칸이 최근 몇 비트의 평균인지 표시.
+    //  배경은 그래프 배경과 동일(다크 테마에 녹아듦), 글자는 그 배경의 반대색(inverse RGB)으로 가독 확보.
+    //  그래프 배경은 qcustomplot 기본 viewport 색(#18181f = 24,24,31, 앱 다크 윈도우색과 동일).
+    const QColor cellBg(24, 24, 31);
+    const QColor invFg(255 - cellBg.red(), 255 - cellBg.green(), 255 - cellBg.blue());
     auto *badge = new QCPItemText(p);
     badge->setLayer(QStringLiteral("overlay"));
     badge->position->setType(QCPItemPosition::ptAxisRectRatio);
@@ -419,9 +423,9 @@ static void drawCell(QCustomPlot *p, const QVector<double> &tick, const QVector<
     badge->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
     badge->setText(QStringLiteral("×%1").arg(mult));
     badge->setFont(QFont(QStringLiteral("sans"), 8, QFont::Bold));
-    badge->setColor(selected ? QColor(0, 80, 220) : QColor(70, 70, 90));
-    badge->setBrush(QColor(255, 255, 255, 210));
-    badge->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(150, 150, 160)));
+    badge->setColor(invFg);                       // 글자 = 배경 반대색
+    badge->setBrush(QBrush(cellBg));              // 배경 = 그래프 배경
+    badge->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(150, 150, 160)));   // 선택 칸만 파란 테두리로 강조
     badge->setPadding(QMargins(4, 1, 4, 1));
     p->replot(QCustomPlot::rpQueuedReplot);
 }

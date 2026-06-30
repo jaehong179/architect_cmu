@@ -1,5 +1,4 @@
 #include "TabEscapementAnalyzer.h"
-#include "LegendBox.h"
 #include "WaveLodHistory.h"   // [③] seek replay 시 과거 구간 복원
 #include "qcustomplot.h"
 #include <QSpinBox>
@@ -11,20 +10,6 @@
 TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-    lay->addWidget(makeLegendBox(QStringLiteral(
-        "<table cellspacing='0' cellpadding='2'>"
-        "<tr><td valign='top'><b>Waveform&nbsp;:</b></td><td>"
-        "<font color='#6e6e6e'>━ gray</font>=raw signal (raw, ±) · "
-        "<font color='#dc0000'><b>❘ red</b></font>=T1(unlock)·T3(drop) pulse · "
-        "<font color='#009600'><b>❘ green</b></font>=ideal Tock T3 · "
-        "<font color='#00a05a'>┄ green dashed</font>=threshold(detection threshold)</td></tr>"
-        "<tr><td valign='top'><b>onset↔peak&nbsp;:</b></td><td>"
-        "<font color='#c800c8'>┊ magenta</font>=onset(first threshold crossing) · "
-        "<font color='#009696'>┊ teal</font>=peak(envelope peak) · on→pk=onset→peak rise time(ms)</td></tr>"
-        "<tr><td valign='top'><b>center dots&nbsp;:</b></td><td>"
-        "<font color='#2850c8'>● blue</font>=Tic · <font color='#c82828'>● red</font>=Tac · "
-        "gap between the two dot rows=beat error · slope=rate</td></tr>"
-        "</table>"), this));
 
     auto *ctl = new QHBoxLayout();
     ctl->addWidget(new QLabel(QStringLiteral("threshold %:"), this));

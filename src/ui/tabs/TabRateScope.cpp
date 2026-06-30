@@ -514,11 +514,12 @@ void TabRateScope::enterLockedView()
     if (hi <= lo) hi = lo + 1.0;
     mEntryRateLo = lo; mEntryRateHi = hi;
 
+    // [정지 시 하단 스케일 보존] 상단만 제자리에 유지(데이터 시프트량만큼 축도 이동 → 화면상 그대로)하고,
+    //  하단 scope 의 x창·이력 렌더는 건드리지 않는다 → 정지 직전 파형 프레임을 그대로 동결한다.
+    //  하단 동기·이력 렌더는 사용자가 상단을 클릭(seekTo)하거나 드래그할 때 비로소 수행한다.
     mInHistoryRender = true; mSyncingAxes = true;          // 프로그램 설정 → rangeChanged 동기/렌더 억제
     mRatePlot->xAxis->setRange(lo, hi);
-    mScopePlot->xAxis->setRange(lo, hi);                   // shift=0 → 상·하단 동일 범위(눈금 일치)
     mSyncingAxes = false; mInHistoryRender = false;
-    renderHistoryWindow();                                  // 하단 파형 렌더
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
