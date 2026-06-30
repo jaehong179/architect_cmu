@@ -27,6 +27,8 @@
 #include <QResizeEvent>
 #include <QSettings>
 
+#include "QrCodeDialog.h"
+#include "cloud/MeasurementUploadClient.h"
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
 #include "tabs/TabSoundPrint.h"
@@ -1669,6 +1671,21 @@ void MainWindow::onControlPanelToggled(bool collapsed)
 
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
     ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
+}
+
+void MainWindow::showHistoryQr()
+{
+    // [QR] 평상시 이력 QR — 현재 Watch ID 의 웹 이력 페이지를 QR 로 띄운다.
+    const QString id = watchId().trimmed();
+    if (id.isEmpty()) {
+        QMessageBox::warning(this,
+                             QStringLiteral("Watch ID required"),
+                             QStringLiteral("Set a Watch ID in Control Panel → Advanced / Tuning to view history."));
+        return;
+    }
+    const QString url = MeasurementUploadClient::viewerUrl(id);
+    QrCodeDialog dlg(url, id, QStringLiteral("Scan to view history"), this);
+    dlg.exec();
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)

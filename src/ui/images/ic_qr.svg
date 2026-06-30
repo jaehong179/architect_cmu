@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff">
+  <!-- finder patterns (hollow squares with center dot) -->
+  <path fill-rule="evenodd" d="M3 3h7v7H3V3zM4.5 4.5v4h4v-4h-4zM5.75 5.75h1.5v1.5h-1.5z"/>
+  <path fill-rule="evenodd" d="M14 3h7v7h-7V3zM15.5 4.5v4h4v-4h-4zM16.75 5.75h1.5v1.5h-1.5z"/>
+  <path fill-rule="evenodd" d="M3 14h7v7H3v-7zM4.5 15.5v4h4v-4h-4zM5.75 16.75h1.5v1.5h-1.5z"/>
+  <!-- data modules -->
+  <rect x="14" y="14" width="2" height="2"/>
+  <rect x="19" y="14" width="2" height="2"/>
+  <rect x="16.5" y="16.5" width="2" height="2"/>
+  <rect x="14" y="19" width="2" height="2"/>
+  <rect x="19" y="19" width="2" height="2"/>
+</svg>

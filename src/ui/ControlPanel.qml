@@ -425,6 +425,37 @@ Rectangle {
                 onClicked: { cppBackend.stopSession() }
             }
         }
+
+        // ── History QR (평상시 이력 QR) ──
+        Rectangle {
+            id: miniQrBtn
+            width: 34
+            height: 34
+            radius: 8
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+
+            Image {
+                anchors.centerIn: parent
+                source: "qrc:/images/src/ui/images/ic_qr.svg"
+                width: 20
+                height: 20
+                fillMode: Image.PreserveAspectFit
+            }
+
+            ToolTip.visible: qrHover.hovered
+            ToolTip.text: "View History QR"
+            ToolTip.delay: 400
+
+            HoverHandler { id: qrHover }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { cppBackend.showHistoryQr() }
+            }
+        }
     }
 
     // ─── Full Settings ScrollView (expanded only) ─────────────────────────────
