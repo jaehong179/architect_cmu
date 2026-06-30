@@ -244,6 +244,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onPositionPhaseChanged);
     connect(mPositionSequence, &PositionSequenceController::measurementWindowEnded,
             this, &MainWindow::onPositionMeasurementEnded);
+    connect(mPositionSequence, &PositionSequenceController::warmupRequested,
+            this, &MainWindow::onSequenceWarmupRequested);
     connect(mPositionSequence, &PositionSequenceController::currentPositionIndexChanged,
             this, [this](int idx) {
         qInfo().noquote() << QStringLiteral("[pos-sync] source=sequence targetIndex=%1")
@@ -966,6 +968,31 @@ void MainWindow::triggerDiagnosis()
 // =========================================================================
 static const int kWarmupSecs[] = {0, 5, 10, 15, 20};
 
+void MainWindow::onSequenceWarmupRequested(bool firstPosition)
+{
+    // [측정 대기] 포지션이 활성화되면 측정 전에 warm-up(자세 안정 대기)을 수행한다.
+    //  - 첫 포지션(세션 시작): 기존처럼 어느 탭에서든 전역 warm-up.
+    //  - 포지션 전환: 다른 그래프 탭에 영향을 주지 않도록 시퀀스 탭을 볼 때만 warm-up.
+    //  warm-up 시간이 0이거나 대상이 아니면 곧바로 측정을 시작한다.
+    const int delay = kWarmupSecs[mWarmupDelayIndex];
+    const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
+        && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
+
+    const bool doWarmup = (delay > 0) && (firstPosition || onSequenceTab);
+
+    if (doWarmup) {
+        mWarmupIsPositionChange = !firstPosition;   // 종료 처리에서 시퀀스 표 보존 여부 결정
+        startWarmup(delay);                          // 종료 시 onWarmupFinished 가 측정 시작
+        return;
+    }
+
+    // warm-up 없이 즉시 측정 시작.
+    if (mPositionSequence)
+        mPositionSequence->beginMeasuringNow();
+    if (firstPosition)
+        statusBar()->showMessage("Running");
+}
+
 void MainWindow::startWarmup(int seconds)
 {
     mInWarmup = true;
@@ -982,6 +1009,7 @@ void MainWindow::cancelWarmup()
     emit inWarmupChanged();
     if (mWarmupOverlay) mWarmupOverlay->cancel();
     if (mTabManager) mTabManager->setWarmup(false);
+    mWarmupIsPositionChange = false;
 }
 
 void MainWindow::onWarmupFinished()
@@ -999,11 +1027,20 @@ void MainWindow::onWarmupFinished()
     mEngine.clearPlotsKeepState();
     if (mTabManager) {
         mTabManager->setWarmup(false);    // 게이트 해제 (이후에 broadcastReset이 탭에 도달함)
-        mTabManager->broadcastReset();    // 모든 탭 디스플레이 취소(누적 히스토리 비움)
+        // [측정 대기] 포지션 전환 warm-up 은 시퀀스 누적표(포지션별 측정값)를 보존한다.
+        //  세션 시작 warm-up 은 표가 비어 있으므로 기존대로 전체 리셋.
+        if (mWarmupIsPositionChange)
+            mTabManager->broadcastResetExcept(mSequenceDisplay);
+        else
+            mTabManager->broadcastReset();
     }
     mWaveHistory.clear();                 // 스크롤백 이력 취소
     DisplayResults();                     // 수렴된 readout/그래프를 즉시 1회 반영
     statusBar()->showMessage("Running");
+    mWarmupIsPositionChange = false;
+    // [측정 대기] warm-up 종료 → 실제 측정 카운트다운 시작.
+    if (mPositionSequence)
+        mPositionSequence->beginMeasuringNow();
 }
 
 void MainWindow::refreshDevices()
@@ -1197,10 +1234,7 @@ void MainWindow::LiveStart(void)
     mCapture->startLive(dev, mCurrentSamplesPerSecond, mGain);
     SetGuiRunMode();
     if (mPositionSequence)
-        mPositionSequence->start();
-    const int delay = kWarmupSecs[mWarmupDelayIndex];
-    if (delay > 0) startWarmup(delay);
-    else statusBar()->showMessage("Running");
+        mPositionSequence->start();   // [측정 대기] 첫 포지션 warm-up 은 warmupRequested 로 자동 시작
 }
 
 void MainWindow::PlaybackStart(void)
@@ -1213,10 +1247,7 @@ void MainWindow::PlaybackStart(void)
     mCapture->startPlayback(mPlaybackFileName, mCurrentSamplesPerSecond);
     SetGuiRunMode();
     if (mPositionSequence)
-        mPositionSequence->start();
-    const int delay = kWarmupSecs[mWarmupDelayIndex];
-    if (delay > 0) startWarmup(delay);
-    else statusBar()->showMessage("Running");
+        mPositionSequence->start();   // [측정 대기] 첫 포지션 warm-up 은 warmupRequested 로 자동 시작
 }
 
 void MainWindow::SimStart(void)
@@ -1242,10 +1273,7 @@ void MainWindow::SimStart(void)
     mCapture->startSim(cfg, mCurrentSamplesPerSecond);
     SetGuiRunMode();
     if (mPositionSequence)
-        mPositionSequence->start();
-    const int delay = kWarmupSecs[mWarmupDelayIndex];
-    if (delay > 0) startWarmup(delay);
-    else statusBar()->showMessage("Running");
+        mPositionSequence->start();   // [측정 대기] 첫 포지션 warm-up 은 warmupRequested 로 자동 시작
 }
 
 void MainWindow::DisplayResults(void)
@@ -1572,6 +1600,10 @@ bool MainWindow::maybeConfirmLeaveSequence(int targetIndex)
 
     if (btn == QMessageBox::Ok) {
         stopSession();    // 측정 중단 → 이후 탭 전환 허용
+        // [MPS 탭 이탈] 중단과 함께 그래프/누적 데이터(시퀀스 표 포함)를 모두 초기화.
+        if (mTabManager) mTabManager->broadcastReset();
+        mWaveHistory.clear();
+        EventsReset();    // mReadoutFrozen 해제 · 엔진 리셋 · readout 갱신
         return true;
     }
     return false;          // 취소 → 탭 전환 차단(시퀀스 탭 유지)
@@ -1601,6 +1633,10 @@ void MainWindow::onAllPositionsMeasured()
                              PositionChangeDialog::Mode::SequenceComplete,
                              this);
     dlg.exec();
+
+    // [MPS 시퀀스 완료] 모든 포지션 측정이 끝났으므로 확인 후 측정을 중단(stop)한다.
+    if (mIsRunning)
+        stopSession();
 }
 
 // =============================================================================

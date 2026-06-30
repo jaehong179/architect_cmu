@@ -266,6 +266,8 @@ private:
     void   startWarmup(int seconds);
     void   cancelWarmup();
     void   onWarmupFinished();
+    // [측정 대기] 포지션 활성화 시 컨트롤러가 요청 → warm-up 수행 후 측정 시작.
+    void   onSequenceWarmupRequested(bool firstPosition);
     
     void   SyncDetectorBphToSimBph(void);
     bool   SetPlaybackFile(const QString &fileName);
@@ -304,6 +306,10 @@ private:
     // [MPS 포지션 전환] 대기 팝업~다음 포지션 안정화 동안 상단 요약바(readout) 고정.
     //  포지션 측정 종료 시 true → 다음 포지션이 'measuring' 진입하면 false.
     bool                       mReadoutFrozen = false;
+
+    // [측정 대기] 현재 진행 중인 warm-up 이 포지션 전환용인지(true) 세션 시작용인지(false).
+    //  종료 시 시퀀스 누적표 보존 여부를 결정.
+    bool                       mWarmupIsPositionChange = false;
 
     int                        mDeviceIndex = -1;
     int                        mSampleRateIndex = -1;

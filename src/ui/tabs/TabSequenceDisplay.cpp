@@ -84,34 +84,11 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     auto *ctl = new QHBoxLayout();
     ctl->setContentsMargins(0, 0, 0, 0);
 
-    auto *posLabel = new QLabel(QStringLiteral("Position:"), this);
-    posLabel->setStyleSheet(QStringLiteral("font-weight: bold; color: #888888;"));
-    ctl->addWidget(posLabel);
-
+    // [MPS] 수동 Position 선택 콤보는 자동 자세 시퀀스가 행 라우팅을 구동하므로
+    //  화면에는 표시하지 않는다(숨김 유지). 측정값 → 테이블 행 매핑에만 사용.
     mPos = new QComboBox(this);
     mPos->addItems(standardPositionNames());
-    mPos->setStyleSheet(QStringLiteral(
-        "QComboBox { background-color: #222222; color: #FFFFFF; border: 1px solid #333333; padding: 4px 8px; border-radius: 4px; min-width: 120px; }"
-        "QComboBox::drop-down { border: none; }"
-        "QComboBox QAbstractItemView { background-color: #222222; color: #FFFFFF; selection-background-color: #007acc; }"
-    ));
-    ctl->addWidget(mPos);
-
-    mCapture = new QPushButton(QStringLiteral("Capture current"), this);
-    mCapture->setStyleSheet(QStringLiteral(
-        "QPushButton { background-color: #007acc; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; font-weight: bold; }"
-        "QPushButton:hover { background-color: #0098ff; }"
-        "QPushButton:pressed { background-color: #005999; }"
-    ));
-    ctl->addWidget(mCapture);
-
-    mClear = new QPushButton(QStringLiteral("Reset"), this);
-    mClear->setStyleSheet(QStringLiteral(
-        "QPushButton { background-color: #333333; color: #FFFFFF; border: none; padding: 6px 14px; border-radius: 4px; }"
-        "QPushButton:hover { background-color: #444444; }"
-        "QPushButton:pressed { background-color: #222222; }"
-    ));
-    ctl->addWidget(mClear);
+    mPos->setVisible(false);
 
     mSave = new QPushButton(QStringLiteral("Upload to Cloud"), this);
     mSave->setStyleSheet(QStringLiteral(
@@ -215,8 +192,6 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
 
     lay->addLayout(mainLay, 1);
 
-    connect(mCapture, &QPushButton::clicked, this, &TabSequenceDisplay::capture);
-    connect(mClear,   &QPushButton::clicked, this, &TabSequenceDisplay::onResetSession);
     connect(mSave,    &QPushButton::clicked, this, &TabSequenceDisplay::onSaveRequested);
     connect(mPos, &QComboBox::currentIndexChanged, this, &TabSequenceDisplay::onPositionComboChanged);
 

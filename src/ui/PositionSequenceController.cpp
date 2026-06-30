@@ -23,8 +23,11 @@ void PositionSequenceController::start()
     mSequenceStep = 0;
     mCurrentPositionIndex = corePositionSequenceIndices()[0];
     emit currentPositionIndexChanged(mCurrentPositionIndex);
-    beginStabilizing();
+    // [측정 대기] 고정 10초 안정화 대신 warm-up 을 요청한다.
+    //  warm-up 이 끝나면 MainWindow 가 beginMeasuringNow() 를 호출해 측정 시작.
+    mPhase = Phase::Warmup;
     mTimer->start();
+    emit warmupRequested(true);
 }
 
 void PositionSequenceController::stop()
@@ -62,7 +65,18 @@ void PositionSequenceController::confirmPositionChange()
     ++mSequenceStep;
     mCurrentPositionIndex = corePositionSequenceIndices()[mSequenceStep];
     emit currentPositionIndexChanged(mCurrentPositionIndex);
-    beginStabilizing();
+    // [측정 대기] 포지션 전환 시에도 고정 안정화 대신 warm-up 을 요청한다.
+    mPhase = Phase::Warmup;
+    if (!mTimer->isActive())
+        mTimer->start();
+    emit warmupRequested(false);
+}
+
+void PositionSequenceController::beginMeasuringNow()
+{
+    if (!mTiming) return;
+    // [측정 대기] warm-up 종료 후 실제 측정 카운트다운 시작.
+    beginMeasuring();
     if (!mTimer->isActive())
         mTimer->start();
 }
@@ -70,15 +84,6 @@ void PositionSequenceController::confirmPositionChange()
 int PositionSequenceController::currentTimingRow() const
 {
     return mCurrentPositionIndex;
-}
-
-void PositionSequenceController::beginStabilizing()
-{
-    if (!mTiming) return;
-    mPhase = Phase::Stabilizing;
-    mRemainingSec = mTiming->stabilizationSecAt(currentTimingRow());
-    const QString name = mTiming->entryAt(currentTimingRow()).name;
-    emit phaseChanged(name, QStringLiteral("stabilizing"), mRemainingSec);
 }
 
 void PositionSequenceController::beginMeasuring()
@@ -109,21 +114,20 @@ void PositionSequenceController::tick()
     if (mAwaitingConfirm || !mTiming)
         return;
 
+    // [측정 대기] warm-up 구간은 MainWindow 의 오버레이 카운트다운이 담당.
+    //  컨트롤러는 'measuring' 구간만 카운트다운한다.
+    if (mPhase != Phase::Measuring)
+        return;
+
     if (mRemainingSec > 0)
         --mRemainingSec;
 
     const QString name = mTiming->entryAt(currentTimingRow()).name;
-    const QString phaseLabel = (mPhase == Phase::Stabilizing)
-        ? QStringLiteral("stabilizing") : QStringLiteral("measuring");
 
     if (mRemainingSec > 0) {
-        emit phaseChanged(name, phaseLabel, mRemainingSec);
+        emit phaseChanged(name, QStringLiteral("measuring"), mRemainingSec);
         return;
     }
 
-    if (mPhase == Phase::Stabilizing) {
-        beginMeasuring();
-    } else if (mPhase == Phase::Measuring) {
-        finishMeasurementWindow();
-    }
+    finishMeasurementWindow();
 }

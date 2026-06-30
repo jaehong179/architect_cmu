@@ -10,7 +10,7 @@ class PositionSequenceController : public QObject
 {
     Q_OBJECT
 public:
-    enum class Phase { Idle, Stabilizing, Measuring };
+    enum class Phase { Idle, Warmup, Measuring };
 
     explicit PositionSequenceController(QObject *parent = nullptr);
 
@@ -25,18 +25,22 @@ public slots:
     void pause();
     void resume();
     void confirmPositionChange();
+    // [측정 대기] warm-up 종료 후 MainWindow 가 호출 → 실제 측정 카운트다운 시작.
+    void beginMeasuringNow();
 
 signals:
     void phaseChanged(const QString &positionName, const QString &phaseLabel, int remainingSec);
     void measurementWindowEnded(int positionIndex, const QString &positionName,
                                 const QString &nextPositionName, bool sequenceComplete);
     void currentPositionIndexChanged(int index);
+    // [측정 대기] 새 포지션이 활성화되어 측정 전 warm-up 이 필요함을 알린다.
+    //  firstPosition=true 면 세션 시작(첫 포지션), false 면 포지션 전환.
+    void warmupRequested(bool firstPosition);
 
 private slots:
     void tick();
 
 private:
-    void beginStabilizing();
     void beginMeasuring();
     void finishMeasurementWindow();
     int currentTimingRow() const;
