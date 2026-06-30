@@ -59,9 +59,13 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 // [③] 선택한 시각(x초)에 두 그래프 롤리팝 커서를 표시(툴팁=선택 시각).
 void TabTraceDisplay::showCursor(double xSeconds)
 {
-    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);
-    TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, label);
-    TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, label);
+    // 각 그래프에 't + 그 지점 값'(rate s/d · amplitude °) 표시.
+    const QString t = QString("t=%1 s").arg(xSeconds, 0, 'f', 1);
+    QString lr = t, la = t; double v;
+    if (PlotHelpers::nearestValue(mRate, 0, xSeconds, v)) lr += QString("\nrate=%1 s/d").arg(v, 0, 'f', 1);
+    if (PlotHelpers::nearestValue(mAmp,  0, xSeconds, v)) la += QString("\namp=%1°").arg(v, 0, 'f', 0);
+    TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, lr);
+    TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, la);
     if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
     if (mAmp)  mAmp->replot(QCustomPlot::rpQueuedReplot);
 }

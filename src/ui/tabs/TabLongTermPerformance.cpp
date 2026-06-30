@@ -1,6 +1,7 @@
 #include "TabLongTermPerformance.h"
 #include "qcustomplot.h"
 #include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
+#include "PlotHelpers.h" // nearestValue(그 지점 값 조회)
 
 #include <QMouseEvent>   // [③] 클릭 소스
 #include <cmath>
@@ -134,10 +135,16 @@ double TabLongTermPerformance::sampleAtX(double xSeconds) const
 
 void TabLongTermPerformance::showCursor(double xSeconds)
 {
-    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);   // x=초
+    // 레인별 't + 그 지점 값'(rate s/d · amplitude ° · beat error ms).
+    const QString t = QString("t=%1 s").arg(xSeconds, 0, 'f', 1);
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
+    static const char *nm[3] = { "rate", "amp", "beat err" };
+    static const char *un[3] = { " s/d", "°", " ms" };
     for (int i = 0; i < 3; ++i) {
-        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, label);
+        QString lbl = t; double v;
+        if (PlotHelpers::nearestValue(plots[i], 0, xSeconds, v))
+            lbl += QString("\n%1=%2%3").arg(nm[i]).arg(v, 0, 'f', i == 1 ? 0 : 2).arg(un[i]);
+        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, lbl);
         if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
     }
 }
