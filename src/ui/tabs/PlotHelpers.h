@@ -34,6 +34,20 @@ inline void applyFastPaint(QCustomPlot *plot)
         plot->graph(i)->setAdaptiveSampling(true);
 }
 
+// 그래프 gi 에서 키 x 에 가장 가까운 점의 값(y)을 outY 로. (seek 툴팁에 '그 지점 값' 표시용; 선형 탐색)
+inline bool nearestValue(QCustomPlot *plot, int gi, double x, double &outY)
+{
+    if (!plot || gi < 0 || gi >= plot->graphCount()) return false;
+    auto data = plot->graph(gi)->data();
+    if (!data || data->isEmpty()) return false;
+    double best = 1e300; bool found = false;
+    for (auto it = data->constBegin(); it != data->constEnd(); ++it) {
+        const double d = qAbs(it->key - x);
+        if (d < best) { best = d; outY = it->value; found = true; }
+    }
+    return found;
+}
+
 // 플롯의 모든 그래프 데이터를 비운다(스타일/아이템/축은 불변). replot 은 호출측 책임.
 inline void clearAllGraphs(QCustomPlot *plot)
 {

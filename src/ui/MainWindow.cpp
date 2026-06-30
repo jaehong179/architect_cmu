@@ -16,6 +16,8 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QMessageBox>
+#include <QTimer>             // [포지션 토스트] 표시/유지/숨김 타이밍
+#include <QPropertyAnimation> // [포지션 토스트] 위젯 지오메트리 확대/축소
 #include <QTabWidget>
 #include <QMouseEvent>
 #include <QDebug>
@@ -259,6 +261,72 @@ MainWindow::MainWindow(QWidget *parent)
     cpLayout->setContentsMargins(0, 0, 0, 0);
     cpLayout->addWidget(mControlPanelQuickWidget);
 
+    // [포지션 토스트] 탭(그래프) 위에 떠서 감지 포지션 변경을 잠깐 보여주는 투명 오버레이.
+    //  투명 배경 + 마우스 통과 → 그래프를 가리거나 클릭을 막지 않는다. 지오메트리는 applyPanelLayout 에서 탭 영역에 맞춤.
+    mPositionToast = new QQuickWidget(ui->CentralWidget);
+    mPositionToast->rootContext()->setContextProperty("cppBackend", this);
+    mPositionToast->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    //  불투명 카드(투명 합성 미사용 — Pi 포함 모든 플랫폼 동작). 카드가 위젯을 꽉 채우고,
+    //  위젯 지오메트리 자체를 확대/축소해 줌인 효과. 마우스는 통과.
+    mPositionToast->setClearColor(QColor(QStringLiteral("#1c1c24")));
+    mPositionToast->setAttribute(Qt::WA_TransparentForMouseEvents);
+    mPositionToast->setSource(QUrl(QStringLiteral("qrc:/qml/src/ui/PositionToast.qml")));
+    mPositionToast->hide();   // 평소엔 숨김 → 그래프 그대로. 포지션 변경 때만 잠깐 표시.
+
+    // 지오메트리 확대/축소 애니메이션.
+    mToastAnim = new QPropertyAnimation(mPositionToast, "geometry", this);
+    connect(mToastAnim, &QPropertyAnimation::finished, this, [this]() {
+        if (mToastShrinking && mPositionToast) {   // 축소 끝나면 숨김
+            mPositionToast->hide();
+            mToastShrinking = false;
+        }
+    });
+
+    // 마지막 변경 후 일정 시간 유지 → 축소 시작.
+    mPositionToastHideTimer = new QTimer(this);
+    mPositionToastHideTimer->setSingleShot(true);
+    mPositionToastHideTimer->setInterval(1600);
+    connect(mPositionToastHideTimer, &QTimer::timeout, this, [this]() {
+        if (!mPositionToast || !mPositionToast->isVisible()) return;
+        const QRect cur = mPositionToast->geometry();
+        const QPoint c = cur.center();
+        const int s = cur.width() * 60 / 100;
+        const QRect small(c.x() - s / 2, c.y() - s / 2, s, s);
+        mToastShrinking = true;
+        mToastAnim->stop();
+        mToastAnim->setDuration(200);
+        mToastAnim->setEasingCurve(QEasingCurve::InCubic);
+        mToastAnim->setStartValue(cur);
+        mToastAnim->setEndValue(small);
+        mToastAnim->start();
+    });
+
+    // 감지 포지션 변경 → 탭 가운데에서 카드 확대(grow).
+    connect(this, &MainWindow::detectedPositionChanged, this, [this]() {
+        if (!mPositionToast) return;
+        const QString dp = mDetectedPosition.trimmed();
+        if (dp.isEmpty() || dp == QStringLiteral("?"))
+            return;   // 유효 포지션일 때만
+        const QRect tab = ui->GraphicsTabWidget->geometry();
+        const int full = qBound(170, qMin(tab.width(), tab.height()) / 2, 320);
+        const QPoint c = tab.center();
+        const QRect fullRect(c.x() - full / 2, c.y() - full / 2, full, full);
+        const int s0 = full * 55 / 100;
+        const QRect smallRect(c.x() - s0 / 2, c.y() - s0 / 2, s0, s0);
+
+        mToastShrinking = false;
+        mToastAnim->stop();
+        mPositionToast->setGeometry(smallRect);
+        mPositionToast->show();
+        mPositionToast->raise();
+        mToastAnim->setDuration(240);
+        mToastAnim->setEasingCurve(QEasingCurve::OutCubic);
+        mToastAnim->setStartValue(smallRect);
+        mToastAnim->setEndValue(fullRect);
+        mToastAnim->start();
+        mPositionToastHideTimer->start();
+    });
+
     // Initial geometry sync: use the whole available central area (no fixed tab height).
     onControlPanelToggled(mControlPanelCollapsed);
 
@@ -329,12 +397,11 @@ MainWindow::MainWindow(QWidget *parent)
     //  결과: 화면 우측 상단 배너로 알림 → 배너 클릭 시 가운데 상세 가이드 창.
     mDiagBanner = new DiagBanner(ui->GraphicsTabWidget);
     connect(mDiagBanner, &DiagBanner::clicked, this, [this]() {
-        mDiagBannerPending = false;   // 확인됨 → 탭 전환해도 다시 뜨지 않음
         if (mLastDiagKey.isEmpty()) return;
         DiagDetailDialog dlg(mLastDiagKey, mLastDiagConf, this);
         dlg.exec();
     });
-    // [diag] 배너는 BED 탭에서만 노출 → 탭 전환 때마다 가시성 재평가.
+    // [diag] BED 탭을 벗어나면 배너 숨김(다른 탭 위에 떠 있지 않도록). 재노출은 안 함.
     connect(ui->GraphicsTabWidget, &QTabWidget::currentChanged,
             this, [this](int) { updateDiagBannerVisibility(); });
 
@@ -357,10 +424,12 @@ MainWindow::MainWindow(QWidget *parent)
                 const QString title   = e ? e->title   : label;
                 const bool    healthy = e ? e->healthy : false;
                 mLastDiagTitle = title;
-                // 정상(healthy)일 때는 배너를 표시하지 않는다.
-                //  비정상이면 보류로 두고, BED 탭에 있을 때만 노출(updateDiagBannerVisibility).
-                mDiagBannerPending = !healthy;
-                updateDiagBannerVisibility();
+                // [diag] 결과 도착(=Stop 직후) 시점에 BED 탭을 '보고 있을 때만' 배너 노출.
+                //  다른 탭에서 Stop 했거나, 나중에 BED 로 들어오는 경우엔 띄우지 않는다.
+                const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
+                    && ui->GraphicsTabWidget->currentWidget() == mBedTab;
+                if (mDiagBanner && !healthy && onBedTab)
+                    mDiagBanner->showResult(title, false, conf);
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
@@ -401,8 +470,6 @@ void MainWindow::RegisterDisplayTabs(void)
     connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
         mSequenceDisplay->onRunningStateChanged(this->isRunning());
     });
-    connect(mSequenceDisplay, &TabSequenceDisplay::allPositionsMeasured,
-            this, &MainWindow::onAllPositionsMeasured);
     mTabManager->registerTab(mSequenceDisplay);
 
     auto *ltpTab = new TabLongTermPerformance(this);
@@ -984,14 +1051,12 @@ void MainWindow::triggerDiagnosis()
 #ifdef ENABLE_DIAG
 void MainWindow::updateDiagBannerVisibility()
 {
-    // [diag] 'Diagnosis complete' 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
-    //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 그 외(다른 탭·확인됨)에는 숨김.
+    // [diag] BED 탭을 벗어나면 배너를 숨긴다(다른 탭 위에 떠 있지 않도록).
+    //  표시는 결과 도착 시점에 BED 탭일 때만(resultReady) 직접 한다 — 여기선 숨김만.
     if (!mDiagBanner) return;
     const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
         && ui->GraphicsTabWidget->currentWidget() == mBedTab;
-    if (mDiagBannerPending && onBedTab)
-        mDiagBanner->showResult(mLastDiagTitle, false, mLastDiagConf);
-    else
+    if (!onBedTab)
         mDiagBanner->hide();
 }
 #endif
@@ -1095,10 +1160,12 @@ void MainWindow::ConfigureSoundCard(void)
 
 void MainWindow::EventsReset(void)
 {
-    mReadoutFrozen = false;   // [MPS 포지션 전환] 세션 시작/정지 시 요약바 고정 해제
+    mReadoutFrozen = false;       // [MPS 포지션 전환] 세션 시작/정지 시 요약바 고정 해제
+    mSequenceCompleteDone = false; // [MPS 시퀀스 완료] 다음 세션을 위해 dialog 가드 초기화
     mEngine.reset();
     DisplayResults();
 }
+
 
 void MainWindow::LoadAudioDevices(void)
 {
@@ -1581,6 +1648,11 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
     if (!mSequenceDisplay)
         return;
 
+    // 1) 방금 끝난 position을 먼저 확정(capture/finalize)한다.
+    //    → live 값이 테이블에 있더라도 mPositionCaptured[]가 세워지지 않으면
+    //      hasAllPositionsMeasured()가 false를 반환하므로 조기 SequenceComplete 방지.
+    mSequenceDisplay->finalizeCurrentPosition();
+
     const bool allMeasured = mSequenceDisplay->hasAllPositionsMeasured();
 
     const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
@@ -1598,6 +1670,7 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
 
         const QList<int> remaining = mSequenceDisplay->remainingPositionIndices();
         if (!remaining.isEmpty()) {
+            // 2a) 남은 position이 있으면 ChangePosition dialog 표시
             PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
                                      remaining,
                                      PositionChangeDialog::Mode::ChangePosition,
@@ -1618,17 +1691,37 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
         }
     }
 
+    // 2b) PositionSequenceController에 완료/다음 포지션 상태 알림.
+    //     allMeasured인 경우 confirmPositionChange() 내부에서 타이머가 멈추고
+    //     Phase::Idle로 전환된다. 이후 onAllPositionsMeasured()에서 stopSession()이
+    //     호출되어도 이미 Idle 상태이므로 중복 정지 문제가 없다.
     if (mPositionSequence) {
         mPositionSequence->confirmPositionChange(
             mSequenceDisplay->measuredPositionCount(),
             mSequenceDisplay->firstRemainingPositionIndex());
     }
+
+    // 2c) 모든 position이 확정된 시점(마지막 position 측정 창 종료 후)에
+    //     SequenceComplete dialog를 표시한다.
+    if (onSequenceTab && allMeasured) {
+        onAllPositionsMeasured();
+    }
 }
+
 
 void MainWindow::onAllPositionsMeasured()
 {
     if (!mSequenceDisplay || !mSequenceDisplay->hasAllPositionsMeasured())
         return;
+
+    const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
+        && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
+    if (!onSequenceTab)
+        return;
+
+    if (mSequenceCompleteDone)
+        return;
+    mSequenceCompleteDone = true;
 
     PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
                              QList<int>(),
@@ -1640,6 +1733,7 @@ void MainWindow::onAllPositionsMeasured()
     if (mIsRunning)
         stopSession();
 }
+
 
 // =============================================================================
 // Control Panel Collapse / Expand
@@ -1656,7 +1750,7 @@ static constexpr int WINDOW_W           = 1280;
 static constexpr int RIGHT_MARGIN        = 8;
 static constexpr int BOTTOM_MARGIN       = 4;
 
-static constexpr int SIDEBAR_W = 56;   // [설정 팝업] 항상 보이는 좁은 사이드바 폭
+static constexpr int SIDEBAR_W = 92;   // [설정 팝업] 항상 보이는 사이드바 폭(2x 버튼 수용)
 
 void MainWindow::setControlPanelCollapsed(bool collapsed)
 {
@@ -1707,6 +1801,7 @@ void MainWindow::applyPanelLayout()
     const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
     ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
+    // [포지션 토스트] 지오메트리는 표시 시 탭 가운데로 직접 계산(여기선 관리 안 함).
 }
 
 void MainWindow::showHistoryQr()

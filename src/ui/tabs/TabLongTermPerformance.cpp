@@ -1,6 +1,6 @@
 #include "TabLongTermPerformance.h"
 #include "qcustomplot.h"
-#include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
+#include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일 + 공용 seek 라벨(SeekInfo)
 
 #include <QMouseEvent>   // [③] 클릭 소스
 #include <cmath>
@@ -134,10 +134,11 @@ double TabLongTermPerformance::sampleAtX(double xSeconds) const
 
 void TabLongTermPerformance::showCursor(double xSeconds)
 {
-    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);   // x=초
+    // 모든 트렌드 탭 공통 라벨(t · rate · amp · error) — 어느 레인/탭을 클릭해도 동일.
+    const QString lbl = SeekInfo::labelAt(sampleAtX(xSeconds));
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
-        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, label);
+        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, lbl);
         if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
     }
 }

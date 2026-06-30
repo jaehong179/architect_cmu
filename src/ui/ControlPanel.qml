@@ -96,6 +96,77 @@ Rectangle {
         };
     }
 
+    // ─── [설정 스테이징] 팝업에서 바꾼 값은 여기에만 담아두고, Apply 시 일괄 적용한다.
+    //  Gain 은 예외(측정 중 실시간 조절 유지) → 스테이징하지 않고 cppBackend 직결.
+    QtObject {
+        id: staged
+        property int    currentMode: 0
+        property int    deviceIndex: 0
+        property int    sampleRateIndex: 0
+        property int    simBphIndex: 0
+        property int    simErrorRate: 0
+        property int    simAmplitude: 0
+        property real   simBeatError: 0
+        property bool   simRealistic: false
+        property int    detectorBphIndex: 0
+        property int    liftAngle: 0
+        property int    averagingPeriodIndex: 0
+        property int    warmupDelayIndex: 0
+        property string watchId: ""
+        property string engineer: ""
+        property int    highPassCutoff: 0
+        property bool   useConset: false
+    }
+
+    function loadStaged() {
+        staged.currentMode = cppBackend.currentMode
+        staged.deviceIndex = cppBackend.deviceIndex
+        staged.sampleRateIndex = cppBackend.sampleRateIndex
+        staged.simBphIndex = cppBackend.simBphIndex
+        staged.simErrorRate = cppBackend.simErrorRate
+        staged.simAmplitude = cppBackend.simAmplitude
+        staged.simBeatError = cppBackend.simBeatError
+        staged.simRealistic = cppBackend.simRealistic
+        staged.detectorBphIndex = cppBackend.detectorBphIndex
+        staged.liftAngle = cppBackend.liftAngle
+        staged.averagingPeriodIndex = cppBackend.averagingPeriodIndex
+        staged.warmupDelayIndex = cppBackend.warmupDelayIndex
+        staged.watchId = cppBackend.watchId
+        staged.engineer = cppBackend.engineer
+        staged.highPassCutoff = cppBackend.highPassCutoff
+        staged.useConset = cppBackend.useConset
+    }
+
+    function applyStaged() {
+        cppBackend.currentMode = staged.currentMode
+        cppBackend.deviceIndex = staged.deviceIndex
+        cppBackend.sampleRateIndex = staged.sampleRateIndex
+        cppBackend.simBphIndex = staged.simBphIndex
+        cppBackend.simErrorRate = staged.simErrorRate
+        cppBackend.simAmplitude = staged.simAmplitude
+        cppBackend.simBeatError = staged.simBeatError
+        cppBackend.simRealistic = staged.simRealistic
+        cppBackend.detectorBphIndex = staged.detectorBphIndex
+        cppBackend.liftAngle = staged.liftAngle
+        cppBackend.averagingPeriodIndex = staged.averagingPeriodIndex
+        cppBackend.warmupDelayIndex = staged.warmupDelayIndex
+        cppBackend.watchId = staged.watchId
+        cppBackend.engineer = staged.engineer
+        cppBackend.highPassCutoff = staged.highPassCutoff
+        cppBackend.useConset = staged.useConset
+    }
+
+    Component.onCompleted: loadStaged()
+
+    // 팝업이 열릴 때마다 현재 적용값으로 staged 초기화(취소 후 재오픈 대비).
+    Connections {
+        target: cppBackend
+        function onSettingsOpenChanged() {
+            if (cppBackend.settingsOpen)
+                loadStaged()
+        }
+    }
+
     // ─── session transport helpers (shared by collapsed + expanded panels) ──
     readonly property bool sessionIdle: !cppBackend.isRunning
     readonly property bool sessionRunning: cppBackend.isRunning && !cppBackend.isPaused
@@ -281,79 +352,17 @@ Rectangle {
     Column {
         id: collapsedInfo
         anchors.top: parent.top
-        anchors.topMargin: 14
+        anchors.topMargin: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 14
+        spacing: 18
         visible: !cppBackend.settingsOpen
-
-        // ── Mode badge ──
-        Rectangle {
-            width: 34
-            height: 34
-            radius: 8
-            color: root.colorBgCard
-            border.color: root.colorBorder
-            border.width: 1
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Text {
-                anchors.centerIn: parent
-                text: root.modeIcons[cppBackend.currentMode] || "●"
-                font.pixelSize: 16
-                color: {
-                    switch (cppBackend.currentMode) {
-                        case 0: return "#ef5350"  // Live  → red
-                        case 1: return "#42a5f5"  // Play  → blue
-                        case 2: return "#ab47bc"  // Sim   → purple
-                        default: return root.colorTextMain
-                    }
-                }
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            // Tooltip: mode label
-            ToolTip.visible: modeHover.hovered
-            ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
-            ToolTip.delay: 400
-
-            HoverHandler { id: modeHover }
-        }
-
-        // ── Position badge ──
-        Rectangle {
-            width: 34
-            height: 34
-            radius: 8
-            color: root.colorBgCard
-            border.color: root.colorBorder
-            border.width: 1
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Image {
-                anchors.centerIn: parent
-                width: 24
-                height: 24
-                fillMode: Image.PreserveAspectFit
-                source: root.currentPositionInfo.icon
-            }
-
-            // Tooltip: position label
-            ToolTip.visible: posHover.hovered
-            ToolTip.text: root.currentPositionInfo.name !== "N/A"
-                ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
-                : "Unknown"
-            ToolTip.delay: 400
-
-            HoverHandler { id: posHover }
-        }
 
         // ── Start/Pause + Stop ──
         Rectangle {
             id: miniPlayPauseBtn
-            width: 34
-            height: 40
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.primaryButtonFillColor()
             border.color: root.primaryButtonBorderColor()
@@ -362,25 +371,12 @@ Rectangle {
 
             Behavior on color { ColorAnimation { duration: 200 } }
 
-            Column {
+            Image {
                 anchors.centerIn: parent
-                spacing: 1
-
-                Image {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    source: root.primaryButtonIconSource()
-                    width: 18
-                    height: 18
-                    fillMode: Image.PreserveAspectFit
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.primaryButtonShortLabel()
-                    font.pixelSize: 8
-                    font.bold: true
-                    color: "#ffffff"
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                source: root.primaryButtonIconSource()
+                width: 42
+                height: 42
+                fillMode: Image.PreserveAspectFit
             }
 
             ToolTip.visible: playPauseHover.hovered
@@ -398,9 +394,9 @@ Rectangle {
 
         Rectangle {
             id: miniStopBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             visible: cppBackend.isRunning
             color: "#b71c1c"
@@ -410,8 +406,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_stop.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -430,9 +426,9 @@ Rectangle {
         // ── History QR (평상시 이력 QR) ──
         Rectangle {
             id: miniQrBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.colorBgCard
             border.color: root.colorBorder
@@ -441,8 +437,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_qr.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -461,9 +457,9 @@ Rectangle {
         // ── Settings (가운데 설정 팝업 열기) ──
         Rectangle {
             id: miniSettingsBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.colorBgCard
             border.color: root.colorBorder
@@ -472,8 +468,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_settings.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -487,6 +483,76 @@ Rectangle {
                 anchors.fill: parent
                 onClicked: { cppBackend.settingsOpen = true }
             }
+        }
+    }
+
+    // ─── Sidebar: monitoring status (좌측 하단) ───────────────────────────────
+    //  모드 표시(색 점) + 감지 포지션/카메라 상태 — 컨트롤이 아니라 상태 표시.
+    Column {
+        id: statusBadges
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 20
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 18
+        visible: !cppBackend.settingsOpen
+
+        // ── Mode badge ──
+        Rectangle {
+            width: 68
+            height: 68
+            radius: 14
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Image {
+                anchors.centerIn: parent
+                width: 42
+                height: 42
+                fillMode: Image.PreserveAspectFit
+                source: {
+                    switch (cppBackend.currentMode) {
+                        case 0: return "qrc:/images/src/ui/images/ic_mode_live.svg"      // Live
+                        case 1: return "qrc:/images/src/ui/images/ic_mode_playback.svg"  // Playback
+                        case 2: return "qrc:/images/src/ui/images/ic_mode_sim.svg"       // Sim
+                        default: return "qrc:/images/src/ui/images/ic_mode_live.svg"
+                    }
+                }
+            }
+
+            ToolTip.visible: modeHover.hovered
+            ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
+            ToolTip.delay: 400
+            HoverHandler { id: modeHover }
+        }
+
+        // ── Position badge (camera/detected watch) — 변경 시 팝 애니메이션 ──
+        Rectangle {
+            id: posBadge
+            width: 68
+            height: 68
+            radius: 14
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+            transformOrigin: Item.Center
+
+            Image {
+                anchors.centerIn: parent
+                width: 48
+                height: 48
+                fillMode: Image.PreserveAspectFit
+                source: root.currentPositionInfo.icon
+            }
+
+            ToolTip.visible: posHover.hovered
+            ToolTip.text: root.currentPositionInfo.name !== "N/A"
+                ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
+                : "Unknown"
+            ToolTip.delay: 400
+            HoverHandler { id: posHover }
         }
     }
 
@@ -619,14 +685,14 @@ Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: "transparent"
                                         border.width: 2
-                                        border.color: cppBackend.currentMode === index
+                                        border.color: staged.currentMode === index
                                             ? root.colorPrimary : root.colorBorder
                                         Behavior on border.color { ColorAnimation { duration: 120 } }
                                         Rectangle {
                                             anchors.centerIn: parent
                                             width: 9; height: 9; radius: 4.5
                                             color: root.colorPrimary
-                                            visible: cppBackend.currentMode === index
+                                            visible: staged.currentMode === index
                                         }
                                     }
 
@@ -634,8 +700,8 @@ Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: modelData
                                         font.pixelSize: 13
-                                        font.bold: cppBackend.currentMode === index
-                                        color: cppBackend.currentMode === index
+                                        font.bold: staged.currentMode === index
+                                        color: staged.currentMode === index
                                             ? root.colorTextMain : root.colorTextSub
                                     }
                                 }
@@ -644,7 +710,7 @@ Rectangle {
                                     anchors.fill: parent
                                     enabled: !cppBackend.isRunning
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: { cppBackend.currentMode = index }
+                                    onClicked: { staged.currentMode = index }
                                 }
 
                                 opacity: cppBackend.isRunning ? 0.45 : 1.0
@@ -679,7 +745,7 @@ Rectangle {
                     // LIVE MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 0 // LIVE
+                        visible: staged.currentMode === 0 // LIVE
                         spacing: 8
 
                         RowLayout {
@@ -722,6 +788,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.runParametersExpanded
                             spacing: 8
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             // Gain 조절 (실행 중에도 동작하도록 enabled: true 유지)
                             ColumnLayout {
@@ -762,8 +832,8 @@ Rectangle {
                                         Layout.preferredHeight: 38
                                         font.pixelSize: 14
                                         model: cppBackend.deviceList
-                                        currentIndex: cppBackend.deviceIndex
-                                        onActivated: (index) => { cppBackend.deviceIndex = index }
+                                        currentIndex: staged.deviceIndex
+                                        onActivated: (index) => { staged.deviceIndex = index }
                                         enabled: !cppBackend.isRunning
                                         background: Rectangle {
                                             color: root.colorBgInput
@@ -800,8 +870,8 @@ Rectangle {
                                     Layout.preferredHeight: 38
                                     font.pixelSize: 14
                                     model: cppBackend.sampleRateList
-                                    currentIndex: cppBackend.sampleRateIndex
-                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
+                                    currentIndex: staged.sampleRateIndex
+                                    onActivated: (index) => { staged.sampleRateIndex = index }
                                     enabled: !cppBackend.isRunning
                                     background: Rectangle {
                                         color: root.colorBgInput
@@ -823,7 +893,7 @@ Rectangle {
                     // PLAYBACK MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 1 // PLAYBACK
+                        visible: staged.currentMode === 1 // PLAYBACK
                         spacing: 10
 
                         RowLayout {
@@ -866,6 +936,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.runParametersExpanded
                             spacing: 10
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             Button {
                                 Layout.fillWidth: true
@@ -902,7 +976,7 @@ Rectangle {
                     // SIMULATION MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 2 // SIMULATION
+                        visible: staged.currentMode === 2 // SIMULATION
                         spacing: 6
 
                         RowLayout {
@@ -945,6 +1019,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.simulationParametersExpanded
                             spacing: 6
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             // Sim BPH
                             RowLayout {
@@ -954,8 +1032,8 @@ Rectangle {
                                     id: simBphCombo
                                     Layout.preferredWidth: 110
                                     model: cppBackend.simBphList
-                                    currentIndex: cppBackend.simBphIndex
-                                    onActivated: (index) => { cppBackend.simBphIndex = index }
+                                    currentIndex: staged.simBphIndex
+                                    onActivated: (index) => { staged.simBphIndex = index }
                                     enabled: !cppBackend.isRunning
                                 }
                             }
@@ -968,79 +1046,252 @@ Rectangle {
                                     id: simSrCombo
                                     Layout.preferredWidth: 110
                                     model: cppBackend.sampleRateList
-                                    currentIndex: cppBackend.sampleRateIndex
-                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
+                                    currentIndex: staged.sampleRateIndex
+                                    onActivated: (index) => { staged.sampleRateIndex = index }
                                     enabled: !cppBackend.isRunning
                                 }
                             }
 
-                            // Sim Error Rate
-                            RowLayout {
+                            // Sim Error Rate — Slider + 현재값 레이블 (터치 최적화)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Error Rate (s/d)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    Layout.preferredWidth: 110
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Error Rate (s/d)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: errorRateLabel
+                                        text: staged.simErrorRate
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 40
+                                    }
+                                }
+                                Slider {
+                                    id: errorRateSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
                                     from: -999
                                     to: 999
-                                    value: cppBackend.simErrorRate
+                                    stepSize: 1
+                                    value: staged.simErrorRate
                                     enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simErrorRate = value }
+                                    onMoved: { staged.simErrorRate = Math.round(value) }
+
+                                    background: Rectangle {
+                                        x: errorRateSlider.leftPadding
+                                        y: errorRateSlider.topPadding + errorRateSlider.availableHeight / 2 - height / 2
+                                        width: errorRateSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: errorRateSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: errorRateSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: errorRateSlider.leftPadding + errorRateSlider.visualPosition
+                                           * (errorRateSlider.availableWidth - width)
+                                        y: errorRateSlider.topPadding + errorRateSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: errorRateSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: errorRateSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
+                                    }
                                 }
                             }
 
-                            // Sim Amplitude
-                            RowLayout {
+                            // Sim Amplitude — Slider + 현재값 레이블 (터치 최적화)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Amplitude (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    Layout.preferredWidth: 110
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Amplitude (°)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: amplitudeLabel
+                                        text: staged.simAmplitude + "°"
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 44
+                                    }
+                                }
+                                Slider {
+                                    id: amplitudeSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
                                     from: 100
                                     to: 360
-                                    value: cppBackend.simAmplitude
+                                    stepSize: 1
+                                    value: staged.simAmplitude
                                     enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simAmplitude = value }
+                                    onMoved: { staged.simAmplitude = Math.round(value) }
+
+                                    background: Rectangle {
+                                        x: amplitudeSlider.leftPadding
+                                        y: amplitudeSlider.topPadding + amplitudeSlider.availableHeight / 2 - height / 2
+                                        width: amplitudeSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: amplitudeSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: amplitudeSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: amplitudeSlider.leftPadding + amplitudeSlider.visualPosition
+                                           * (amplitudeSlider.availableWidth - width)
+                                        y: amplitudeSlider.topPadding + amplitudeSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: amplitudeSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: amplitudeSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
+                                    }
                                 }
                             }
 
-                            // Sim Beat Error (Decimals SpinBox logic inline)
+                            // Sim Beat Error — Slider + 현재값 레이블 (터치 최적화, 0.1ms 단위)
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Beat Error (ms)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: beatErrorLabel
+                                        text: staged.simBeatError.toFixed(1)
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 44
+                                    }
+                                }
+                                Slider {
+                                    id: beatErrorSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
+                                    from: -100    // × 0.1 = -10.0 ms
+                                    to:    100    // × 0.1 = +10.0 ms
+                                    stepSize: 1
+                                    value: staged.simBeatError * 10
+                                    enabled: !cppBackend.isRunning
+                                    onMoved: { staged.simBeatError = value / 10.0 }
+
+                                    background: Rectangle {
+                                        x: beatErrorSlider.leftPadding
+                                        y: beatErrorSlider.topPadding + beatErrorSlider.availableHeight / 2 - height / 2
+                                        width: beatErrorSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: beatErrorSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: beatErrorSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: beatErrorSlider.leftPadding + beatErrorSlider.visualPosition
+                                           * (beatErrorSlider.availableWidth - width)
+                                        y: beatErrorSlider.topPadding + beatErrorSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: beatErrorSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: beatErrorSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
+                                    }
+                                }
+                            }
+
+                            // Realistic Noise — Switch 토글 (터치 최적화)
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Beat Error (ms)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    id: simBeSpin
-                                    Layout.preferredWidth: 110
-                                    from: -100
-                                    to: 100
-                                    stepSize: 1
-                                    value: cppBackend.simBeatError * 10
-                                    enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simBeatError = value / 10.0 }
-
-                                    validator: DoubleValidator {
-                                        bottom: -10.0
-                                        top: 10.0
-                                    }
-                                    textFromValue: function(value, locale) {
-                                        return (value / 10).toFixed(1)
-                                    }
-                                    valueFromText: function(text, locale) {
-                                        return parseFloat(text) * 10
-                                    }
-                                }
-                            }
-
-                            // Realistic Noise
-                            CheckBox {
-                                text: "Realistic Noise"
-                                checked: cppBackend.simRealistic
-                                enabled: !cppBackend.isRunning
-                                onCheckedChanged: { cppBackend.simRealistic = checked }
-                                contentItem: Text {
-                                    text: parent.text
+                                Layout.topMargin: 2
+                                Text {
+                                    text: "Realistic Noise"
                                     color: root.colorTextMain
-                                    leftPadding: 24
-                                    verticalAlignment: Text.AlignVCenter
                                     font.pixelSize: 11
+                                    Layout.fillWidth: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                Switch {
+                                    id: realisticNoiseSwitch
+                                    checked: staged.simRealistic
+                                    enabled: !cppBackend.isRunning
+                                    onToggled: { staged.simRealistic = checked }
+
+                                    // padding 을 모두 제거해야 indicator 가 카드 밖으로 나가지 않음
+                                    leftPadding: 0
+                                    rightPadding: 0
+                                    topPadding: 0
+                                    bottomPadding: 0
+                                    Layout.preferredWidth: 44
+                                    Layout.preferredHeight: 28
+
+                                    indicator: Rectangle {
+                                        implicitWidth: 44
+                                        implicitHeight: 24
+                                        x: 0          // leftPadding 제거했으므로 0 기준
+                                        y: parent.height / 2 - height / 2
+                                        radius: 12
+                                        color: realisticNoiseSwitch.checked
+                                               ? root.colorPrimary
+                                               : root.colorBorder
+                                        border.color: realisticNoiseSwitch.checked
+                                                      ? root.colorPrimary
+                                                      : root.colorBorder
+                                        opacity: realisticNoiseSwitch.enabled ? 1.0 : 0.4
+
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                                        Rectangle {
+                                            x: realisticNoiseSwitch.checked ? parent.width - width - 3 : 3
+                                            y: (parent.height - height) / 2
+                                            width: 18
+                                            height: 18
+                                            radius: 9
+                                            color: "#ffffff"
+
+                                            Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+                                    // contentItem 은 RowLayout 의 Text 로 대체하므로 비워둠
+                                    contentItem: Item {}
                                 }
                             }
                         }
@@ -1056,7 +1307,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: measurementSettingsExpanded
-                    ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 16)
+                    ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 28)
                     : (measureHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
@@ -1113,6 +1364,10 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: measurementSettingsCard.measurementSettingsExpanded
                         spacing: 8
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
 
                         // Detector BPH (Sim 모드가 아닐 때만 콤보박스 노출)
                         ColumnLayout {
@@ -1123,10 +1378,10 @@ Rectangle {
                             ComboBox {
                                 id: detBphCombo
                                 Layout.fillWidth: true
-                                visible: cppBackend.currentMode !== 2
+                                visible: staged.currentMode !== 2
                                 model: cppBackend.bphList
-                                currentIndex: cppBackend.detectorBphIndex
-                                onActivated: (index) => { cppBackend.detectorBphIndex = index }
+                                currentIndex: staged.detectorBphIndex
+                                onActivated: (index) => { staged.detectorBphIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
 
@@ -1135,7 +1390,7 @@ Rectangle {
                                 Layout.preferredHeight: 28
                                 color: root.colorBgInput
                                 radius: 4
-                                visible: cppBackend.currentMode === 2
+                                visible: staged.currentMode === 2
                                 Text {
                                     anchors.centerIn: parent
                                     text: "Follows Sim BPH"
@@ -1154,9 +1409,9 @@ Rectangle {
                                 Layout.preferredWidth: 110
                                 from: 30
                                 to: 70
-                                value: cppBackend.liftAngle
+                                value: staged.liftAngle
                                 enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.liftAngle = value }
+                                onValueModified: { staged.liftAngle = value }
                             }
                         }
 
@@ -1169,8 +1424,8 @@ Rectangle {
                                 id: avgCombo
                                 Layout.fillWidth: true
                                 model: cppBackend.averagingPeriodList
-                                currentIndex: cppBackend.averagingPeriodIndex
-                                onActivated: (index) => { cppBackend.averagingPeriodIndex = index }
+                                currentIndex: staged.averagingPeriodIndex
+                                onActivated: (index) => { staged.averagingPeriodIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
                         }
@@ -1184,8 +1439,8 @@ Rectangle {
                                 id: warmupCombo
                                 Layout.fillWidth: true
                                 model: cppBackend.warmupDelayList
-                                currentIndex: cppBackend.warmupDelayIndex
-                                onActivated: (index) => { cppBackend.warmupDelayIndex = index }
+                                currentIndex: staged.warmupDelayIndex
+                                onActivated: (index) => { staged.warmupDelayIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
                         }
@@ -1195,15 +1450,120 @@ Rectangle {
             }
 
             // ==========================================
-            // 4. ADVANCED / DETECTOR TUNING
+            // 4. SESSION INFO
+            // ==========================================
+            Rectangle {
+                id: sessionInfoCard
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredHeight: sessionInfoExpanded
+                    ? (sessHeader.implicitHeight + sessDetails.implicitHeight + 28)
+                    : (sessHeader.implicitHeight + 16)
+                color: root.colorBgCard
+                radius: 8
+                border.color: root.colorBorder
+                clip: true
+
+                property bool sessionInfoExpanded: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 8
+
+                    RowLayout {
+                        id: sessHeader
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            text: "Session Info"
+                            color: root.colorTextMain
+                            font.bold: true
+                            font.pixelSize: 13
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    ColumnLayout {
+                        id: sessDetails
+                        Layout.fillWidth: true
+                        visible: sessionInfoCard.sessionInfoExpanded
+                        spacing: 8
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
+
+                        // Watch ID (cloud save key)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Watch ID"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. rolex_123456"
+                                text: staged.watchId
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    staged.watchId = text.trim()
+                                }
+                            }
+                        }
+
+                        // Engineer (required by cloud API)
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "Engineer"
+                                color: root.colorTextSub
+                                font.pixelSize: 11
+                                Layout.preferredWidth: 90
+                            }
+                            TextField {
+                                Layout.fillWidth: true
+                                placeholderText: "e.g. Mr. Park"
+                                text: staged.engineer
+                                enabled: !cppBackend.isRunning
+                                color: root.colorTextMain
+                                placeholderTextColor: root.colorTextSub
+                                background: Rectangle {
+                                    color: root.colorBgInput
+                                    border.color: root.colorBorder
+                                    radius: 4
+                                }
+                                onEditingFinished: {
+                                    staged.engineer = text.trim()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // 5. ADVANCED TUNING
             // ==========================================
             Rectangle {
                 id: advancedTuningCard
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: advancedTuningExpanded
-                    ? (advHeader.implicitHeight + advDetails.implicitHeight + 16)
+                    ? (advHeader.implicitHeight + advDetails.implicitHeight + 28)
                     : (advHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
@@ -1223,36 +1583,13 @@ Rectangle {
                         spacing: 4
 
                         Text {
-                            text: "Advanced / Tuning"
+                            text: "Advanced Tuning"
                             color: root.colorTextMain
                             font.bold: true
                             font.pixelSize: 13
                         }
 
                         Item { Layout.fillWidth: true }
-
-                        Button {
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 24
-                            visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
-                            text: advancedTuningCard.advancedTuningExpanded ? "▾" : "▸"
-                            onClicked: {
-                                advancedTuningCard.advancedTuningExpanded =
-                                    !advancedTuningCard.advancedTuningExpanded
-                            }
-                            background: Rectangle {
-                                color: "transparent"
-                                border.color: root.colorBorder
-                                radius: 4
-                            }
-                            contentItem: Text {
-                                text: parent.text
-                                color: root.colorTextSub
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 11
-                            }
-                        }
                     }
 
                     ColumnLayout {
@@ -1260,62 +1597,10 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: advancedTuningCard.advancedTuningExpanded
                         spacing: 8
-
-                        // Watch ID (cloud save key)
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Text {
-                                text: "Watch ID"
-                                color: root.colorTextSub
-                                font.pixelSize: 11
-                                Layout.preferredWidth: 90
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                placeholderText: "e.g. rolex_123456"
-                                text: cppBackend.watchId
-                                enabled: !cppBackend.isRunning
-                                color: root.colorTextMain
-                                placeholderTextColor: root.colorTextSub
-                                background: Rectangle {
-                                    color: root.colorBgInput
-                                    border.color: root.colorBorder
-                                    radius: 4
-                                }
-                                onEditingFinished: {
-                                    cppBackend.watchId = text.trim()
-                                }
-                            }
-                        }
-
-                        // Engineer (required by cloud API)
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Text {
-                                text: "Engineer"
-                                color: root.colorTextSub
-                                font.pixelSize: 11
-                                Layout.preferredWidth: 90
-                            }
-                            TextField {
-                                Layout.fillWidth: true
-                                placeholderText: "e.g. Mr. Park"
-                                text: cppBackend.engineer
-                                enabled: !cppBackend.isRunning
-                                color: root.colorTextMain
-                                placeholderTextColor: root.colorTextSub
-                                background: Rectangle {
-                                    color: root.colorBgInput
-                                    border.color: root.colorBorder
-                                    radius: 4
-                                }
-                                onEditingFinished: {
-                                    cppBackend.engineer = text.trim()
-                                }
-                            }
-                        }
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
 
                         // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                         RowLayout {
@@ -1326,18 +1611,18 @@ Rectangle {
                                 from: 10
                                 to: 10000
                                 stepSize: 50
-                                value: cppBackend.highPassCutoff
+                                value: staged.highPassCutoff
                                 enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.highPassCutoff = value }
+                                onValueModified: { staged.highPassCutoff = value }
                             }
                         }
 
                         // Onset Amplitude
                         CheckBox {
                             text: "C Event Onset Amplitude"
-                            checked: cppBackend.useConset
+                            checked: staged.useConset
                             enabled: !cppBackend.isRunning
-                            onCheckedChanged: { cppBackend.useConset = checked }
+                            onCheckedChanged: { staged.useConset = checked }
                             contentItem: Text {
                                 text: parent.text
                                 color: root.colorTextMain
@@ -1534,8 +1819,65 @@ Rectangle {
                 }
             }
 
-            // 하단 여백 (2열 전체)
-            Item { Layout.columnSpan: 2; Layout.preferredHeight: 6 }
+            // ── 푸터: Cancel / Apply (2열 전체) ──
+            //  스테이징: Apply 눌러야 실제 적용, Cancel 은 변경 버림.
+            //  측정 중에는 Apply 비활성(dim) → 측정 중 설정 변경이 적용되지 않음.
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.topMargin: 6
+                Layout.bottomMargin: 4
+                spacing: 10
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    id: cancelBtn
+                    text: "Cancel"
+                    Layout.preferredWidth: 110
+                    Layout.preferredHeight: 36
+                    onClicked: { cppBackend.settingsOpen = false }   // 변경 버림(다음 오픈 시 재로드)
+                    background: Rectangle {
+                        color: cancelBtn.down ? "#2a2a33" : (cancelBtn.hovered ? "#33333d" : "#2f2f3a")
+                        radius: 6
+                        border.color: root.colorBorder
+                    }
+                    contentItem: Text {
+                        text: cancelBtn.text
+                        color: root.colorTextMain
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 13
+                    }
+                }
+
+                Button {
+                    id: applyBtn
+                    text: "Apply"
+                    Layout.preferredWidth: 130
+                    Layout.preferredHeight: 36
+                    enabled: !cppBackend.isRunning   // 측정 중 비활성(dim)
+                    onClicked: {
+                        root.applyStaged()
+                        cppBackend.settingsOpen = false
+                    }
+                    background: Rectangle {
+                        color: !applyBtn.enabled ? "#33333d"
+                             : (applyBtn.down ? "#7d2e89"
+                             : (applyBtn.hovered ? "#bb5ccb" : root.colorPrimary))
+                        radius: 6
+                        border.color: applyBtn.enabled ? root.colorPrimary : root.colorBorder
+                    }
+                    contentItem: Text {
+                        text: applyBtn.text
+                        color: applyBtn.enabled ? "#ffffff" : root.colorTextSub
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                        font.pixelSize: 13
+                    }
+                }
+            }
         }
     }
 }

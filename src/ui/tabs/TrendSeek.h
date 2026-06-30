@@ -16,9 +16,64 @@
 // =============================================================================
 
 #include "qcustomplot.h"
+#include "MeasurementModel.h"   // 공용 seek 라벨(rate·amp·beat error) 빌드용 스냅샷
 #include <QVector>
 #include <QPair>
+#include <QString>
 #include <functional>
+
+// =============================================================================
+//  SeekInfo — 모든 트렌드 탭이 '같은 정보'를 가리키도록 하는 공용 seek 라벨 레지스트리.
+// -----------------------------------------------------------------------------
+//  [목적]  롤리팝 툴팁은 탭마다 가진 데이터가 달라(RateScope=rate만, BeatError=beat#만 …)
+//          각자 다른 내용을 보였다. 측정 스냅샷(rate·amplitude·beat error + 누적샘플)을
+//          한 곳에 누적해 두고, 절대 샘플로 조회하면 어느 탭에서 클릭하든 동일한
+//          "t · rate · amp · error" 라벨을 만들 수 있다.
+//  [수명]  단일 UI 스레드 전용. record()=측정 브로드캐스트마다, clear()=세션 리셋마다
+//          (TabManager 가 호출). 헤더-온리(인라인 정적 → TU 간 단일 인스턴스).
+// =============================================================================
+class SeekInfo
+{
+public:
+    static void record(const MeasurementSnapshot &s)
+    {
+        Pt p;
+        p.sample = (double)s.totalSamples;
+        p.rate = s.rate;          p.rateV = s.rateValid;
+        p.amp  = s.amplitudeDeg;  p.ampV  = s.amplitudeValid;
+        p.be   = s.beatErrorMs;   p.beV   = s.beatErrorValid;
+        if (s.sampleRateHz > 0) sr() = s.sampleRateHz;
+        QVector<Pt> &v = store();
+        v.push_back(p);
+        if (v.size() > kMax) v.remove(0, v.size() - kMax);   // 메모리 바운드(오래된 점 제거)
+    }
+    static void clear() { store().clear(); }
+
+    // 절대 샘플에 가장 가까운 측정점으로 통일 라벨 생성 — 모든 탭 롤리팝이 공유.
+    static QString labelAt(double absSample)
+    {
+        const int rate = sr();
+        QString lbl = QString("t=%1 s").arg(rate > 0 ? absSample / (double)rate : 0.0, 0, 'f', 1);
+        const QVector<Pt> &v = store();
+        if (v.isEmpty()) return lbl;
+        int best = 0; double bestErr = qAbs(v.first().sample - absSample);
+        for (int i = 1; i < v.size(); ++i) {
+            const double e = qAbs(v[i].sample - absSample);
+            if (e < bestErr) { bestErr = e; best = i; }
+        }
+        const Pt &p = v[best];
+        if (p.rateV) lbl += QString("\nrate=%1 s/d").arg(p.rate, 0, 'f', 1);
+        if (p.ampV)  lbl += QString("\namp=%1°").arg(p.amp, 0, 'f', 0);
+        if (p.beV)   lbl += QString("\nerror=%1 ms").arg(p.be, 0, 'f', 2);
+        return lbl;
+    }
+
+private:
+    struct Pt { double sample = 0, rate = 0, amp = 0, be = 0; bool rateV = false, ampV = false, beV = false; };
+    static constexpr int kMax = 60000;   // ≈ 2시간@8bps. 8분 seek 창을 충분히 덮음.
+    static QVector<Pt> &store() { static QVector<Pt> s; return s; }
+    static int &sr() { static int v = 0; return v; }
+};
 
 class TrendSeek
 {
@@ -115,7 +170,18 @@ public:
         // 줄기: 바닥(ratio 1) → 머리(kHeadRatio). 머리 위로는 선이 없다.
         if (stem) { stem->start->setCoords(x, 1.0); stem->end->setCoords(x, kHeadRatio); stem->setVisible(true); }
         if (head) { head->position->setCoords(x, kHeadRatio); head->setVisible(true); }
-        if (tip)  { tip->position->setCoords(x, kHeadRatio); tip->setText(label); tip->setVisible(true); }
+        if (tip)  {
+            tip->setText(label);
+            // 툴팁을 머리 '옆'(기본 오른쪽, 우측 가장자리면 왼쪽으로 플립)에 둔다 → 선택 지점 위 데이터를 덜 가림.
+            bool toLeft = false;
+            if (QCustomPlot *p = tip->parentPlot()) {
+                const QCPRange r = p->xAxis->range();
+                if (r.size() > 0.0) toLeft = (x > r.lower + r.size() * 0.7);
+            }
+            tip->setPositionAlignment(Qt::AlignVCenter | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
+            tip->position->setCoords(x, kHeadRatio);
+            tip->setVisible(true);
+        }
     }
     static void hideLollipop(QCPItemLine *stem, QCPItemTracer *head, QCPItemText *tip)
     {
@@ -140,10 +206,13 @@ private:
     void showCursor(double x)
     {
         for (PlotCur &pc : mPlots) {
-            // 선택 지점이 현재 보이는 x범위 밖이면 가장자리로 클램프 → 롤리팝이 항상 화면 안에 보인다.
-            double cx = x;
-            if (pc.plot) { const QCPRange r = pc.plot->xAxis->range(); cx = qBound(r.lower, x, r.upper); }
-            showLollipop(pc.stem, pc.head, pc.tip, cx, QString::number(cx, 'f', 1));
+            // 선택 지점을 가장자리에 붙이지 않고 '뷰 가운데'로 패닝(현재 폭 유지). 정지 중에만 seek 가
+            //  오므로 라이브 autoscale 과 충돌하지 않는다. → 선택 지점과 그 앞뒤 맥락이 함께 보인다.
+            if (pc.plot) {
+                const double w = pc.plot->xAxis->range().size();
+                if (w > 0.0) pc.plot->xAxis->setRange(x - w * 0.5, x + w * 0.5);
+            }
+            showLollipop(pc.stem, pc.head, pc.tip, x, SeekInfo::labelAt(sampleAtX(x)));   // 공용 라벨(타 탭 통일)
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
         }
     }

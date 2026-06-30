@@ -40,9 +40,7 @@ public slots:
     void onTimingDataChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
     void onTimingModelReset();
     void onRunningStateChanged(bool isRunning);
-
-signals:
-    void allPositionsMeasured();
+    void finalizeCurrentPosition();  // 측정 창 종료 시 현재 position을 확정(capture) 처리
 
 private:
     void capture();
@@ -53,7 +51,7 @@ private:
     QJsonObject buildMeasurementsPayload() const;
     static bool isHorizontal(const QString &pos);   // DU/DD(다이얼) = 수평
     int getRowIndexForPosition(const QString &posName) const;
-    bool isPositionMeasuredInTable(int row) const;
+    bool isPositionCaptured(int row) const;         // capture 확정 플래그 기준
 
     QTableWidget     *mTable   = nullptr;   // 포지션 행: Position | Rate | Beat | Ampl (고정 8행)
     RadarChartWidget *mRadar   = nullptr;   // 극좌표 레이더 차트 위젯
@@ -73,6 +71,6 @@ private:
     std::function<QString()> mWatchIdProvider;
     std::function<QString()> mEngineerProvider;
     bool                 mProgrammaticPositionChange = false;
-    bool                 mAllPositionsCompleteNotified = false;
+    bool                 mPositionCaptured[6] = {};  // 확정(capture/finalize)된 position만 true
 };
 #endif // TABSEQUENCEDISPLAY_H

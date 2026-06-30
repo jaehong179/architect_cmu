@@ -244,7 +244,7 @@ When a developer adds a new watch-visualization tab to the Qt project at develop
 
 #### Priority
 
-Importance: Medium Difficulty: Medium
+Importance: High Difficulty: Medium
 
 #### Risk
 

@@ -64,7 +64,6 @@ private:
     void enterLockedView();              // 정지 진입: 상·하단을 같은 시간창으로 잠그고 진입 뷰 저장
     void seekTo(double absSample);       // 그 절대샘플 시점으로 상·하단 창 동기 이동 + 상단 커서
     void resetZoomToEntry();             // [버튼] 정지 진입 시점 뷰로 상·하단 복원
-    void showRateClickLabel(double t, double y);   // [클릭] 상단 위 떠있는 x/y 라벨
 
     QLabel      *mWindowLabel = nullptr;
     QPushButton *mResetZoomBtn = nullptr;   // [버튼] 원래(정지 진입) 스케일로 복원
@@ -80,7 +79,6 @@ private:
     QCPItemLine    *mRateCursor = nullptr;      // 상단 RatePlot seek 롤리팝 커서(줄기)
     QCPItemTracer  *mRateCursorHead = nullptr;  // 롤리팝 머리
     QCPItemText    *mRateCursorTip  = nullptr;  // 롤리팝 상단 툴팁(선택 시각)
-    QCPItemText    *mRateClickLabel = nullptr;  // [클릭] 상단 위 떠있는 x/y 값 라벨
     int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
     uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)
     WaveLodHistory *mHistory    = nullptr;      // 주입된 중앙 이력 버퍼(소유 안 함)

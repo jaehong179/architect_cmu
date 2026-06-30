@@ -22,7 +22,9 @@ QT_END_NAMESPACE
 
 class QLabel;
 class QQuickWidget;
-class TabManager;   
+class QTimer;
+class QPropertyAnimation;
+class TabManager;
 class TabRateScope; 
 class TabBeatErrorTrace;
 class TabSequenceDisplay;
@@ -231,6 +233,10 @@ private:
     WaveLodHistory  mWaveHistory;
 
     QQuickWidget   *mControlPanelQuickWidget = nullptr; // Embedding QML widget
+    QQuickWidget   *mPositionToast = nullptr;           // [포지션 토스트] 탭 위 카드(불투명)
+    QTimer         *mPositionToastHideTimer = nullptr;  // [포지션 토스트] 유지 후 축소 시작
+    QPropertyAnimation *mToastAnim = nullptr;           // [포지션 토스트] 지오메트리 확대/축소
+    bool            mToastShrinking = false;            // [포지션 토스트] 축소 중(끝나면 hide)
 
     void   RegisterDisplayTabs(void);
     void   PublishMeasurementToTabs(void);
@@ -312,9 +318,14 @@ private:
     //  포지션 측정 종료 시 true → 다음 포지션이 'measuring' 진입하면 false.
     bool                       mReadoutFrozen = false;
 
+    // [MPS 시퀀스 완료] SequenceComplete dialog 중복 표시 방지 플래그.
+    //  세션 reset 시 false로 초기화.
+    bool                       mSequenceCompleteDone = false;
+
     // [측정 대기] 현재 진행 중인 warm-up 이 포지션 전환용인지(true) 세션 시작용인지(false).
     //  종료 시 시퀀스 누적표 보존 여부를 결정.
     bool                       mWarmupIsPositionChange = false;
+
 
     int                        mDeviceIndex = -1;
     int                        mSampleRateIndex = -1;
@@ -364,7 +375,6 @@ private:
     QString           mLastDiagKey;                  // [diag] 마지막 진단 라벨 키(상세창용)
     QString           mLastDiagTitle;                // [diag] 배너 표시용 사람이 읽는 제목
     float             mLastDiagConf = 0.0f;          // [diag] 마지막 진단 신뢰도
-    bool              mDiagBannerPending = false;    // [diag] 미확인 진단 결과 — BED 탭에서만 배너 노출
     // [diag] 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
     //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 아니면 숨김(탭 전환 시 호출).
     void   updateDiagBannerVisibility();

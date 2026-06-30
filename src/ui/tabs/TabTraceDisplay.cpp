@@ -24,6 +24,12 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     PlotHelpers::addLineGraph(mRate, QColor(20,60,160), 2);       // smoothed (진한 파랑)
     mRate->yAxis->setLabel(QStringLiteral("rate s/d"));
     mRate->xAxis->setTickLabels(false);
+    // 보율 정상범위(-10~+15 s/d) 시각 밴드 — 진폭 그래프와 동일 방식(QCPItemRect 음영).
+    mRateBand = new QCPItemRect(mRate);
+    mRateBand->setPen(Qt::NoPen);
+    mRateBand->setBrush(QColor(0, 200, 0, 40));
+    mRateBand->topLeft->setCoords(-1e12, kRateHi);
+    mRateBand->bottomRight->setCoords(1e12, kRateLo);
 
     mAmp = new QCustomPlot(this);
     PlotHelpers::addLineGraph(mAmp, QColor(150,150,60));
@@ -59,9 +65,10 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
 // [③] 선택한 시각(x초)에 두 그래프 롤리팝 커서를 표시(툴팁=선택 시각).
 void TabTraceDisplay::showCursor(double xSeconds)
 {
-    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);
-    TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, label);
-    TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, label);
+    // 모든 트렌드 탭 공통 라벨(t · rate · amp · error) — 두 그래프 동일 표시.
+    const QString lbl = SeekInfo::labelAt(sampleAtX(xSeconds));
+    TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, lbl);
+    TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, lbl);
     if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
     if (mAmp)  mAmp->replot(QCustomPlot::rpQueuedReplot);
 }

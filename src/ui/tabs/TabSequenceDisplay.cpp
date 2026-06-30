@@ -33,12 +33,11 @@ int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
     return -1;
 }
 
-bool TabSequenceDisplay::isPositionMeasuredInTable(int row) const
+bool TabSequenceDisplay::isPositionCaptured(int row) const
 {
-    if (!mTable || row < 0 || row >= 6)
+    if (row < 0 || row >= 6)
         return false;
-    const QTableWidgetItem *rateItem = mTable->item(row, 1);
-    return rateItem && rateItem->text() != QStringLiteral("--");
+    return mPositionCaptured[row];
 }
 
 QList<int> TabSequenceDisplay::measuredPositionIndices() const
@@ -46,7 +45,7 @@ QList<int> TabSequenceDisplay::measuredPositionIndices() const
     QList<int> indices;
     for (int step = 0; step < corePositionSequenceLength(); ++step) {
         const int row = corePositionSequenceIndices()[step];
-        if (isPositionMeasuredInTable(row))
+        if (isPositionCaptured(row))
             indices.append(row);
     }
     return indices;
@@ -57,7 +56,7 @@ QList<int> TabSequenceDisplay::remainingPositionIndices() const
     QList<int> indices;
     for (int step = 0; step < corePositionSequenceLength(); ++step) {
         const int row = corePositionSequenceIndices()[step];
-        if (!isPositionMeasuredInTable(row))
+        if (!isPositionCaptured(row))
             indices.append(row);
     }
     return indices;
@@ -77,7 +76,7 @@ int TabSequenceDisplay::firstRemainingPositionIndex() const
 bool TabSequenceDisplay::hasAllPositionsMeasured() const
 {
     for (int r = 0; r < 6; ++r) {
-        if (!isPositionMeasuredInTable(r))
+        if (!isPositionCaptured(r))
             return false;
     }
     return true;
@@ -97,10 +96,43 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     ctl->setContentsMargins(0, 0, 0, 0);
 
     // [MPS] 수동 Position 선택 콤보는 자동 자세 시퀀스가 행 라우팅을 구동하므로
-    //  화면에는 표시하지 않는다(숨김 유지). 측정값 → 테이블 행 매핑에만 사용.
+    //  릴리즈 빌드에서는 화면에 표시하지 않는다(숨김 유지).
+    //  측정값 → 테이블 행 매핑에만 사용.
     mPos = new QComboBox(this);
     mPos->addItems(standardPositionNames());
+
+#ifdef QT_DEBUG
+    // [DEBUG ONLY] 수동 포지션 변경으로 capture/finalize 흐름을 직접 테스트하기 위해
+    //  디버그 빌드에서만 제어 바에 노출한다.
+    //  콤보 변경 시 onPositionComboChanged() → capture 확정 체인이 그대로 실행되므로
+    //  실제 시나리오와 동일한 경로를 수동으로 재현할 수 있다.
+    {
+        auto *dbgLabel = new QLabel(QStringLiteral("[DBG] Position:"), this);
+        dbgLabel->setStyleSheet(QStringLiteral(
+            "font-weight: bold; color: #FFA500; margin-left: 10px; margin-right: 4px;"
+        ));
+        dbgLabel->setToolTip(QStringLiteral(
+            "DEBUG ONLY — 포지션을 수동으로 변경해 capture/finalize 흐름을 테스트합니다.\n"
+            "변경 시 이전 포지션이 capture 확정되고 onPositionComboChanged()가 실행됩니다.\n"
+            "릴리즈 빌드에서는 이 컨트롤이 나타나지 않습니다."
+        ));
+        ctl->addWidget(dbgLabel);
+
+        mPos->setToolTip(dbgLabel->toolTip());
+        mPos->setStyleSheet(QStringLiteral(
+            "QComboBox { background-color: #2a1a00; color: #FFA500;"
+            "  border: 1px solid #FFA500; padding: 4px 8px;"
+            "  border-radius: 4px; min-width: 110px; }"
+            "QComboBox::drop-down { border: none; }"
+            "QComboBox QAbstractItemView { background-color: #1a1000; color: #FFA500;"
+            "  selection-background-color: #5a3a00; }"
+        ));
+        mPos->setVisible(true);
+        ctl->addWidget(mPos);
+    }
+#else
     mPos->setVisible(false);
+#endif
 
     mSave = new QPushButton(QStringLiteral("Upload to Cloud"), this);
     mSave->setStyleSheet(QStringLiteral(
@@ -272,6 +304,8 @@ void TabSequenceDisplay::capture()
         }
     }
 
+    mPositionCaptured[r] = true;  // 수동 capture 시 확정 플래그 설정
+
     recomputeSummary();
     updateRadarChart();
 }
@@ -282,6 +316,8 @@ void TabSequenceDisplay::recomputeSummary()
     for (int c = 1; c < 4; ++c) {
         QVector<double> values;
         for (int r = 0; r < 6; ++r) {
+            if (!mPositionCaptured[r])
+                continue;
             QTableWidgetItem *it = mTable->item(r, c);
             if (it && it->text() != QStringLiteral("--")) {
                 bool ok = false;
@@ -321,21 +357,13 @@ void TabSequenceDisplay::recomputeSummary()
 
 void TabSequenceDisplay::updateComplete()
 {
-    // 6개 핵심 포지션이 모두 채워졌는지 검사
     const bool haveAll = hasAllPositionsMeasured();
 
-    if (haveAll && !mAllPositionsCompleteNotified) {
-        mAllPositionsCompleteNotified = true;
-        emit allPositionsMeasured();
-    } else if (!haveAll) {
-        mAllPositionsCompleteNotified = false;
-    }
-
+    // Progress 카운터도 capture 확정된 position 수 기준 (live 값 제외)
     int n = 0;
     for (int r = 0; r < 6; ++r) {
-        if (mTable->item(r, 1)->text() != QStringLiteral("--")) {
+        if (mPositionCaptured[r])
             n++;
-        }
     }
 
     if (!mComplete) return;
@@ -396,7 +424,7 @@ QJsonObject TabSequenceDisplay::buildMeasurementsPayload() const
         return measurements;
 
     for (int r = 0; r < 6; ++r) {
-        if (!isPositionMeasuredInTable(r))
+        if (!isPositionCaptured(r))
             continue;
 
         const QString apiCode = toApiPositionCode(internalKeyForCoreRow(r));
@@ -486,6 +514,7 @@ void TabSequenceDisplay::onResetSession()
                 mTable->item(r, c)->setForeground(QBrush(QColor(224, 224, 224)));
             }
         }
+        mPositionCaptured[r] = false;  // capture 확정 플래그 초기화
     }
 
     if (mRadar) {
@@ -494,7 +523,6 @@ void TabSequenceDisplay::onResetSession()
 
     mPrevPos = mPos->currentText(); // 포지션 리셋
     mHaveLast = false;
-    mAllPositionsCompleteNotified = false;
 
     recomputeSummary();
     updateRadarChart();
@@ -509,9 +537,10 @@ void TabSequenceDisplay::onPositionComboChanged(int index)
                              .arg(index);
 
     // 1. 포지션이 변경되기 직전, 이전 포지션(mPrevPos)에 대하여 자동 캡처(고정) 수행
+    //    (측정 창 종료 시 finalizeCurrentPosition()으로 이미 capture된 경우 skip)
     if (mHaveLast && !mPrevPos.isEmpty()) {
         int r = getRowIndexForPosition(mPrevPos);
-        if (r >= 0 && r < 6) {
+        if (r >= 0 && r < 6 && !mPositionCaptured[r]) {
             mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
             mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
             mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
@@ -528,6 +557,8 @@ void TabSequenceDisplay::onPositionComboChanged(int index)
                     mTable->item(r, c)->setForeground(QBrush(textColor));
                 }
             }
+
+            mPositionCaptured[r] = true;  // position 이탈 시 capture 확정 플래그 설정
         }
     }
 
@@ -547,7 +578,7 @@ void TabSequenceDisplay::updateRadarChart()
     for (int r = 0; r < 6; ++r) {
         QString posName = mTable->item(r, 0)->text();
         QTableWidgetItem *rateItem = mTable->item(r, 1);
-        if (rateItem && rateItem->text() != QStringLiteral("--")) {
+        if (mPositionCaptured[r] && rateItem && rateItem->text() != QStringLiteral("--")) {
             bool ok = false;
             double rateVal = rateItem->text().toDouble(&ok);
             if (ok) {
@@ -599,5 +630,40 @@ void TabSequenceDisplay::onRunningStateChanged(bool isRunning)
     if (mMeasTimeCombo) {
         mMeasTimeCombo->setEnabled(!isRunning);
     }
+}
+
+void TabSequenceDisplay::finalizeCurrentPosition()
+{
+    // 측정 창이 종료될 때 MainWindow에서 호출.
+    // 현재 position의 마지막 live 값을 테이블에 확정 기록하고 capture 플래그를 세운다.
+    // → 마지막(6번째) position의 경우 onPositionComboChanged()가 호출되지 않으므로
+    //   이 함수로 finalize해야 SequenceComplete 판정이 올바른 시점에 이루어진다.
+    if (!mHaveLast) return;
+
+    int r = getRowIndexForPosition(mPos->currentText());
+    if (r < 0 || r >= 6) return;
+
+    // 이미 이 position이 capture 확정되어 있으면 중복 finalize 방지
+    if (mPositionCaptured[r]) return;
+
+    mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
+    mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
+    mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
+
+    bool isCritical = false;
+    if (mLast.rateValid && std::abs(mLast.rate) > 20.0) isCritical = true;
+    if (mLast.beatErrorValid && mLast.beatErrorMs > 0.8) isCritical = true;
+    if (mLast.amplitudeValid && mLast.amplitudeDeg < 220.0) isCritical = true;
+
+    QColor textColor = isCritical ? QColor(255, 77, 77) : QColor(224, 224, 224);
+    for (int c = 0; c < 4; ++c) {
+        if (mTable->item(r, c))
+            mTable->item(r, c)->setForeground(QBrush(textColor));
+    }
+
+    mPositionCaptured[r] = true;  // 측정 창 종료 시점에 capture 확정
+
+    recomputeSummary();
+    updateRadarChart();
 }
 
