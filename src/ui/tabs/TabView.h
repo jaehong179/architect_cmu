@@ -19,6 +19,7 @@
 #include <QWidget>
 #include <QString>
 #include <QShowEvent>
+#include <QElapsedTimer>
 #include "MeasurementModel.h"
 
 class TabView : public QWidget
@@ -26,6 +27,7 @@ class TabView : public QWidget
     Q_OBJECT
 public:
     explicit TabView(QWidget *parent = nullptr) : QWidget(parent) {}
+    static constexpr int kCoalesceMs = 16;   // [§3] ~60fps 상한(디스플레이 리프레시) — 버스트 렌더 합치기
     ~TabView() override = default;
 
     // 탭 라벨(QTabWidget 에 표시될 짧은 제목). 각 탭이 반드시 제공.
@@ -59,6 +61,21 @@ protected:
     //  데이터로 화면을 다시 그리도록 한다(빈 화면 방지). 갱신 트리거가 없는 idle 시 중요.
     virtual void onShown() {}
     void showEvent(QShowEvent *e) override { QWidget::showEvent(e); onShown(); }
+
+    // [§3 렌더 코얼레스] 한 handleInputData 가 백로그로 여러 4096-슬라이스를 처리하면 onWave 가
+    //  여러 번 불려 매 프레임 배열을 새로 빌드하는 탭은 중복 렌더가 된다(페인트는 rpQueuedReplot 이
+    //  이미 1회로 합침). frameDue() 로 디스플레이보다 빠른 렌더를 스킵 → 'handleInputData 당 ~1 렌더'.
+    //  정상 실시간(슬라이스 간격 ≫ kCoalesceMs)에선 항상 true(영향 없음), 버스트에서만 합쳐진다.
+    bool frameDue()
+    {
+        if (mFrameTimer.isValid() && mFrameTimer.elapsed() < kCoalesceMs) return false;
+        mFrameTimer.restart();
+        return true;
+    }
+    void resetFrameThrottle() { mFrameTimer.invalidate(); }   // 탭 전환/seek 등 즉시 렌더 필요 시
+
+private:
+    QElapsedTimer mFrameTimer;   // [§3] frameDue() 코얼레스 타이머
 };
 
 #endif // TABVIEW_H

@@ -67,7 +67,7 @@ void TabEscapementAnalyzer::onWave(const WaveBlock &w)
         mRawBuf.push(rb);
     }
     accumBeats(w);                                              // 가운데 점열 누적
-    if (isVisible()) render();
+    if (isVisible() && frameDue()) render();                    // [§3] 버스트 코얼레스(누적은 위에서 항상)
 }
 
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 파형을 이력에서 복원해 표시(파형부만; 가운데 누적 점열은 동결).
@@ -336,7 +336,7 @@ void TabEscapementAnalyzer::render()
     mPlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
-void TabEscapementAnalyzer::onShown() { render(); }
+void TabEscapementAnalyzer::onShown() { resetFrameThrottle(); render(); }   // 전환 시 즉시 렌더
 
 void TabEscapementAnalyzer::onResetSession()
 {

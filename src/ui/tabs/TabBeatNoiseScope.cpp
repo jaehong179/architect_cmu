@@ -171,7 +171,7 @@ void TabBeatNoiseScope::onMeasurement(const MeasurementSnapshot &s)
     if (s.liftAngle > 0) mLiftAngle = s.liftAngle;
 }
 
-void TabBeatNoiseScope::onShown() { mStripsDirty = true; render(); }
+void TabBeatNoiseScope::onShown() { resetFrameThrottle(); mStripsDirty = true; render(); }   // 전환 시 즉시 렌더
 
 void TabBeatNoiseScope::onWave(const WaveBlock &w)
 {
@@ -184,7 +184,7 @@ void TabBeatNoiseScope::onWave(const WaveBlock &w)
     // (정지는 전역 Pause = TabManager 방송 중단이 담당 → 정지 중엔 onWave 자체가 안 옴.
     //  그래서 정지 화면의 스트립·선택이 그대로 유지되고, 그 비트를 골라 확대할 수 있다.)
     processNewBeats();
-    if (isVisible()) render();
+    if (isVisible() && frameDue()) render();   // [§3] 버스트 코얼레스(누적/처리는 위에서 항상)
 }
 
 // [③] 다른 탭에서 선택한 시점 → 그 비트를 이력에서 복원해 Scope1에 표시(스트립 선택 해제, 누적 동결).

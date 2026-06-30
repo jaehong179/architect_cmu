@@ -113,7 +113,7 @@ void TabWaveformCompare::onMeasurement(const MeasurementSnapshot &s)
     mAmplitudeValid = s.amplitudeValid; mAmplitudeDeg = s.amplitudeDeg;
 }
 
-void TabWaveformCompare::onShown() { render(); }
+void TabWaveformCompare::onShown() { resetFrameThrottle(); render(); }   // 전환 시 즉시 렌더
 
 void TabWaveformCompare::onWave(const WaveBlock &w)
 {
@@ -129,7 +129,7 @@ void TabWaveformCompare::onWave(const WaveBlock &w)
         mRawBuf.push(rb);
     }
     accumulate(w);
-    if (isVisible()) render();
+    if (isVisible() && frameDue()) render();   // [§3] 버스트 코얼레스(누적은 위에서 항상)
 }
 
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(파형부만; 평균/paperstrip 누적은 동결).

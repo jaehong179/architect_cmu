@@ -44,7 +44,7 @@ void TabSyncSweepScope::onMeasurement(const MeasurementSnapshot &s)
     Q_UNUSED(s);
 }
 
-void TabSyncSweepScope::onShown() { render(); }
+void TabSyncSweepScope::onShown() { resetFrameThrottle(); render(); }   // 전환 시 즉시 렌더
 
 void TabSyncSweepScope::onWave(const WaveBlock &w)
 {
@@ -69,7 +69,7 @@ void TabSyncSweepScope::onWave(const WaveBlock &w)
         for (int i = 0; i < w.numEvents; ++i)
             if (w.events[i].type == 1) { mSweepAnchor = w.events[i].sample; mHaveAnchor = true; break; }
     }
-    if (isVisible()) render();   // (정지는 전역 Pause = 방송 중단이 담당)
+    if (isVisible() && frameDue()) render();   // (정지는 전역 Pause = 방송 중단이 담당) · [§3] 버스트 코얼레스
 }
 
 // [③] 정지 중 트렌드 클릭 → 그 시점 주변 구간을 이력에서 복원해 표시(스윕 앵커 등 누적은 동결).
