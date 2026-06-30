@@ -38,6 +38,8 @@ public:
 
     // 정지 ↔ 8분 이력 스크롤백 전환. 전역 Pause 버튼(MainWindow)이 호출한다.
     void setPaused(bool paused);
+protected:
+    void onShown() override;
 signals:
     void scopeReplotted();   // ScopePlot afterReplot → MainWindow::OnScopeReplotted 로 연결(perf)
     void seekRequested(double absSample);   // [③] 정지 중 상단 RatePlot 클릭 → 그 시점

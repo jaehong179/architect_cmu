@@ -318,7 +318,8 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
         const double m = W * 0.02;
         mRatePlot->xAxis->setRange(oldest - m, oldest + W + m); // 좌측 끝 = 가장 오래된 점(가득 차면 스크롤)
     }
-    mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+    if (isVisible())
+        mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // ScopePlot: 엔벨로프 + 임계선 + A/C 마커.
@@ -417,7 +418,14 @@ void TabRateScope::onWave(const WaveBlock &wave)
         mScopePlot->yAxis->setRange(0, ymax * 1.12);
     }
 
-    mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+    if (isVisible())
+        mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+void TabRateScope::onShown()
+{
+    if (mRatePlot) mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+    if (mScopePlot) mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // ── [8분 스크롤백] 정지 ↔ 라이브 전환 ─────────────────────────────────────────
