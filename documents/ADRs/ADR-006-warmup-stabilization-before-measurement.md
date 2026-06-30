@@ -1,8 +1,5 @@
 # ADR-006: Warm-up (stabilization) period before recording measurements
 
-Before recording a measurement, we run a configurable warm-up period. During warm-up the engine already processes the signal but commits no result, so both the watch and the measurement filters settle first — making the very first recorded value accurate.
-
-## Context
 A watch just placed or repositioned isn't stable yet: balance amplitude and hairspring need time to settle. Meanwhile the pipeline's rolling statistics (RollingLeastSquares for rate, RollingAverage for trends) need several beats to converge. Recording immediately would capture an unsettled watch and not-yet-converged filters — inaccurate values. This matters most in the multi-position sequence, where each position's recorded result must be trustworthy ([QAS-06](../Requirements/quality-attribute-requirements.md#qas-06--watch-position-auto-detection-accuracy) measures the indicator "after stabilization").
 
 ## Decision
