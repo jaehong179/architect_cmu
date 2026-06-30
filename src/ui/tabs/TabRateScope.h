@@ -14,6 +14,8 @@ class QSpinBox;
 class QLabel;
 class QPushButton;
 class QCPItemStraightLine;
+class QCPItemLine;
+class QCPItemTracer;
 class QCPItemText;
 class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
 class QCPRange;
@@ -72,7 +74,9 @@ private:
     bool         mSweepArmed  = false;
     double       mSweepEnd    = 0.0;        // 고정창의 우측 끝 시각(틱). win 지나면 다음 틱으로 재무장
     double       mFirstTickTime = 0.0; bool mHaveFirstTick = false;  // 첫 검출 시각 — 잠금 전 한 창 채우는 기준
-    QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
+    QCPItemLine    *mRateCursor = nullptr;      // 상단 RatePlot seek 롤리팝 커서(줄기)
+    QCPItemTracer  *mRateCursorHead = nullptr;  // 롤리팝 머리
+    QCPItemText    *mRateCursorTip  = nullptr;  // 롤리팝 상단 툴팁(선택 시각)
     QCPItemText    *mRateClickLabel = nullptr;  // [클릭] 상단 위 떠있는 x/y 값 라벨
     int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
     uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)

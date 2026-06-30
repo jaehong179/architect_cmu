@@ -1,5 +1,6 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
+#include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
@@ -116,9 +117,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     // [정지 후] 상단 RatePlot 클릭 — 가장 가까운 tic/toc 점으로 스냅해 ① x/y 값을 떠있는 라벨로 표시,
     //  ② 그 시각의 절대 샘플로 상·하단 창을 동기 이동(같은 시간창 유지). rate 점 x 는 초(=절대샘플/sr−원점)
     //  이므로 절대 샘플 = (x + 원점) * sr 로 정확히 역산한다.
-    mRateCursor = new QCPItemStraightLine(mRatePlot);
-    mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
-    mRateCursor->setVisible(false);
+    TrendSeek::makeLollipop(mRatePlot, mRateCursor, mRateCursorHead, mRateCursorTip);   // 청록 롤리팝+툴팁(타 탭 통일)
     connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
         if (!mPaused || !mHistory || !mHistory->hasData()) return;   // 정지 중에만 의미
         const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
@@ -449,7 +448,7 @@ void TabRateScope::setPaused(bool paused)
         // Resume: restore live axis interaction only — keep waveform/markers/counters so
         // the amplitude trace continues from the pause point (seek cleanup is onResumeLive).
         mHistActive = false;
-        if (mRateCursor) mRateCursor->setVisible(false);   // 상단 클릭 커서 숨김
+        TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);   // 상단 클릭 커서 숨김
         if (mRateClickLabel) mRateClickLabel->setVisible(false);  // 떠있는 x/y 라벨 숨김
         if (mResetZoomBtn) mResetZoomBtn->setEnabled(false);
         mRatePlot->setInteractions(QCP::Interactions());   // 상단 상호작용 끔(라이브 중 줌/팬 금지)
@@ -473,7 +472,7 @@ void TabRateScope::onResumeLive(bool seeked)
         return;
 
     mHistActive = false;
-    if (mRateCursor) mRateCursor->setVisible(false);
+    TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);
     if (mRateClickLabel) mRateClickLabel->setVisible(false);
     mDecimCount = 0;
     mScopePlot->graph(0)->data()->clear();
@@ -539,10 +538,8 @@ void TabRateScope::seekTo(double absSample)
     renderHistoryWindow();                                  // 하단: 그 시점 파형(좁은 창)
 
     const double rateX = center + mRateScopeShift;          // = absSample/sr − origin (상단 좌표)
-    if (mRateCursor) {
-        mRateCursor->point1->setCoords(rateX, 0); mRateCursor->point2->setCoords(rateX, 1);
-        mRateCursor->setVisible(true);
-    }
+    TrendSeek::showLollipop(mRateCursor, mRateCursorHead, mRateCursorTip, rateX,
+                            QString("%1 s").arg(rateX, 0, 'f', 1));   // 선택 시각 툴팁
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -682,7 +679,7 @@ void TabRateScope::onResetSession()
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
-    if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
+    TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
     mRatePlot->replot();
 }
