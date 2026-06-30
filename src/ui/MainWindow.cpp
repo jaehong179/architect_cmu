@@ -547,8 +547,13 @@ int MainWindow::currentMode() const
 void MainWindow::setCurrentMode(int mode) 
 {
     if (mCurrentMode == mode) return;
+    const int prevMode = mCurrentMode;
     mCurrentMode = mode;
     emit currentModeChanged();
+
+    // Sim → Live/Playback: Sim BPH 동기화 값 대신 Auto BPH 로 복원
+    if (prevMode == SIM && mode != SIM)
+        setDetectorBphIndex(0);
 
     // 모드 변경 시 오디오 장치 및 레이트 재배치
     if (mCurrentMode != LIVE) {
@@ -1533,6 +1538,16 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
                                           const QString &nextPositionName,
                                           bool sequenceComplete)
 {
+    Q_UNUSED(positionIndex);
+    Q_UNUSED(positionName);
+    Q_UNUSED(nextPositionName);
+    Q_UNUSED(sequenceComplete);
+
+    if (!mSequenceDisplay)
+        return;
+
+    const bool allMeasured = mSequenceDisplay->hasAllPositionsMeasured();
+
     const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
         && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
 
@@ -1543,12 +1558,9 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
         // [MPS 포지션 전환] 측정 창이 끝나는 즉시 상단 요약바를 고정한다.
         //  → 대기 팝업/안정화 동안 직전 포지션의 마지막 값이 그대로 유지되고 흔들리지 않는다.
         //    다음 포지션이 'measuring' 으로 진입하면 onPositionPhaseChanged 에서 해제.
-        if (!sequenceComplete)
+        if (!allMeasured)
             mReadoutFrozen = true;
 
-        Q_UNUSED(positionIndex);
-        Q_UNUSED(positionName);
-        Q_UNUSED(nextPositionName);
         const QList<int> remaining = mSequenceDisplay->remainingPositionIndices();
         if (!remaining.isEmpty()) {
             PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
@@ -1563,7 +1575,7 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
         // [MPS 포지션 전환] 다음 포지션으로 넘어가기 직전에 엔진 누적 통계를 비운다.
         //  → 포지션 이동/안정화 구간(다이얼로그 동안 들어온 핸들링 노이즈 포함)이 다음
         //    포지션 측정값에 섞이지 않게 한다. BPH 락은 보존되어 즉시 깨끗하게 재수렴.
-        if (!sequenceComplete) {
+        if (!allMeasured) {
             mEngine.resetForPositionChange();
             // 트레이스/스코프 표시만 새 포지션 기준으로 비우고, 시퀀스 누적표(포지션별
             //  측정값)는 보존한다. 요약바는 mReadoutFrozen 으로 이미 고정된 상태.
@@ -1571,8 +1583,11 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
         }
     }
 
-    if (mPositionSequence)
-        mPositionSequence->confirmPositionChange();
+    if (mPositionSequence) {
+        mPositionSequence->confirmPositionChange(
+            mSequenceDisplay->measuredPositionCount(),
+            mSequenceDisplay->firstRemainingPositionIndex());
+    }
 }
 
 void MainWindow::onAllPositionsMeasured()

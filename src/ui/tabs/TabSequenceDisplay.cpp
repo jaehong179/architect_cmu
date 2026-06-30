@@ -62,6 +62,17 @@ QList<int> TabSequenceDisplay::remainingPositionIndices() const
     return indices;
 }
 
+int TabSequenceDisplay::measuredPositionCount() const
+{
+    return measuredPositionIndices().size();
+}
+
+int TabSequenceDisplay::firstRemainingPositionIndex() const
+{
+    const QList<int> remaining = remainingPositionIndices();
+    return remaining.isEmpty() ? -1 : remaining.first();
+}
+
 bool TabSequenceDisplay::hasAllPositionsMeasured() const
 {
     for (int r = 0; r < 6; ++r) {
