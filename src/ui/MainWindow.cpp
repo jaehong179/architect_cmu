@@ -431,8 +431,6 @@ void MainWindow::RegisterDisplayTabs(void)
     connect(this, &MainWindow::isRunningChanged, mSequenceDisplay, [this]() {
         mSequenceDisplay->onRunningStateChanged(this->isRunning());
     });
-    connect(mSequenceDisplay, &TabSequenceDisplay::allPositionsMeasured,
-            this, &MainWindow::onAllPositionsMeasured);
     mTabManager->registerTab(mSequenceDisplay);
 
     auto *ltpTab = new TabLongTermPerformance(this);
@@ -1658,7 +1656,6 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
 
     // 2c) 모든 position이 확정된 시점(마지막 position 측정 창 종료 후)에
     //     SequenceComplete dialog를 표시한다.
-    //     → 이전에는 allPositionsMeasured 시그널로 조기 표시되는 버그 수정.
     if (onSequenceTab && allMeasured) {
         onAllPositionsMeasured();
     }
@@ -1670,8 +1667,11 @@ void MainWindow::onAllPositionsMeasured()
     if (!mSequenceDisplay || !mSequenceDisplay->hasAllPositionsMeasured())
         return;
 
-    // [중복 방지] onPositionMeasurementEnded()의 직접 호출과
-    //  allPositionsMeasured 시그널 경로가 동시에 도달할 수 있으므로 한 번만 처리.
+    const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
+        && ui->GraphicsTabWidget->currentWidget() == mSequenceDisplay;
+    if (!onSequenceTab)
+        return;
+
     if (mSequenceCompleteDone)
         return;
     mSequenceCompleteDone = true;
