@@ -16,7 +16,8 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QMessageBox>
-#include <QTimer>   // [포지션 토스트] 표시 후 자동 숨김 타이머
+#include <QTimer>          // [포지션 토스트] 표시 후 자동 숨김 타이머
+#include <QSurfaceFormat>  // [포지션 토스트] 투명 합성을 위한 알파 버퍼
 #include <QTabWidget>
 #include <QMouseEvent>
 #include <QDebug>
@@ -265,8 +266,15 @@ MainWindow::MainWindow(QWidget *parent)
     mPositionToast = new QQuickWidget(ui->CentralWidget);
     mPositionToast->rootContext()->setContextProperty("cppBackend", this);
     mPositionToast->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    // 투명 합성: 알파 버퍼 포맷 + 투명 clearColor + 번역 배경 + 상단 스택(형제 위젯이 비치도록).
+    {
+        QSurfaceFormat toastFmt = mPositionToast->format();
+        toastFmt.setAlphaBufferSize(8);
+        mPositionToast->setFormat(toastFmt);
+    }
     mPositionToast->setClearColor(Qt::transparent);
     mPositionToast->setAttribute(Qt::WA_TranslucentBackground);
+    mPositionToast->setAttribute(Qt::WA_AlwaysStackOnTop);
     mPositionToast->setAttribute(Qt::WA_TransparentForMouseEvents);
     mPositionToast->setSource(QUrl(QStringLiteral("qrc:/qml/src/ui/PositionToast.qml")));
     mPositionToast->hide();   // 평소엔 숨김(탭/그래프 안 가림). 포지션 변경 때만 잠깐 표시.
