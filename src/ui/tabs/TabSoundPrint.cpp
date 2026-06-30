@@ -119,5 +119,12 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
         mImage->setLiveColumn(mRenderer.currentColumn());
         mImage->setOverlayMarkers(mRenderer.overlayMarkers());   // 또렷 마커 좌표 갱신
     }
-    mImage->DrawImage();
+    if (isVisible())
+        mImage->DrawImage();
+}
+
+void TabSoundPrint::onShown()
+{
+    if (mInitialized && mImage)
+        mImage->DrawImage();
 }
