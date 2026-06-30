@@ -52,8 +52,13 @@ set(PROJECT_SOURCES
         src/ui/PositionChangeDialog.cpp
         src/ui/SequenceResultSaveDialog.h
         src/ui/SequenceResultSaveDialog.cpp
+        src/ui/QrCodeDialog.h
+        src/ui/QrCodeDialog.cpp
         src/ui/cloud/MeasurementUploadClient.h
         src/ui/cloud/MeasurementUploadClient.cpp
+        # [QR] nayuki QR-Code-generator (단일 파일, 무의존성) — qcustomplot 와 동일 번들 방식
+        qrcodegen.hpp
+        qrcodegen.cpp
         src/ui/VideoSplashScreen.h
 )
 

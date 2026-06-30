@@ -2,6 +2,7 @@
 #include "PositionNames.h"
 #include "PositionTimingModel.h"
 #include "SequenceResultSaveDialog.h"
+#include "QrCodeDialog.h"
 #include "cloud/MeasurementUploadClient.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -377,9 +378,10 @@ void TabSequenceDisplay::onSaveRequested()
         MeasurementUploadClient::uploadMeasurement(watchId, engineer, measurements);
 
     if (uploadResult.success) {
-        QMessageBox::information(this,
-                                 QStringLiteral("Upload complete"),
-                                 uploadResult.message);
+        // [QR] 업로드 성공 → 방금 올린 기록의 웹 이력 QR 을 바로 띄운다.
+        const QString url = MeasurementUploadClient::viewerUrl(watchId);
+        QrCodeDialog qr(url, watchId, QStringLiteral("Upload complete"), this);
+        qr.exec();
     } else {
         QMessageBox::warning(this,
                              QStringLiteral("Upload failed"),

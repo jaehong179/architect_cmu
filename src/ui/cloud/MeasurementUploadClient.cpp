@@ -15,6 +15,20 @@ QString MeasurementUploadClient::baseUrl()
         "https://i5dhq7t6fb.execute-api.us-east-1.amazonaws.com/default/timegrapher_api");
 }
 
+QString MeasurementUploadClient::webViewerBaseUrl()
+{
+    // [QR] 휴대폰으로 스캔하면 열리는 웹 이력 뷰어(프론트엔드).
+    return QStringLiteral("https://timegrapher-history.vercel.app/");
+}
+
+QString MeasurementUploadClient::viewerUrl(const QString &watchId)
+{
+    // [QR] <프론트>?watch_id=<percent-encoded id>
+    const QString encoded =
+        QString::fromUtf8(QUrl::toPercentEncoding(watchId.trimmed()));
+    return webViewerBaseUrl() + QStringLiteral("?watch_id=") + encoded;
+}
+
 static QString parseErrorMessage(const QByteArray &body, const QString &fallback)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(body);

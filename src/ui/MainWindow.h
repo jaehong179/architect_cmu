@@ -104,6 +104,8 @@ public:
     Q_INVOKABLE void refreshDevices();
     Q_INVOKABLE bool choosePlaybackFile();
     Q_INVOKABLE void onControlPanelToggled(bool collapsed);
+    // [QR] 현재 Watch ID 의 웹 이력 QR 을 화면 가운데 모달로 표시(사이드바 버튼).
+    Q_INVOKABLE void showHistoryQr();
 
     // Getters & Setters for Q_PROPERTY
     int currentMode() const;
