@@ -212,7 +212,6 @@ public slots:
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
-    bool eventFilter(QObject *obj, QEvent *event) override;
 
 private:
     Ui::MainWindow *ui;
@@ -232,9 +231,6 @@ private:
     void   onPositionMeasurementEnded(int positionIndex, const QString &positionName,
                                       const QString &nextPositionName, bool sequenceComplete);
     void   onAllPositionsMeasured();
-    // [MPS 탭 이탈 보호] 측정 중 시퀀스 탭을 벗어나려 하면 중단 확인 팝업.
-    //  switch 허용이면 true(필요 시 stopSession 수행), 취소면 false 반환.
-    bool   maybeConfirmLeaveSequence(int targetIndex);
     void   ConfigureSoundCard(void);
     void   Reset(void);
     void   onWatchdogEvent(const WatchdogEvent &ev);  // 오디오 장치 분리 시 자동 정지 + 초기화
