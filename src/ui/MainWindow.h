@@ -312,9 +312,15 @@ private:
     //  포지션 측정 종료 시 true → 다음 포지션이 'measuring' 진입하면 false.
     bool                       mReadoutFrozen = false;
 
+    // [MPS 시퀀스 완료] SequenceComplete dialog 중복 표시 방지 플래그.
+    //  onAllPositionsMeasured()가 시그널 경로·직접 호출 경로 어디서 먼저 도달해도 한 번만 처리.
+    //  세션 reset 시 false로 초기화.
+    bool                       mSequenceCompleteDone = false;
+
     // [측정 대기] 현재 진행 중인 warm-up 이 포지션 전환용인지(true) 세션 시작용인지(false).
     //  종료 시 시퀀스 누적표 보존 여부를 결정.
     bool                       mWarmupIsPositionChange = false;
+
 
     int                        mDeviceIndex = -1;
     int                        mSampleRateIndex = -1;
