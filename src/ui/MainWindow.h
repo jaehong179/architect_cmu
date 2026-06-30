@@ -313,7 +313,6 @@ private:
     bool                       mReadoutFrozen = false;
 
     // [MPS 시퀀스 완료] SequenceComplete dialog 중복 표시 방지 플래그.
-    //  onAllPositionsMeasured()가 시그널 경로·직접 호출 경로 어디서 먼저 도달해도 한 번만 처리.
     //  세션 reset 시 false로 초기화.
     bool                       mSequenceCompleteDone = false;
 

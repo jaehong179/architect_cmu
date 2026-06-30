@@ -33,14 +33,6 @@ int TabSequenceDisplay::getRowIndexForPosition(const QString &posName) const
     return -1;
 }
 
-bool TabSequenceDisplay::isPositionMeasuredInTable(int row) const
-{
-    if (!mTable || row < 0 || row >= 6)
-        return false;
-    const QTableWidgetItem *rateItem = mTable->item(row, 1);
-    return rateItem && rateItem->text() != QStringLiteral("--");
-}
-
 bool TabSequenceDisplay::isPositionCaptured(int row) const
 {
     if (row < 0 || row >= 6)
@@ -291,6 +283,8 @@ void TabSequenceDisplay::recomputeSummary()
     for (int c = 1; c < 4; ++c) {
         QVector<double> values;
         for (int r = 0; r < 6; ++r) {
+            if (!mPositionCaptured[r])
+                continue;
             QTableWidgetItem *it = mTable->item(r, c);
             if (it && it->text() != QStringLiteral("--")) {
                 bool ok = false;
@@ -330,15 +324,7 @@ void TabSequenceDisplay::recomputeSummary()
 
 void TabSequenceDisplay::updateComplete()
 {
-    // 6개 핵심 포지션이 모두 capture 확정되었는지 검사 (live 값은 제외)
     const bool haveAll = hasAllPositionsMeasured();
-
-    if (haveAll && !mAllPositionsCompleteNotified) {
-        mAllPositionsCompleteNotified = true;
-        emit allPositionsMeasured();
-    } else if (!haveAll) {
-        mAllPositionsCompleteNotified = false;
-    }
 
     // Progress 카운터도 capture 확정된 position 수 기준 (live 값 제외)
     int n = 0;
@@ -405,7 +391,7 @@ QJsonObject TabSequenceDisplay::buildMeasurementsPayload() const
         return measurements;
 
     for (int r = 0; r < 6; ++r) {
-        if (!isPositionMeasuredInTable(r))
+        if (!isPositionCaptured(r))
             continue;
 
         const QString apiCode = toApiPositionCode(internalKeyForCoreRow(r));
@@ -504,7 +490,6 @@ void TabSequenceDisplay::onResetSession()
 
     mPrevPos = mPos->currentText(); // 포지션 리셋
     mHaveLast = false;
-    mAllPositionsCompleteNotified = false;
 
     recomputeSummary();
     updateRadarChart();
@@ -519,9 +504,10 @@ void TabSequenceDisplay::onPositionComboChanged(int index)
                              .arg(index);
 
     // 1. 포지션이 변경되기 직전, 이전 포지션(mPrevPos)에 대하여 자동 캡처(고정) 수행
+    //    (측정 창 종료 시 finalizeCurrentPosition()으로 이미 capture된 경우 skip)
     if (mHaveLast && !mPrevPos.isEmpty()) {
         int r = getRowIndexForPosition(mPrevPos);
-        if (r >= 0 && r < 6) {
+        if (r >= 0 && r < 6 && !mPositionCaptured[r]) {
             mTable->item(r, 1)->setText(mLast.rateValid ? QString::asprintf("%+.1f", mLast.rate) : QStringLiteral("--"));
             mTable->item(r, 2)->setText(mLast.amplitudeValid ? QString::number(mLast.amplitudeDeg, 'f', 0) : QStringLiteral("--"));
             mTable->item(r, 3)->setText(mLast.beatErrorValid ? QString::number(mLast.beatErrorMs, 'f', 2) : QStringLiteral("--"));
@@ -559,7 +545,7 @@ void TabSequenceDisplay::updateRadarChart()
     for (int r = 0; r < 6; ++r) {
         QString posName = mTable->item(r, 0)->text();
         QTableWidgetItem *rateItem = mTable->item(r, 1);
-        if (rateItem && rateItem->text() != QStringLiteral("--")) {
+        if (mPositionCaptured[r] && rateItem && rateItem->text() != QStringLiteral("--")) {
             bool ok = false;
             double rateVal = rateItem->text().toDouble(&ok);
             if (ok) {
