@@ -150,8 +150,8 @@ Rectangle {
         cppBackend.liftAngle = staged.liftAngle
         cppBackend.averagingPeriodIndex = staged.averagingPeriodIndex
         cppBackend.warmupDelayIndex = staged.warmupDelayIndex
-        cppBackend.watchId = staged.watchId
-        cppBackend.engineer = staged.engineer
+        cppBackend.watchId = ("" + staged.watchId).trim()
+        cppBackend.engineer = ("" + staged.engineer).trim()
         cppBackend.highPassCutoff = staged.highPassCutoff
         cppBackend.useConset = staged.useConset
     }
@@ -1518,9 +1518,8 @@ Rectangle {
                                     border.color: root.colorBorder
                                     radius: 4
                                 }
-                                onEditingFinished: {
-                                    staged.watchId = text.trim()
-                                }
+                                // 타이핑 즉시 staged 반영(Apply 직전 editingFinished 누락 방지). 트림은 Apply 시.
+                                onTextEdited: { staged.watchId = text }
                             }
                         }
 
@@ -1546,9 +1545,7 @@ Rectangle {
                                     border.color: root.colorBorder
                                     radius: 4
                                 }
-                                onEditingFinished: {
-                                    staged.engineer = text.trim()
-                                }
+                                onTextEdited: { staged.engineer = text }
                             }
                         }
                     }
