@@ -30,6 +30,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    bool resetOnResume() const override { return true; }   // [pause→start] resume 시 그래프·데이터 초기화
     void onSeek(double absSample) override;   // [③] 정지 중 트렌드 클릭 → 그 시점으로 스코프 이동
     void onResumeLive(bool seeked) override;  // [③] seek 후 resume 시 이력으로 그린 임시 상태 정리
 

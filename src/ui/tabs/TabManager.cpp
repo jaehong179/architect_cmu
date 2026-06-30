@@ -94,6 +94,15 @@ void TabManager::broadcastReset()
         if (t) t->onResetSession();
 }
 
+void TabManager::resetTabsForResume()
+{
+    // [pause→start] resume 시 그래프·데이터를 새로 시작할 탭만 선별 초기화한다.
+    //  resetOnResume()==true 인 탭(Rate/Scope·Sound Print·Trace·Beat Error·Escapement·Long-Term)만
+    //  onResetSession() 으로 비우고, 나머지 탭과 엔진 측정은 그대로 둔다(표시만 초기화).
+    for (TabView *t : mTabs)
+        if (t && t->resetOnResume()) t->onResetSession();
+}
+
 void TabManager::broadcastResetExcept(TabView *skip)
 {
     // [MPS 포지션 전환] 트레이스/스코프 표시만 새 포지션 기준으로 비우고,

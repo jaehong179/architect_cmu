@@ -22,6 +22,7 @@ public:
     QString tabTitle() const override { return QStringLiteral("Long-Term Performance Graph"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+    bool resetOnResume() const override { return true; }   // [pause→start] resume 시 그래프·데이터 초기화
     void onSeek(double absSample) override;   // [③] 다른 탭 seek → 커서 동기화
     void onSeekClear() override;              // [③] 선택 해제 → 세 레인 커서 숨김
     void onResumeLive(bool seeked) override { (void)seeked; onSeekClear(); }  // [③] resume → 선택 리셋(커서 숨김)

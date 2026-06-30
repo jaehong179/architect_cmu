@@ -44,6 +44,11 @@ public:
     // 측정 세션 리셋(Start/모드 전환) 시 호출 — 누적 데이터·그래프를 비운다.
     virtual void onResetSession() {}
 
+    // [pause→start 토글] resume(정지 해제) 시 이 탭을 새 세션처럼 초기화할지 여부. 기본 false(데이터 유지).
+    //  true 인 탭만 TabManager::resetTabsForResume() 가 onResetSession() 으로 그래프·누적데이터를 비운다.
+    //  (엔진 측정·상단 readout·다른 탭은 그대로 측정을 이어간다 — 표시만 초기화.)
+    virtual bool resetOnResume() const { return false; }
+
     // [8분 스크롤백/③] 시점 점프 — 트렌드 탭에서 선택한 '절대 샘플 인덱스'로 이동.
     //  정지 중에만 의미. 8분 이력 버퍼를 읽는 스코프 탭이 override 해 그 시점을 그린다. 기본 무시.
     virtual void onSeek(double /*absSample*/) {}

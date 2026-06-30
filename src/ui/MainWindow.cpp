@@ -874,6 +874,16 @@ void MainWindow::togglePauseSession()
         if (mPositionSequence)
             mPositionSequence->resume();
 
+        // [pause→start] 지정 6개 탭(Rate/Scope·Sound Print·Trace·Beat Error·Escapement·Long-Term)의
+        //  그래프·데이터를 초기화한다. 엔진 측정·상단 readout·나머지 탭은 그대로 이어진다(표시만 초기화).
+        //  · Rate/Scope 상단 plot 은 엔진의 tic/toc 표시 ring 을 매 스냅샷마다 통째로 받으므로,
+        //    탭만 비우면 다음 측정에서 곧 되채워진다 → clearPlotsKeepState() 로 그 ring 만 비운다.
+        //    (RLS rate·롤링평균·BPH·StartTime·ZeroOffset 등 수렴 상태는 보존 → readout 은 끊김 없음.)
+        //  · 나머지 5개 탭은 onWave/스칼라 점진 누적이라 탭 자체 onResetSession() 만으로 충분.
+        //  맨 끝에서 호출 → 위 setPaused(false) 들의 라이브 복귀 처리 뒤 최종적으로 깨끗이 비운다.
+        mEngine.clearPlotsKeepState();
+        if (mTabManager) mTabManager->resetTabsForResume();
+
         mIsPaused = false;
         emit isPausedChanged();
 

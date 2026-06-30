@@ -17,6 +17,7 @@ public:
     void onWave(const WaveBlock &wave) override;
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
+    bool resetOnResume() const override { return true; }   // [pause→start] resume 시 그래프·데이터 초기화
 protected:
     void onShown() override;
 private:
