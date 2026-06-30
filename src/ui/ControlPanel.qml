@@ -96,6 +96,61 @@ Rectangle {
         };
     }
 
+    // ─── session transport helpers (shared by collapsed + expanded panels) ──
+    readonly property bool sessionIdle: !cppBackend.isRunning
+    readonly property bool sessionRunning: cppBackend.isRunning && !cppBackend.isPaused
+    readonly property bool sessionPaused: cppBackend.isRunning && cppBackend.isPaused
+    readonly property bool playPauseEnabled: !cppBackend.isRunning
+        || cppBackend.isPaused
+        || !cppBackend.inWarmup
+
+    function primarySessionAction() {
+        if (sessionIdle)
+            cppBackend.startSession()
+        else
+            cppBackend.togglePauseSession()
+    }
+
+    function primaryButtonIcon() {
+        return (sessionIdle || sessionPaused) ? "▶" : "⏸"
+    }
+
+    function primaryButtonShortLabel() {
+        return (sessionIdle || sessionPaused) ? "GO" : "PAUSE"
+    }
+
+    function primaryButtonFullLabel() {
+        if (sessionIdle || sessionPaused)
+            return "▶ START"
+        return "⏸ PAUSE"
+    }
+
+    function primaryButtonTooltip() {
+        if (sessionIdle)
+            return "Start Session"
+        if (cppBackend.inWarmup)
+            return "Pause unavailable during warm-up"
+        if (sessionPaused)
+            return "Resume Session"
+        return "Pause Session"
+    }
+
+    function primaryButtonFillColor() {
+        if (sessionIdle)
+            return "#1b5e20"
+        if (sessionPaused)
+            return "#e65100"
+        return "#f57c00"
+    }
+
+    function primaryButtonBorderColor() {
+        if (sessionIdle)
+            return "#4caf50"
+        if (sessionPaused)
+            return "#ff9800"
+        return "#ffb74d"
+    }
+
     // ─── Header Bar ──────────────────────────────────────────────────────────
     Rectangle {
         id: headerBar
@@ -290,16 +345,17 @@ Rectangle {
             HoverHandler { id: posHover }
         }
 
-        // ── Start / Stop / Pause ──
+        // ── Start/Pause + Stop ──
         Rectangle {
-            id: miniStartStopBtn
+            id: miniPlayPauseBtn
             width: 34
             height: 40
             radius: 8
             anchors.horizontalCenter: parent.horizontalCenter
-            color: cppBackend.isRunning ? "#b71c1c" : "#1b5e20"
-            border.color: cppBackend.isRunning ? "#f44336" : "#4caf50"
+            color: root.primaryButtonFillColor()
+            border.color: root.primaryButtonBorderColor()
             border.width: 1
+            opacity: root.playPauseEnabled ? 1.0 : 0.35
 
             Behavior on color { ColorAnimation { duration: 200 } }
 
@@ -309,14 +365,14 @@ Rectangle {
 
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: cppBackend.isRunning ? "⏹" : "▶"
+                    text: root.primaryButtonIcon()
                     font.pixelSize: 15
                     color: "#ffffff"
                     horizontalAlignment: Text.AlignHCenter
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: cppBackend.isRunning ? "STOP" : "GO"
+                    text: root.primaryButtonShortLabel()
                     font.pixelSize: 8
                     font.bold: true
                     color: "#ffffff"
@@ -324,54 +380,46 @@ Rectangle {
                 }
             }
 
-            ToolTip.visible: ssHover.hovered
-            ToolTip.text: cppBackend.isRunning ? "Stop Session" : "Start Session"
+            ToolTip.visible: playPauseHover.hovered
+            ToolTip.text: root.primaryButtonTooltip()
             ToolTip.delay: 400
 
-            HoverHandler { id: ssHover }
+            HoverHandler { id: playPauseHover }
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: {
-                    if (cppBackend.isRunning)
-                        cppBackend.stopSession()
-                    else
-                        cppBackend.startSession()
-                }
+                enabled: root.playPauseEnabled
+                onClicked: { root.primarySessionAction() }
             }
         }
 
         Rectangle {
-            id: miniPauseBtn
+            id: miniStopBtn
             width: 34
             height: 34
             radius: 8
             anchors.horizontalCenter: parent.horizontalCenter
             visible: cppBackend.isRunning
-            opacity: (cppBackend.isRunning && !cppBackend.inWarmup) ? 1.0 : 0.35
-            color: cppBackend.isPaused ? "#e65100" : "#f57c00"
-            border.color: cppBackend.isPaused ? "#ff9800" : "#ffb74d"
+            color: "#b71c1c"
+            border.color: "#f44336"
             border.width: 1
 
             Text {
                 anchors.centerIn: parent
-                text: cppBackend.isPaused ? "▶" : "⏸"
+                text: "⏹"
                 font.pixelSize: 15
                 color: "#ffffff"
             }
 
-            ToolTip.visible: miniPauseHover.hovered
-            ToolTip.text: cppBackend.inWarmup
-                ? "Pause unavailable during warm-up"
-                : (cppBackend.isPaused ? "Resume Session" : "Pause Session")
+            ToolTip.visible: stopHover.hovered
+            ToolTip.text: "Stop Session"
             ToolTip.delay: 400
 
-            HoverHandler { id: miniPauseHover }
+            HoverHandler { id: stopHover }
 
             MouseArea {
                 anchors.fill: parent
-                enabled: cppBackend.isRunning && !cppBackend.inWarmup
-                onClicked: { cppBackend.togglePauseSession() }
+                onClicked: { cppBackend.stopSession() }
             }
         }
     }
@@ -1165,47 +1213,27 @@ Rectangle {
                         spacing: 8
 
                         Button {
-                            id: startBtn
+                            id: playPauseBtn
                             Layout.fillWidth: true
-                            text: "▶ START"
-                            enabled: !cppBackend.isRunning
-                            onClicked: { cppBackend.startSession() }
-                            
-                            background: Rectangle {
-                                color: parent.enabled ? "#4caf50" : "#2d382e"
-                                radius: 4
-                            }
-                            contentItem: Text {
-                                text: parent.text
-                                color: parent.enabled ? "#ffffff" : "#608060"
-                                font.bold: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                        }
+                            text: root.primaryButtonFullLabel()
+                            enabled: root.playPauseEnabled
+                            onClicked: { root.primarySessionAction() }
 
-                        Button {
-                            id: pauseBtn
-                            Layout.fillWidth: true
-                            text: cppBackend.isPaused ? "▶ RESUME" : "⏸ PAUSE"
-                            enabled: cppBackend.isRunning && !cppBackend.inWarmup
-                            onClicked: { cppBackend.togglePauseSession() }
-
-                            ToolTip.visible: pauseBtn.hovered
-                            ToolTip.text: cppBackend.inWarmup
-                                ? "Pause unavailable during warm-up"
-                                : (cppBackend.isPaused ? "Resume Session" : "Pause Session")
+                            ToolTip.visible: playPauseBtn.hovered
+                            ToolTip.text: root.primaryButtonTooltip()
                             ToolTip.delay: 400
 
                             background: Rectangle {
                                 color: parent.enabled
-                                    ? (cppBackend.isPaused ? "#e65100" : "#f57c00")
-                                    : "#3d3020"
+                                    ? root.primaryButtonFillColor()
+                                    : (root.sessionIdle ? "#2d382e" : "#3d3020")
                                 radius: 4
                             }
                             contentItem: Text {
                                 text: parent.text
-                                color: parent.enabled ? "#ffffff" : "#806040"
+                                color: parent.enabled
+                                    ? "#ffffff"
+                                    : (root.sessionIdle ? "#608060" : "#806040")
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
                                 verticalAlignment: Text.AlignVCenter
