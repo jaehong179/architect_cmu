@@ -255,7 +255,7 @@ Rectangle {
             }
 
             // Tooltip: mode label
-            ToolTip.visible: modeHover.containsMouse
+            ToolTip.visible: modeHover.hovered
             ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
             ToolTip.delay: 400
 
@@ -281,7 +281,7 @@ Rectangle {
             }
 
             // Tooltip: position label
-            ToolTip.visible: posHover.containsMouse
+            ToolTip.visible: posHover.hovered
             ToolTip.text: root.currentPositionInfo.name !== "N/A"
                 ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
                 : "Unknown"
@@ -324,7 +324,7 @@ Rectangle {
                 }
             }
 
-            ToolTip.visible: ssHover.containsMouse
+            ToolTip.visible: ssHover.hovered
             ToolTip.text: cppBackend.isRunning ? "Stop Session" : "Start Session"
             ToolTip.delay: 400
 
@@ -360,7 +360,7 @@ Rectangle {
                 color: "#ffffff"
             }
 
-            ToolTip.visible: miniPauseHover.containsMouse
+            ToolTip.visible: miniPauseHover.hovered
             ToolTip.text: cppBackend.inWarmup
                 ? "Pause unavailable during warm-up"
                 : (cppBackend.isPaused ? "Resume Session" : "Pause Session")
