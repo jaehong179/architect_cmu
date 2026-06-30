@@ -16,8 +16,8 @@
 #include <QFileInfo>
 #include <QSignalBlocker>
 #include <QMessageBox>
-#include <QTimer>          // [포지션 토스트] 표시 후 자동 숨김 타이머
-#include <QSurfaceFormat>  // [포지션 토스트] 투명 합성을 위한 알파 버퍼
+#include <QTimer>             // [포지션 토스트] 표시/유지/숨김 타이밍
+#include <QPropertyAnimation> // [포지션 토스트] 위젯 지오메트리 확대/축소
 #include <QTabWidget>
 #include <QMouseEvent>
 #include <QDebug>
@@ -266,34 +266,64 @@ MainWindow::MainWindow(QWidget *parent)
     mPositionToast = new QQuickWidget(ui->CentralWidget);
     mPositionToast->rootContext()->setContextProperty("cppBackend", this);
     mPositionToast->setResizeMode(QQuickWidget::SizeRootObjectToView);
-    // 투명 합성: 알파 버퍼 포맷 + 투명 clearColor + 번역 배경 + 상단 스택(형제 위젯이 비치도록).
-    {
-        QSurfaceFormat toastFmt = mPositionToast->format();
-        toastFmt.setAlphaBufferSize(8);
-        mPositionToast->setFormat(toastFmt);
-    }
-    mPositionToast->setClearColor(Qt::transparent);
-    mPositionToast->setAttribute(Qt::WA_TranslucentBackground);
-    mPositionToast->setAttribute(Qt::WA_AlwaysStackOnTop);
+    //  불투명 카드(투명 합성 미사용 — Pi 포함 모든 플랫폼 동작). 카드가 위젯을 꽉 채우고,
+    //  위젯 지오메트리 자체를 확대/축소해 줌인 효과. 마우스는 통과.
+    mPositionToast->setClearColor(QColor(QStringLiteral("#1c1c24")));
     mPositionToast->setAttribute(Qt::WA_TransparentForMouseEvents);
     mPositionToast->setSource(QUrl(QStringLiteral("qrc:/qml/src/ui/PositionToast.qml")));
-    mPositionToast->hide();   // 평소엔 숨김(탭/그래프 안 가림). 포지션 변경 때만 잠깐 표시.
+    mPositionToast->hide();   // 평소엔 숨김 → 그래프 그대로. 포지션 변경 때만 잠깐 표시.
 
-    // [포지션 토스트] 감지 포지션이 바뀌면 잠깐 띄우고, 마지막 변경 2.3초 뒤 다시 숨긴다.
+    // 지오메트리 확대/축소 애니메이션.
+    mToastAnim = new QPropertyAnimation(mPositionToast, "geometry", this);
+    connect(mToastAnim, &QPropertyAnimation::finished, this, [this]() {
+        if (mToastShrinking && mPositionToast) {   // 축소 끝나면 숨김
+            mPositionToast->hide();
+            mToastShrinking = false;
+        }
+    });
+
+    // 마지막 변경 후 일정 시간 유지 → 축소 시작.
     mPositionToastHideTimer = new QTimer(this);
     mPositionToastHideTimer->setSingleShot(true);
-    mPositionToastHideTimer->setInterval(2300);
+    mPositionToastHideTimer->setInterval(1600);
     connect(mPositionToastHideTimer, &QTimer::timeout, this, [this]() {
-        if (mPositionToast) mPositionToast->hide();
+        if (!mPositionToast || !mPositionToast->isVisible()) return;
+        const QRect cur = mPositionToast->geometry();
+        const QPoint c = cur.center();
+        const int s = cur.width() * 60 / 100;
+        const QRect small(c.x() - s / 2, c.y() - s / 2, s, s);
+        mToastShrinking = true;
+        mToastAnim->stop();
+        mToastAnim->setDuration(200);
+        mToastAnim->setEasingCurve(QEasingCurve::InCubic);
+        mToastAnim->setStartValue(cur);
+        mToastAnim->setEndValue(small);
+        mToastAnim->start();
     });
+
+    // 감지 포지션 변경 → 탭 가운데에서 카드 확대(grow).
     connect(this, &MainWindow::detectedPositionChanged, this, [this]() {
         if (!mPositionToast) return;
         const QString dp = mDetectedPosition.trimmed();
         if (dp.isEmpty() || dp == QStringLiteral("?"))
-            return;   // 유효 포지션일 때만 토스트
-        applyPanelLayout();          // 탭 영역에 맞춰 지오메트리 갱신
+            return;   // 유효 포지션일 때만
+        const QRect tab = ui->GraphicsTabWidget->geometry();
+        const int full = qBound(170, qMin(tab.width(), tab.height()) / 2, 320);
+        const QPoint c = tab.center();
+        const QRect fullRect(c.x() - full / 2, c.y() - full / 2, full, full);
+        const int s0 = full * 55 / 100;
+        const QRect smallRect(c.x() - s0 / 2, c.y() - s0 / 2, s0, s0);
+
+        mToastShrinking = false;
+        mToastAnim->stop();
+        mPositionToast->setGeometry(smallRect);
         mPositionToast->show();
         mPositionToast->raise();
+        mToastAnim->setDuration(240);
+        mToastAnim->setEasingCurve(QEasingCurve::OutCubic);
+        mToastAnim->setStartValue(smallRect);
+        mToastAnim->setEndValue(fullRect);
+        mToastAnim->start();
         mPositionToastHideTimer->start();
     });
 
@@ -1762,12 +1792,7 @@ void MainWindow::applyPanelLayout()
     const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
     ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
-
-    // [포지션 토스트] 탭 영역과 동일 지오메트리로 그 위에 띄운다(투명·마우스 통과).
-    if (mPositionToast) {
-        mPositionToast->setGeometry(contentX, TAB_Y, contentW, tabH);
-        mPositionToast->raise();
-    }
+    // [포지션 토스트] 지오메트리는 표시 시 탭 가운데로 직접 계산(여기선 관리 안 함).
 }
 
 void MainWindow::showHistoryQr()

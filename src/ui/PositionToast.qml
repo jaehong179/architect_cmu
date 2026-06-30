@@ -1,15 +1,19 @@
 import QtQuick
-import QtQuick.Controls
 
 // =============================================================================
-//  PositionToast — 감지 포지션이 바뀌면 탭(그래프) 위에 잠깐 떠서 새 포지션을
-//  큰 카드로 보여준 뒤(확대) 다시 줄어들며 사라지는 플로팅 토스트.
-//  · 투명 배경(WA_TranslucentBackground) QQuickWidget 위에 그려져 그래프를 가리지 않음.
-//  · cppBackend.detectedPosition 변경 시 자동 재생.
+//  PositionToast — 감지 포지션 변경 시 탭(그래프) 위에 잠깐 뜨는 카드.
+//  · 카드가 QQuickWidget 전체를 꽉 채운다(불투명) → 플랫폼 투명 합성에 의존하지 않음.
+//    위젯 자체의 지오메트리를 C++ 에서 확대/축소(grow/shrink)해 줌인 효과를 낸다.
+//  · 내용(아이콘/글자)은 카드 크기에 비례 → 위젯이 커지면 함께 커진다.
+//  · cppBackend.detectedPosition 으로 현재 포지션 아이콘/이름 표시.
 // =============================================================================
-Item {
-    id: toastRoot
+Rectangle {
+    id: card
     anchors.fill: parent
+    color: "#1c1c24"
+    radius: Math.min(width, height) * 0.09
+    border.width: Math.max(2, height * 0.013)
+    border.color: card.info && card.info.present ? "#4caf50" : "#ff7043"
 
     // detectedPosition("W_CR"/"H_CR" 등) → { name, icon, present }
     function posInfo(dp) {
@@ -37,68 +41,24 @@ Item {
 
     property var info: posInfo(cppBackend.detectedPosition)
 
-    // 큰 카드 — 탭 영역 가운데. 평소엔 scale 0.6 / opacity 0 으로 숨김.
-    Rectangle {
-        id: card
+    Column {
         anchors.centerIn: parent
-        width: 300
-        height: 300
-        radius: 28
-        color: "#1c1c24"
-        border.width: 4
-        border.color: toastRoot.info && toastRoot.info.present ? "#4caf50" : "#ff7043"
-        opacity: 0
-        scale: 0.6
-        visible: opacity > 0
-        transformOrigin: Item.Center
+        spacing: card.height * 0.05
 
-        Column {
-            anchors.centerIn: parent
-            spacing: 20
-
-            Image {
-                anchors.horizontalCenter: parent.horizontalCenter
-                source: toastRoot.info ? toastRoot.info.icon : ""
-                width: 168
-                height: 168
-                fillMode: Image.PreserveAspectFit
-            }
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                text: toastRoot.info ? toastRoot.info.name : ""
-                color: "#ffffff"
-                font.bold: true
-                font.pixelSize: 34
-                horizontalAlignment: Text.AlignHCenter
-            }
+        Image {
+            anchors.horizontalCenter: parent.horizontalCenter
+            source: card.info ? card.info.icon : ""
+            width: card.height * 0.55
+            height: card.height * 0.55
+            fillMode: Image.PreserveAspectFit
         }
-    }
-
-    // 확대 → 유지 → 축소
-    SequentialAnimation {
-        id: anim
-        ParallelAnimation {
-            NumberAnimation { target: card; property: "opacity"; to: 1.0; duration: 240 }
-            NumberAnimation { target: card; property: "scale"; to: 1.0; duration: 300; easing.type: Easing.OutBack }
-        }
-        PauseAnimation { duration: 1500 }
-        ParallelAnimation {
-            NumberAnimation { target: card; property: "opacity"; to: 0.0; duration: 260 }
-            NumberAnimation { target: card; property: "scale"; to: 0.6; duration: 260; easing.type: Easing.InCubic }
-        }
-    }
-
-    function play() {
-        toastRoot.info = posInfo(cppBackend.detectedPosition);
-        anim.restart();
-    }
-
-    Connections {
-        target: cppBackend
-        function onDetectedPositionChanged() {
-            var dp = cppBackend.detectedPosition;
-            if (dp && dp !== "" && dp !== "?")
-                toastRoot.play();
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: card.info ? card.info.name : ""
+            color: "#ffffff"
+            font.bold: true
+            font.pixelSize: Math.max(13, card.height * 0.11)
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

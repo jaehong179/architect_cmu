@@ -23,7 +23,8 @@ QT_END_NAMESPACE
 class QLabel;
 class QQuickWidget;
 class QTimer;
-class TabManager;   
+class QPropertyAnimation;
+class TabManager;
 class TabRateScope; 
 class TabBeatErrorTrace;
 class TabSequenceDisplay;
@@ -232,8 +233,10 @@ private:
     WaveLodHistory  mWaveHistory;
 
     QQuickWidget   *mControlPanelQuickWidget = nullptr; // Embedding QML widget
-    QQuickWidget   *mPositionToast = nullptr;           // [포지션 토스트] 탭 위 플로팅 알림(투명)
-    QTimer         *mPositionToastHideTimer = nullptr;  // [포지션 토스트] 표시 후 자동 숨김
+    QQuickWidget   *mPositionToast = nullptr;           // [포지션 토스트] 탭 위 카드(불투명)
+    QTimer         *mPositionToastHideTimer = nullptr;  // [포지션 토스트] 유지 후 축소 시작
+    QPropertyAnimation *mToastAnim = nullptr;           // [포지션 토스트] 지오메트리 확대/축소
+    bool            mToastShrinking = false;            // [포지션 토스트] 축소 중(끝나면 hide)
 
     void   RegisterDisplayTabs(void);
     void   PublishMeasurementToTabs(void);
