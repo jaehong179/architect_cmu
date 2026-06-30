@@ -90,6 +90,8 @@ class MainWindow : public QMainWindow
 
     // Control Panel collapse state (QML ↔ C++ two-way binding)
     Q_PROPERTY(bool controlPanelCollapsed READ controlPanelCollapsed WRITE setControlPanelCollapsed NOTIFY controlPanelCollapsedChanged)
+    // [설정 팝업] 사이드바 톱니바퀴 → 가운데 설정 팝업 표시 상태 (QML ↔ C++)
+    Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY settingsOpenChanged)
 
 public:
     MainWindow(QWidget *parent = nullptr);
@@ -180,6 +182,9 @@ public:
     bool controlPanelCollapsed() const { return mControlPanelCollapsed; }
     void setControlPanelCollapsed(bool collapsed);
 
+    bool settingsOpen() const { return mSettingsOpen; }
+    void setSettingsOpen(bool open);
+
 signals:
     void currentModeChanged();
     void gainChanged();
@@ -206,6 +211,7 @@ signals:
     void watchIdChanged();
     void engineerChanged();
     void controlPanelCollapsedChanged();
+    void settingsOpenChanged();
     void warmupDelayIndexChanged();
 
 public slots:
@@ -228,6 +234,7 @@ private:
 
     void   RegisterDisplayTabs(void);
     void   PublishMeasurementToTabs(void);
+    void   applyPanelLayout(void);   // [설정 팝업] 사이드바/전체화면(설정 창) 지오메트리 적용
     void   updateSeekLabel(double absSample);
     void   onPositionPhaseChanged(const QString &positionName, const QString &phaseLabel, int remainingSec);
     void   onPositionMeasurementEnded(int positionIndex, const QString &positionName,
@@ -335,6 +342,7 @@ private:
     QElapsedTimer              mDetectedStableTimer;
     PositionChangeDialog      *mActivePositionDialog = nullptr;
     bool                       mControlPanelCollapsed = false;
+    bool                       mSettingsOpen = false;   // [설정 팝업] 가운데 설정 창 표시 여부
 
     double                     mLiftAngle;
     int                        mAveragingPeriod;

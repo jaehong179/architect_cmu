@@ -10,6 +10,7 @@
 #include <QThread>
 #include <QStyleFactory>
 #include <QPalette>
+#include <QQuickStyle>   // [UI] QtQuick Controls 스타일 지정(다크 일관화)
 #include <memory>
 #if PERF_ENABLE && defined(Q_OS_LINUX)
 #include <QProcess>
@@ -55,6 +56,9 @@ int main(int argc, char *argv[])
  QApplication a(argc, argv);
 
  QApplication::setStyle(QStyleFactory::create("Fusion"));
+ // [UI] QtQuick Controls 도 Fusion 으로 — 다크 QPalette 를 따라 콤보/스핀박스/체크박스가
+ //  네이티브(밝은 파랑) 대신 다크로 일관 렌더되고, ControlPanel.qml 의 커스텀 배경도 적용된다.
+ QQuickStyle::setStyle(QStringLiteral("Fusion"));
 
  QPalette darkPalette;
  darkPalette.setColor(QPalette::Window, QColor(24, 24, 31)); // Matching #18181f in QML control panel

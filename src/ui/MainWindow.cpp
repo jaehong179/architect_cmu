@@ -1646,29 +1646,55 @@ static constexpr int WINDOW_W           = 1280;
 static constexpr int RIGHT_MARGIN        = 8;
 static constexpr int BOTTOM_MARGIN       = 4;
 
+static constexpr int SIDEBAR_W = 56;   // [설정 팝업] 항상 보이는 좁은 사이드바 폭
+
 void MainWindow::setControlPanelCollapsed(bool collapsed)
 {
     if (mControlPanelCollapsed == collapsed)
         return;
     mControlPanelCollapsed = collapsed;
     emit controlPanelCollapsedChanged();
-    onControlPanelToggled(collapsed);
+    applyPanelLayout();
+}
+
+void MainWindow::setSettingsOpen(bool open)
+{
+    if (mSettingsOpen == open)
+        return;
+    mSettingsOpen = open;
+    emit settingsOpenChanged();
+    applyPanelLayout();
 }
 
 void MainWindow::onControlPanelToggled(bool collapsed)
 {
-    const int panelW   = collapsed ? PANEL_COLLAPSED_W  : PANEL_EXPANDED_W;
-    const int contentX = collapsed ? CONTENT_COLLAPSED_X : CONTENT_EXPANDED_X;
+    Q_UNUSED(collapsed);
+    applyPanelLayout();
+}
 
-    ui->ControlPanelPlaceholder->setFixedWidth(panelW);
-
+void MainWindow::applyPanelLayout()
+{
     QWidget *host = ui && ui->CentralWidget ? static_cast<QWidget *>(ui->CentralWidget) : this;
     const int hostW = host ? host->width() : width();
     const int hostH = host ? host->height() : height();
 
+    ui->ControlPanelPlaceholder->setMinimumWidth(0);
+    ui->ControlPanelPlaceholder->setMaximumWidth(QWIDGETSIZE_MAX);
+
+    if (mSettingsOpen) {
+        // [설정 팝업] 패널을 전체 화면으로 키워 가운데 설정 카드를 그린다(탭은 뒤에 가려짐 = 모달).
+        ui->ControlPanelPlaceholder->setGeometry(0, 0, hostW, hostH);
+        ui->ControlPanelPlaceholder->raise();
+        if (mControlPanelQuickWidget) mControlPanelQuickWidget->raise();
+        return;
+    }
+
+    // [설정 팝업] 닫힘: 좁은 사이드바 + 오른쪽에 readout/탭.
+    const int contentX = SIDEBAR_W + 8;
+    ui->ControlPanelPlaceholder->setGeometry(0, 0, SIDEBAR_W, hostH);
+
     const int contentW = qMax(200, hostW - contentX - RIGHT_MARGIN);
     const int tabH = qMax(200, hostH - TAB_Y - BOTTOM_MARGIN);
-
     mReadoutBar->setGeometry(contentX, 0, contentW, READOUT_H);
     ui->GraphicsTabWidget->setGeometry(contentX, TAB_Y, contentW, tabH);
 }
@@ -1691,5 +1717,5 @@ void MainWindow::showHistoryQr()
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
-    onControlPanelToggled(mControlPanelCollapsed);
+    applyPanelLayout();
 }

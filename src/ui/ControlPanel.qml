@@ -156,6 +156,7 @@ Rectangle {
     // ─── Header Bar ──────────────────────────────────────────────────────────
     Rectangle {
         id: headerBar
+        visible: false   // [설정 팝업] 사이드바 전환: 확장/축소 헤더(햄버거·체브론) 제거
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -279,11 +280,11 @@ Rectangle {
     // Shown only when the panel is collapsed; displays mode icon + position icon
     Column {
         id: collapsedInfo
-        anchors.top: headerBar.bottom
-        anchors.topMargin: 10
+        anchors.top: parent.top
+        anchors.topMargin: 14
         anchors.horizontalCenter: parent.horizontalCenter
         spacing: 14
-        visible: cppBackend.controlPanelCollapsed
+        visible: !cppBackend.settingsOpen
 
         // ── Mode badge ──
         Rectangle {
@@ -456,34 +457,127 @@ Rectangle {
                 onClicked: { cppBackend.showHistoryQr() }
             }
         }
+
+        // ── Settings (가운데 설정 팝업 열기) ──
+        Rectangle {
+            id: miniSettingsBtn
+            width: 34
+            height: 34
+            radius: 8
+            anchors.horizontalCenter: parent.horizontalCenter
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+
+            Image {
+                anchors.centerIn: parent
+                source: "qrc:/images/src/ui/images/ic_settings.svg"
+                width: 20
+                height: 20
+                fillMode: Image.PreserveAspectFit
+            }
+
+            ToolTip.visible: settingsHover.hovered
+            ToolTip.text: "Settings"
+            ToolTip.delay: 400
+
+            HoverHandler { id: settingsHover }
+
+            MouseArea {
+                anchors.fill: parent
+                onClicked: { cppBackend.settingsOpen = true }
+            }
+        }
     }
 
-    // ─── Full Settings ScrollView (expanded only) ─────────────────────────────
+    // ─── Settings 팝업 배경(딤) — 클릭 시 닫힘 ─────────────────────────────────
+    Rectangle {
+        id: settingsBackdrop
+        anchors.fill: parent
+        visible: cppBackend.settingsOpen
+        color: "#cc0d0d12"
+        MouseArea {
+            anchors.fill: parent
+            onClicked: { cppBackend.settingsOpen = false }
+        }
+    }
+
+    // ─── 가운데 설정 카드 (모든 섹션 펼침) ─────────────────────────────────────
     // 스크롤뷰를 사용해 모든 화면 해상도에서 흘러내리지 않도록 함
     ScrollView {
-        anchors.top: headerBar.bottom
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
+        id: settingsCard
+        visible: cppBackend.settingsOpen
+        anchors.centerIn: parent
+        width: Math.min(parent.width - 60, 760)
+        height: Math.min(parent.height - 48, contentColumn.implicitHeight + 24)
         contentWidth: availableWidth
         contentHeight: contentColumn.implicitHeight
         clip: true
-        visible: !cppBackend.controlPanelCollapsed
 
-        ColumnLayout {
+        background: Rectangle {
+            color: "#181820"
+            radius: 12
+            border.color: root.colorBorder
+            border.width: 1
+        }
+
+        GridLayout {
             id: contentColumn
             width: parent.width - 16
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 12
+            columns: 2
+            columnSpacing: 16
+            rowSpacing: 16
 
-            // 상단 여백
-            Item { Layout.preferredHeight: 4 }
+            // ── 팝업 헤더: 제목 + 닫기(X) — 2열 전체 ──
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.topMargin: 8
+                Text {
+                    text: "Settings"
+                    color: root.colorTextMain
+                    font.bold: true
+                    font.pixelSize: 16
+                }
+                Item { Layout.fillWidth: true }
+                Button {
+                    Layout.preferredWidth: 30
+                    Layout.preferredHeight: 28
+                    onClicked: { cppBackend.settingsOpen = false }
+                    background: Rectangle {
+                        color: closeHover.hovered ? "#3a3a44" : "transparent"
+                        radius: 6
+                        border.color: root.colorBorder
+                    }
+                    contentItem: Text {
+                        text: "✕"
+                        color: root.colorTextMain
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 14
+                    }
+                    HoverHandler { id: closeHover }
+                }
+            }
+
+            // 헤더 구분선 (2열 전체)
+            Rectangle {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                Layout.bottomMargin: 2
+                height: 1
+                color: root.colorBorder
+            }
 
             // ==========================================
             // 1. MODE / SOURCE PANEL
             // ==========================================
             Rectangle {
                 Layout.fillWidth: true
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: modeCol.implicitHeight + 16
                 color: root.colorBgCard
                 radius: 8
@@ -502,25 +596,59 @@ Rectangle {
                         font.pixelSize: 13
                     }
 
-                    ComboBox {
-                        id: modeComboBox
+                    // [UI] 드롭다운 대신 라디오 버튼(Live / Playback / Sim)
+                    RowLayout {
                         Layout.fillWidth: true
-                        model: ["Live", "Playback", "Sim"]
-                        currentIndex: cppBackend.currentMode
-                        onActivated: (index) => { cppBackend.currentMode = index }
-                        enabled: !cppBackend.isRunning
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 2
+                        spacing: 26
 
-                        background: Rectangle {
-                            color: root.colorBgInput
-                            border.color: parent.enabled ? root.colorBorder : "#2d2d38"
-                            radius: 4
-                        }
-                        contentItem: Text {
-                            text: modeComboBox.displayText
-                            color: parent.enabled ? root.colorTextMain : root.colorTextSub
-                            verticalAlignment: Text.AlignVCenter
-                            leftPadding: 8
-                            font.bold: true
+                        Repeater {
+                            model: ["Live", "Playback", "Sim"]
+                            delegate: Item {
+                                implicitWidth: optRow.implicitWidth
+                                implicitHeight: 24
+
+                                Row {
+                                    id: optRow
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 8
+
+                                    Rectangle {
+                                        width: 18; height: 18; radius: 9
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: "transparent"
+                                        border.width: 2
+                                        border.color: cppBackend.currentMode === index
+                                            ? root.colorPrimary : root.colorBorder
+                                        Behavior on border.color { ColorAnimation { duration: 120 } }
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 9; height: 9; radius: 4.5
+                                            color: root.colorPrimary
+                                            visible: cppBackend.currentMode === index
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: modelData
+                                        font.pixelSize: 13
+                                        font.bold: cppBackend.currentMode === index
+                                        color: cppBackend.currentMode === index
+                                            ? root.colorTextMain : root.colorTextSub
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    enabled: !cppBackend.isRunning
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: { cppBackend.currentMode = index }
+                                }
+
+                                opacity: cppBackend.isRunning ? 0.45 : 1.0
+                            }
                         }
                     }
                 }
@@ -531,6 +659,7 @@ Rectangle {
             // ==========================================
             Rectangle {
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: dynamicStack.implicitHeight + 16
                 color: root.colorBgCard
                 radius: 8
@@ -569,6 +698,7 @@ Rectangle {
                             Button {
                                 Layout.preferredWidth: 28
                                 Layout.preferredHeight: 24
+                                visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
                                 text: dynamicStack.runParametersExpanded ? "▾" : "▸"
                                 onClicked: {
                                     dynamicStack.runParametersExpanded = !dynamicStack.runParametersExpanded
@@ -629,6 +759,8 @@ Rectangle {
                                     ComboBox {
                                         id: deviceCombo
                                         Layout.fillWidth: true
+                                        Layout.preferredHeight: 38
+                                        font.pixelSize: 14
                                         model: cppBackend.deviceList
                                         currentIndex: cppBackend.deviceIndex
                                         onActivated: (index) => { cppBackend.deviceIndex = index }
@@ -642,14 +774,14 @@ Rectangle {
                                             text: deviceCombo.displayText
                                             color: parent.enabled ? root.colorTextMain : root.colorTextSub
                                             verticalAlignment: Text.AlignVCenter
-                                            leftPadding: 8
-                                            font.pixelSize: 11
+                                            leftPadding: 10
+                                            font.pixelSize: 14
                                             elide: Text.ElideRight
                                         }
                                     }
                                     Button {
-                                        Layout.preferredWidth: 28
-                                        Layout.preferredHeight: 28
+                                        Layout.preferredWidth: 38
+                                        Layout.preferredHeight: 38
                                         text: "🔄"
                                         enabled: !cppBackend.isRunning
                                         onClicked: { cppBackend.refreshDevices() }
@@ -665,6 +797,8 @@ Rectangle {
                                 ComboBox {
                                     id: srCombo
                                     Layout.fillWidth: true
+                                    Layout.preferredHeight: 38
+                                    font.pixelSize: 14
                                     model: cppBackend.sampleRateList
                                     currentIndex: cppBackend.sampleRateIndex
                                     onActivated: (index) => { cppBackend.sampleRateIndex = index }
@@ -678,8 +812,8 @@ Rectangle {
                                         text: srCombo.displayText
                                         color: parent.enabled ? root.colorTextMain : root.colorTextSub
                                         verticalAlignment: Text.AlignVCenter
-                                        leftPadding: 8
-                                        font.pixelSize: 11
+                                        leftPadding: 10
+                                        font.pixelSize: 14
                                     }
                                 }
                             }
@@ -708,6 +842,7 @@ Rectangle {
                             Button {
                                 Layout.preferredWidth: 28
                                 Layout.preferredHeight: 24
+                                visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
                                 text: dynamicStack.runParametersExpanded ? "▾" : "▸"
                                 onClicked: {
                                     dynamicStack.runParametersExpanded = !dynamicStack.runParametersExpanded
@@ -786,6 +921,7 @@ Rectangle {
                             Button {
                                 Layout.preferredWidth: 28
                                 Layout.preferredHeight: 24
+                                visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
                                 text: dynamicStack.simulationParametersExpanded ? "▾" : "▸"
                                 onClicked: {
                                     dynamicStack.simulationParametersExpanded = !dynamicStack.simulationParametersExpanded
@@ -918,6 +1054,7 @@ Rectangle {
             Rectangle {
                 id: measurementSettingsCard
                 Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: measurementSettingsExpanded
                     ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 16)
                     : (measureHeader.implicitHeight + 16)
@@ -926,7 +1063,7 @@ Rectangle {
                 border.color: root.colorBorder
                 clip: true
 
-                property bool measurementSettingsExpanded: false
+                property bool measurementSettingsExpanded: true
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -950,6 +1087,7 @@ Rectangle {
                         Button {
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 24
+                            visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
                             text: measurementSettingsCard.measurementSettingsExpanded ? "▾" : "▸"
                             onClicked: {
                                 measurementSettingsCard.measurementSettingsExpanded =
@@ -1062,6 +1200,8 @@ Rectangle {
             Rectangle {
                 id: advancedTuningCard
                 Layout.fillWidth: true
+                Layout.columnSpan: 2
+                Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: advancedTuningExpanded
                     ? (advHeader.implicitHeight + advDetails.implicitHeight + 16)
                     : (advHeader.implicitHeight + 16)
@@ -1070,7 +1210,7 @@ Rectangle {
                 border.color: root.colorBorder
                 clip: true
 
-                property bool advancedTuningExpanded: false
+                property bool advancedTuningExpanded: true
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -1094,6 +1234,7 @@ Rectangle {
                         Button {
                             Layout.preferredWidth: 28
                             Layout.preferredHeight: 24
+                            visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
                             text: advancedTuningCard.advancedTuningExpanded ? "▾" : "▸"
                             onClicked: {
                                 advancedTuningCard.advancedTuningExpanded =
@@ -1213,6 +1354,7 @@ Rectangle {
             // 5. CONTROL BUTTONS & RECORDING
             // ==========================================
             Rectangle {
+                visible: false   // [설정 팝업] 팝업에서는 제외 — START/STOP/Record 는 사이드바 사용
                 Layout.fillWidth: true
                 Layout.preferredHeight: ctrlCol.implicitHeight + 16
                 color: root.colorBgCard
@@ -1323,6 +1465,7 @@ Rectangle {
             // ==========================================
             Rectangle {
                 id: positionCard
+                visible: false   // [설정 팝업] 팝업에서는 제외 — 포지션은 사이드바 badge 사용
                 Layout.fillWidth: true
                 Layout.preferredHeight: 110
                 color: root.colorBgCard
@@ -1391,8 +1534,8 @@ Rectangle {
                 }
             }
 
-            // 하단 여백
-            Item { Layout.preferredHeight: 12 }
+            // 하단 여백 (2열 전체)
+            Item { Layout.columnSpan: 2; Layout.preferredHeight: 6 }
         }
     }
 }

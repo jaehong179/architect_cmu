@@ -18,6 +18,7 @@
         <file>src/ui/images/ic_pause.svg</file>
         <file>src/ui/images/ic_stop.svg</file>
         <file>src/ui/images/ic_qr.svg</file>
+        <file>src/ui/images/ic_settings.svg</file>
     </qresource>
     <qresource prefix="/qml">
         <file>src/ui/ControlPanel.qml</file>

@@ -22,6 +22,7 @@ endif()
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets QuickWidgets Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS QuickControls2)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS PrintSupport REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Multimedia MultimediaWidgets Widgets QuickWidgets)
 
@@ -253,6 +254,7 @@ target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::PrintSupport)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Multimedia)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::MultimediaWidgets)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickWidgets)
+target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::QuickControls2)
 target_link_libraries(TimeGrapher PRIVATE Qt${QT_VERSION_MAJOR}::Network)
 
 # ──────────────────────────────────────────────────────────────────────────────
