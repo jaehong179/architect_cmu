@@ -1115,10 +1115,12 @@ void MainWindow::ConfigureSoundCard(void)
 
 void MainWindow::EventsReset(void)
 {
-    mReadoutFrozen = false;   // [MPS 포지션 전환] 세션 시작/정지 시 요약바 고정 해제
+    mReadoutFrozen = false;       // [MPS 포지션 전환] 세션 시작/정지 시 요약바 고정 해제
+    mSequenceCompleteDone = false; // [MPS 시퀀스 완료] 다음 세션을 위해 dialog 가드 초기화
     mEngine.reset();
     DisplayResults();
 }
+
 
 void MainWindow::LoadAudioDevices(void)
 {
@@ -1601,6 +1603,11 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
     if (!mSequenceDisplay)
         return;
 
+    // 1) 방금 끝난 position을 먼저 확정(capture/finalize)한다.
+    //    → live 값이 테이블에 있더라도 mPositionCaptured[]가 세워지지 않으면
+    //      hasAllPositionsMeasured()가 false를 반환하므로 조기 SequenceComplete 방지.
+    mSequenceDisplay->finalizeCurrentPosition();
+
     const bool allMeasured = mSequenceDisplay->hasAllPositionsMeasured();
 
     const bool onSequenceTab = ui && ui->GraphicsTabWidget && mSequenceDisplay
@@ -1618,6 +1625,7 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
 
         const QList<int> remaining = mSequenceDisplay->remainingPositionIndices();
         if (!remaining.isEmpty()) {
+            // 2a) 남은 position이 있으면 ChangePosition dialog 표시
             PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
                                      remaining,
                                      PositionChangeDialog::Mode::ChangePosition,
@@ -1638,17 +1646,35 @@ void MainWindow::onPositionMeasurementEnded(int positionIndex,
         }
     }
 
+    // 2b) PositionSequenceController에 완료/다음 포지션 상태 알림.
+    //     allMeasured인 경우 confirmPositionChange() 내부에서 타이머가 멈추고
+    //     Phase::Idle로 전환된다. 이후 onAllPositionsMeasured()에서 stopSession()이
+    //     호출되어도 이미 Idle 상태이므로 중복 정지 문제가 없다.
     if (mPositionSequence) {
         mPositionSequence->confirmPositionChange(
             mSequenceDisplay->measuredPositionCount(),
             mSequenceDisplay->firstRemainingPositionIndex());
     }
+
+    // 2c) 모든 position이 확정된 시점(마지막 position 측정 창 종료 후)에
+    //     SequenceComplete dialog를 표시한다.
+    //     → 이전에는 allPositionsMeasured 시그널로 조기 표시되는 버그 수정.
+    if (onSequenceTab && allMeasured) {
+        onAllPositionsMeasured();
+    }
 }
+
 
 void MainWindow::onAllPositionsMeasured()
 {
     if (!mSequenceDisplay || !mSequenceDisplay->hasAllPositionsMeasured())
         return;
+
+    // [중복 방지] onPositionMeasurementEnded()의 직접 호출과
+    //  allPositionsMeasured 시그널 경로가 동시에 도달할 수 있으므로 한 번만 처리.
+    if (mSequenceCompleteDone)
+        return;
+    mSequenceCompleteDone = true;
 
     PositionChangeDialog dlg(mSequenceDisplay->measuredPositionIndices(),
                              QList<int>(),
@@ -1660,6 +1686,7 @@ void MainWindow::onAllPositionsMeasured()
     if (mIsRunning)
         stopSession();
 }
+
 
 // =============================================================================
 // Control Panel Collapse / Expand
