@@ -24,6 +24,7 @@ public:
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
+    bool resetOnResume() const override { return true; }   // [pause→start] resume 시 그래프·데이터 초기화
     void onSeek(double absSample) override;            // [③] 정지 중 트렌드 클릭 → 그 시점 파형 표시    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mRawBuf.clear(); } }   // seek 했으면 버퍼 비움
     void setHistory(WaveLodHistory *h) { mHistory = h; }
 protected:

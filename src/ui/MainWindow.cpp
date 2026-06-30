@@ -397,12 +397,11 @@ MainWindow::MainWindow(QWidget *parent)
     //  결과: 화면 우측 상단 배너로 알림 → 배너 클릭 시 가운데 상세 가이드 창.
     mDiagBanner = new DiagBanner(ui->GraphicsTabWidget);
     connect(mDiagBanner, &DiagBanner::clicked, this, [this]() {
-        mDiagBannerPending = false;   // 확인됨 → 탭 전환해도 다시 뜨지 않음
         if (mLastDiagKey.isEmpty()) return;
         DiagDetailDialog dlg(mLastDiagKey, mLastDiagConf, this);
         dlg.exec();
     });
-    // [diag] 배너는 BED 탭에서만 노출 → 탭 전환 때마다 가시성 재평가.
+    // [diag] BED 탭을 벗어나면 배너 숨김(다른 탭 위에 떠 있지 않도록). 재노출은 안 함.
     connect(ui->GraphicsTabWidget, &QTabWidget::currentChanged,
             this, [this](int) { updateDiagBannerVisibility(); });
 
@@ -425,10 +424,12 @@ MainWindow::MainWindow(QWidget *parent)
                 const QString title   = e ? e->title   : label;
                 const bool    healthy = e ? e->healthy : false;
                 mLastDiagTitle = title;
-                // 정상(healthy)일 때는 배너를 표시하지 않는다.
-                //  비정상이면 보류로 두고, BED 탭에 있을 때만 노출(updateDiagBannerVisibility).
-                mDiagBannerPending = !healthy;
-                updateDiagBannerVisibility();
+                // [diag] 결과 도착(=Stop 직후) 시점에 BED 탭을 '보고 있을 때만' 배너 노출.
+                //  다른 탭에서 Stop 했거나, 나중에 BED 로 들어오는 경우엔 띄우지 않는다.
+                const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
+                    && ui->GraphicsTabWidget->currentWidget() == mBedTab;
+                if (mDiagBanner && !healthy && onBedTab)
+                    mDiagBanner->showResult(title, false, conf);
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
@@ -940,6 +941,16 @@ void MainWindow::togglePauseSession()
         if (mPositionSequence)
             mPositionSequence->resume();
 
+        // [pause→start] 지정 6개 탭(Rate/Scope·Sound Print·Trace·Beat Error·Escapement·Long-Term)의
+        //  그래프·데이터를 초기화한다. 엔진 측정·상단 readout·나머지 탭은 그대로 이어진다(표시만 초기화).
+        //  · Rate/Scope 상단 plot 은 엔진의 tic/toc 표시 ring 을 매 스냅샷마다 통째로 받으므로,
+        //    탭만 비우면 다음 측정에서 곧 되채워진다 → clearPlotsKeepState() 로 그 ring 만 비운다.
+        //    (RLS rate·롤링평균·BPH·StartTime·ZeroOffset 등 수렴 상태는 보존 → readout 은 끊김 없음.)
+        //  · 나머지 5개 탭은 onWave/스칼라 점진 누적이라 탭 자체 onResetSession() 만으로 충분.
+        //  맨 끝에서 호출 → 위 setPaused(false) 들의 라이브 복귀 처리 뒤 최종적으로 깨끗이 비운다.
+        mEngine.clearPlotsKeepState();
+        if (mTabManager) mTabManager->resetTabsForResume();
+
         mIsPaused = false;
         emit isPausedChanged();
 
@@ -1040,14 +1051,12 @@ void MainWindow::triggerDiagnosis()
 #ifdef ENABLE_DIAG
 void MainWindow::updateDiagBannerVisibility()
 {
-    // [diag] 'Diagnosis complete' 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
-    //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 그 외(다른 탭·확인됨)에는 숨김.
+    // [diag] BED 탭을 벗어나면 배너를 숨긴다(다른 탭 위에 떠 있지 않도록).
+    //  표시는 결과 도착 시점에 BED 탭일 때만(resultReady) 직접 한다 — 여기선 숨김만.
     if (!mDiagBanner) return;
     const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
         && ui->GraphicsTabWidget->currentWidget() == mBedTab;
-    if (mDiagBannerPending && onBedTab)
-        mDiagBanner->showResult(mLastDiagTitle, false, mLastDiagConf);
-    else
+    if (!onBedTab)
         mDiagBanner->hide();
 }
 #endif

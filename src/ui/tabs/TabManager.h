@@ -63,6 +63,10 @@ public:
     void setPaused(bool p);   // 정지 ON/OFF — 해제 시 각 탭에 onResumeLive() 통지
     bool isPaused() const  { return mPaused; }
 
+    // [pause→start 토글] resume 시 resetOnResume()==true 인 탭만 onResetSession() 으로 초기화한다.
+    //  (엔진·상단 readout·나머지 탭은 그대로 측정 지속 — MainWindow::togglePauseSession resume 분기에서 호출)
+    void resetTabsForResume();
+
     // [측정 대기] 워밍업 게이트 — 활성화 시 broadcastWave/broadcastMeasurement 차단
     //  (엔진은 내부적으로 계속 계산하지만 탭·이력 버퍼에는 아무것도 전달되지 않음)
     void setWarmup(bool inWarmup) { mInWarmup = inWarmup; }
