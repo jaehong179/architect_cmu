@@ -249,6 +249,7 @@ Ordered by "Status"
 - [ADR-003: Register display tabs through a Tab Manager](ADRs/ADR-003-register-display-tabs.md)
 - [ADR-004: Share a single WaveLodHistory instance across all display tabs](ADRs/ADR-004-shared-waveform-history-buffer.md)
 - [ADR-005: Cloud Storage Architecture for Measurement Data](ADRs/ADR-005-cloud-storage-architecture-en.md)
+- [ADR-006: Warm-up (stabilization) period before recording measurements](ADRs/ADR-006-warmup-stabilization-before-measurement.md)
 
 # 10. References
 
