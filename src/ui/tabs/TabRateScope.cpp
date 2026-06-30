@@ -2,6 +2,7 @@
 #include "qcustomplot.h"
 #include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
 #include "PlotHelpers.h"           // [PERF] applyFastPaint(AA off·fast polyline·adaptive)
+#include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
