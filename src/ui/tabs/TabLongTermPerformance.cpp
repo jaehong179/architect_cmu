@@ -108,7 +108,7 @@ void TabLongTermPerformance::onSeek(double absSample)
         const double err = qAbs(p.second - absSample);
         if (err < bestErr) { bestErr = err; bestX = p.first; }
     }
-    showCursor(bestX);
+    showCursor(bestX, absSample);   // 위치=로컬 최근접 x, 라벨=원본 절대샘플(모든 탭 동일 값)
 }
 
 // [③] 선택 해제 — 세 레인의 클릭 커서를 숨긴다(데이터·축은 유지).
@@ -132,10 +132,10 @@ double TabLongTermPerformance::sampleAtX(double xSeconds) const
     return best;
 }
 
-void TabLongTermPerformance::showCursor(double xSeconds)
+void TabLongTermPerformance::showCursor(double xSeconds, double labelSample)
 {
-    // 모든 트렌드 탭 공통 라벨(t · rate · amp · error) — 어느 레인/탭을 클릭해도 동일.
-    const QString lbl = SeekInfo::labelAt(sampleAtX(xSeconds));
+    // 모든 트렌드 탭 공통 라벨 — 선택한 '원본 절대샘플' 기준이라 어느 레인/탭에서 봐도 t·rate 가 같다.
+    const QString lbl = SeekInfo::labelAt(labelSample);
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
         TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, lbl);
