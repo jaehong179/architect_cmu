@@ -24,7 +24,7 @@ public slots:
     void stop();
     void pause();
     void resume();
-    void confirmPositionChange();
+    void confirmPositionChange(int measuredPositionCount, int nextPositionIndex);
     // [측정 대기] warm-up 종료 후 MainWindow 가 호출 → 실제 측정 카운트다운 시작.
     void beginMeasuringNow();
 
@@ -48,7 +48,7 @@ private:
     PositionTimingModel *mTiming = nullptr;
     QTimer              *mTimer  = nullptr;
     Phase                mPhase    = Phase::Idle;
-    int                  mSequenceStep = 0;   // 0..5 in core sequence
+    int                  mSequenceStep = 0;   // uniquely measured position count (0..6)
     int                  mCurrentPositionIndex = 0;
     int                  mRemainingSec = 0;
     bool                 mAwaitingConfirm = false;

@@ -2,9 +2,6 @@
 #include "qcustomplot.h"
 #include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
 
-#include <QPushButton>
-#include <QLabel>
-#include <QHBoxLayout>
 #include <QMouseEvent>   // [③] 클릭 소스
 #include <cmath>
 
@@ -42,15 +39,6 @@ static QCustomPlot *makeLane(QWidget *parent, const QString &yLabel, const QColo
 TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent)
 {
     auto *lay = new QVBoxLayout(this);
-
-    // 컨트롤: X축은 8분 고정이라 기간 선택 없음 — 리셋만 제공.
-    auto *ctl = new QHBoxLayout();
-    ctl->addWidget(new QLabel(QStringLiteral("X axis: fixed 10 min (sliding after)"), this));
-    ctl->addStretch(1);
-    auto *resetBtn = new QPushButton(QStringLiteral("↻ Reset"), this);
-    ctl->addWidget(resetBtn);
-    lay->addLayout(ctl);
-    connect(resetBtn, &QPushButton::clicked, this, &TabLongTermPerformance::onResetSession);
 
     mRate.plot = makeLane(this, QStringLiteral("rate s/d"),     QColor(200,40,140), false);
     mAmp.plot  = makeLane(this, QStringLiteral("amplitude °"),  QColor(40,80,200),  false);
