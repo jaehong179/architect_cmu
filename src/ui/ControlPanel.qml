@@ -717,6 +717,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.runParametersExpanded
                             spacing: 8
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             // Gain 조절 (실행 중에도 동작하도록 enabled: true 유지)
                             ColumnLayout {
@@ -861,6 +865,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.runParametersExpanded
                             spacing: 10
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             Button {
                                 Layout.fillWidth: true
@@ -940,6 +948,10 @@ Rectangle {
                             Layout.fillWidth: true
                             visible: dynamicStack.simulationParametersExpanded
                             spacing: 6
+                            Layout.leftMargin: 8
+                            Layout.rightMargin: 8
+                            Layout.topMargin: 4
+                            Layout.bottomMargin: 8
 
                             // Sim BPH
                             RowLayout {
@@ -1051,7 +1063,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.alignment: Qt.AlignTop
                 Layout.preferredHeight: measurementSettingsExpanded
-                    ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 16)
+                    ? (measureHeader.implicitHeight + measureDetails.implicitHeight + 28)
                     : (measureHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
@@ -1108,6 +1120,10 @@ Rectangle {
                         Layout.fillWidth: true
                         visible: measurementSettingsCard.measurementSettingsExpanded
                         spacing: 8
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
 
                         // Detector BPH (Sim 모드가 아닐 때만 콤보박스 노출)
                         ColumnLayout {
@@ -1190,22 +1206,21 @@ Rectangle {
             }
 
             // ==========================================
-            // 4. ADVANCED / DETECTOR TUNING
+            // 4. SESSION INFO
             // ==========================================
             Rectangle {
-                id: advancedTuningCard
+                id: sessionInfoCard
                 Layout.fillWidth: true
-                Layout.columnSpan: 2
                 Layout.alignment: Qt.AlignTop
-                Layout.preferredHeight: advancedTuningExpanded
-                    ? (advHeader.implicitHeight + advDetails.implicitHeight + 16)
-                    : (advHeader.implicitHeight + 16)
+                Layout.preferredHeight: sessionInfoExpanded
+                    ? (sessHeader.implicitHeight + sessDetails.implicitHeight + 28)
+                    : (sessHeader.implicitHeight + 16)
                 color: root.colorBgCard
                 radius: 8
                 border.color: root.colorBorder
                 clip: true
 
-                property bool advancedTuningExpanded: true
+                property bool sessionInfoExpanded: true
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -1213,48 +1228,29 @@ Rectangle {
                     spacing: 8
 
                     RowLayout {
-                        id: advHeader
+                        id: sessHeader
                         Layout.fillWidth: true
                         spacing: 4
 
                         Text {
-                            text: "Advanced / Tuning"
+                            text: "Session Info"
                             color: root.colorTextMain
                             font.bold: true
                             font.pixelSize: 13
                         }
 
                         Item { Layout.fillWidth: true }
-
-                        Button {
-                            Layout.preferredWidth: 28
-                            Layout.preferredHeight: 24
-                            visible: false   // [설정 팝업] 드롭다운 제거 — 항상 펼침
-                            text: advancedTuningCard.advancedTuningExpanded ? "▾" : "▸"
-                            onClicked: {
-                                advancedTuningCard.advancedTuningExpanded =
-                                    !advancedTuningCard.advancedTuningExpanded
-                            }
-                            background: Rectangle {
-                                color: "transparent"
-                                border.color: root.colorBorder
-                                radius: 4
-                            }
-                            contentItem: Text {
-                                text: parent.text
-                                color: root.colorTextSub
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                                font.pixelSize: 11
-                            }
-                        }
                     }
 
                     ColumnLayout {
-                        id: advDetails
+                        id: sessDetails
                         Layout.fillWidth: true
-                        visible: advancedTuningCard.advancedTuningExpanded
+                        visible: sessionInfoCard.sessionInfoExpanded
                         spacing: 8
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
 
                         // Watch ID (cloud save key)
                         RowLayout {
@@ -1311,6 +1307,56 @@ Rectangle {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // ==========================================
+            // 5. ADVANCED TUNING
+            // ==========================================
+            Rectangle {
+                id: advancedTuningCard
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignTop
+                Layout.preferredHeight: advancedTuningExpanded
+                    ? (advHeader.implicitHeight + advDetails.implicitHeight + 28)
+                    : (advHeader.implicitHeight + 16)
+                color: root.colorBgCard
+                radius: 8
+                border.color: root.colorBorder
+                clip: true
+
+                property bool advancedTuningExpanded: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 8
+
+                    RowLayout {
+                        id: advHeader
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            text: "Advanced Tuning"
+                            color: root.colorTextMain
+                            font.bold: true
+                            font.pixelSize: 13
+                        }
+
+                        Item { Layout.fillWidth: true }
+                    }
+
+                    ColumnLayout {
+                        id: advDetails
+                        Layout.fillWidth: true
+                        visible: advancedTuningCard.advancedTuningExpanded
+                        spacing: 8
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 4
+                        Layout.bottomMargin: 8
 
                         // High Pass Cutoff (LineEdit 대신 스핀박스로 입력 제한 강화)
                         RowLayout {
@@ -1530,7 +1576,7 @@ Rectangle {
             }
 
             // 하단 여백 (2열 전체)
-            Item { Layout.columnSpan: 2; Layout.preferredHeight: 6 }
+            Item { Layout.columnSpan: 2; Layout.preferredHeight: 20 }
         }
     }
 }
