@@ -308,6 +308,24 @@ public:
     void restart() { reset(); }
     void restart(quint64 next_input_absolute_sample_index) { reset(next_input_absolute_sample_index); }
 
+    /**
+        @brief Re-align the absolute sample clock so the next sample handed to
+               processSamples() is treated as next_input_absolute_sample_index,
+               WITHOUT clearing the image when the gap is small.
+
+        processSamples() assumes contiguous input. When the caller may skip blocks
+        — e.g. while globally paused the audio sample clock keeps advancing but
+        this renderer is not fed those samples — an unhandled gap shifts the fold
+        phase and misplaces markers (image "breaks" up/down on resume). Call this
+        each block with the block's absolute start index to stay phase-correct:
+
+          - contiguous (== expected): no-op.
+          - small forward gap: jump the counter (skipped span = a few blank
+            columns); image preserved.
+          - large forward gap or rewind/new stream: full reset at the new origin.
+    */
+    void resyncAbsolutePosition(quint64 next_input_absolute_sample_index);
+
     /** Change sound color for future redraws. */
     void setSoundColor(QRgb color);
 
@@ -509,6 +527,14 @@ private:
     /** Sum of anchor columns used to find dominant band. */
     std::vector<float> anchor_sum_;
 
+    /**
+        Decaying accumulation of recent column energy (natural-bucket space) used
+        to track where the dominant band currently sits, so the renderer can
+        re-center it when it drifts. Without this, the band slowly slides against
+        the fixed column grid and eventually wraps at the top/bottom edge.
+    */
+    std::vector<float> recenter_accum_;
+
     /** Buffered anchor column bin data. */
     std::vector<float> anchor_columns_buffer_;
 
@@ -556,6 +582,7 @@ private:
 
     void commitAnchorColumn(const float *column, const AnchorColumn &meta);
     void flushBufferedAnchorColumns();
+    void maybeRecenterForDrift();
 
     int sampleToBucketInRange(quint64 absolute_sample_index,
                               quint64 start_sample,

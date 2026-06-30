@@ -41,6 +41,7 @@ bool SoundImageRenderer::initialize(QImage *image_argb32, const Config &cfg)
 
     current_column_.assign(static_cast<std::size_t>(height_), 0.0f);
     anchor_sum_.assign(static_cast<std::size_t>(height_), 0.0f);
+    recenter_accum_.assign(static_cast<std::size_t>(height_), 0.0f);
     anchor_columns_buffer_.assign(static_cast<std::size_t>(cfg_.anchor_columns * height_), 0.0f);
     anchor_columns_meta_.assign(static_cast<std::size_t>(cfg_.anchor_columns), AnchorColumn{});
     rendered_columns_.assign(static_cast<std::size_t>(width_), RenderedColumn{});
@@ -67,6 +68,32 @@ void SoundImageRenderer::reset(quint64 next_input_absolute_sample_index)
 
     resetStateOnly(next_input_absolute_sample_index);
     clearWholeImage(cfg_.background_color);
+}
+
+void SoundImageRenderer::resyncAbsolutePosition(quint64 next_input_absolute_sample_index)
+{
+    const quint64 expected = nextInputAbsoluteSampleIndex();
+    if (next_input_absolute_sample_index == expected) {
+        return;   // 연속 — 할 일 없음(정상 경로)
+    }
+
+    // 되감김(소스 재시작/새 세션 등) → 새 원점으로 풀 리셋(이미지 클리어).
+    if (next_input_absolute_sample_index < expected) {
+        reset(next_input_absolute_sample_index);
+        return;
+    }
+
+    // 전방 갭: 화면 한 폭(width_ 컬럼)을 넘으면 풀 리셋, 작으면 카운터만 점프해 이미지를 보존하고
+    //  절대 위상을 유지한다(스킵된 구간은 빈 컬럼 몇 개로 남는다). BPH 미확정이면 위상 기준이 없어 리셋.
+    const double col_samples = (bph_valid_ && samples_per_column_exact_ > 1.0)
+                                   ? samples_per_column_exact_ : 1.0;
+    const quint64 gap = next_input_absolute_sample_index - expected;
+    if (!bph_valid_ || static_cast<double>(gap) > col_samples * static_cast<double>(width_)) {
+        reset(next_input_absolute_sample_index);
+        return;
+    }
+
+    processed_samples_since_reset_ = next_input_absolute_sample_index - stream_origin_sample_index_;
 }
 
 /*
@@ -138,6 +165,7 @@ void SoundImageRenderer::resetStateOnly(quint64 next_input_absolute_sample_index
 
     std::fill(current_column_.begin(), current_column_.end(), 0.0f);
     std::fill(anchor_sum_.begin(), anchor_sum_.end(), 0.0f);
+    std::fill(recenter_accum_.begin(), recenter_accum_.end(), 0.0f);
     std::fill(anchor_columns_buffer_.begin(), anchor_columns_buffer_.end(), 0.0f);
     std::fill(anchor_columns_meta_.begin(), anchor_columns_meta_.end(), AnchorColumn{});
     std::fill(rendered_columns_.begin(), rendered_columns_.end(), RenderedColumn{});
@@ -181,6 +209,7 @@ void SoundImageRenderer::clearRenderStateKeepingSampleCounter()
 
     std::fill(current_column_.begin(), current_column_.end(), 0.0f);
     std::fill(anchor_sum_.begin(), anchor_sum_.end(), 0.0f);
+    std::fill(recenter_accum_.begin(), recenter_accum_.end(), 0.0f);
     std::fill(anchor_columns_buffer_.begin(), anchor_columns_buffer_.end(), 0.0f);
     std::fill(anchor_columns_meta_.begin(), anchor_columns_meta_.end(), AnchorColumn{});
     std::fill(rendered_columns_.begin(), rendered_columns_.end(), RenderedColumn{});
@@ -607,6 +636,8 @@ void SoundImageRenderer::commitAnchorColumn(const float *column,
         // 지배 밴드(버스트=A onset·C drop)를 화면 세로 중앙에 정렬 → 위/아래 드리프트 여유를 균등하게.
         internal_vertical_offset_rows_ = (height_ / 2) - dominant_bucket;
         center_locked_ = true;
+        // 드리프트 추적 초기값 = 앵커 누적(잠금 시 지배밴드와 일치) → 직후 불필요한 재중심 방지.
+        recenter_accum_ = anchor_sum_;
         flushBufferedAnchorColumns();
     }
 }
@@ -643,6 +674,75 @@ void SoundImageRenderer::flushBufferedAnchorColumns()
 
     clearCurrentBuckets();
     pruneOldMarkers();
+}
+
+/*
+    maybeRecenterForDrift()
+    -----------------------
+    The display column grid is locked to the BPH captured at first sync, while the
+    real beat period differs by the watch's rate error. That mismatch makes the
+    folded band slide vertically against the grid over time. Because bucketToY()
+    maps through a modulo (applyVerticalOffset), a band that drifts to the top or
+    bottom edge wraps to the opposite edge — visually the trace "breaks" up/down.
+
+    To prevent that, track where the dominant band currently sits (decaying energy
+    accumulation) and, once it has drifted past a threshold, re-center it: update
+    the global vertical offset and re-bake every already-rendered column with the
+    new offset. The whole image shifts once, consistently, instead of wrapping.
+
+    Called after a normal column is rendered, while current_column_ still holds
+    that column's bins. Cheap per call (one decay pass); the full re-bake runs only
+    when the threshold is crossed, which is rare.
+*/
+void SoundImageRenderer::maybeRecenterForDrift()
+{
+    if (!center_locked_ || height_ <= 0) {
+        return;
+    }
+
+    // 최근 컬럼 에너지를 감쇠 누적 → 지배 밴드의 현재(natural bucket) 위치를 추적.
+    constexpr float kDecay = 0.92f;
+    float max_v = 0.0f;
+    for (int i = 0; i < height_; ++i) {
+        const float acc = recenter_accum_[static_cast<std::size_t>(i)] * kDecay +
+                          current_column_[static_cast<std::size_t>(i)];
+        recenter_accum_[static_cast<std::size_t>(i)] = acc;
+        if (acc > max_v) {
+            max_v = acc;
+        }
+    }
+    if (max_v < 1.0e-3f) {
+        return;   // 신호 없음 — 재중심 보류
+    }
+
+    const int dominant = argmaxSmoothed5(recenter_accum_);
+    const int desired_offset = (height_ / 2) - dominant;
+
+    // 임계 미만이면 그대로 둠(잦은 전면 재렌더 방지). 임계 = height/8 → 밴드를 중앙 ±height/8 안에
+    //  유지하므로 가장자리 근처로 가지 않아 modulo 래핑(위/아래 깨짐)이 발생하지 않는다.
+    const int threshold = std::max(1, height_ / 8);
+    if (std::abs(desired_offset - internal_vertical_offset_rows_) < threshold) {
+        return;
+    }
+
+    internal_vertical_offset_rows_ = desired_offset;
+
+    // 저장된 컬럼 bins 를 새 오프셋으로 일괄 재렌더 → 화면 전체가 한 번에 재중심(국소 이음매 없음).
+    //  마커(A/C)는 오버레이라 rendered_columns_ 메타의 갱신된 offset 으로 표시 시점에 따라온다.
+    std::vector<float> tmp(static_cast<std::size_t>(height_));
+    for (int x = 0; x < width_; ++x) {
+        RenderedColumn meta = rendered_columns_[static_cast<std::size_t>(x)];
+        if (!meta.valid) {
+            continue;
+        }
+        const float *bins = renderedBinsPtr(x);
+        if (!bins) {
+            continue;
+        }
+        std::copy(bins, bins + height_, tmp.begin());   // 자기복사 회피용 임시 버퍼
+        meta.vertical_offset_rows = internal_vertical_offset_rows_;
+        renderBinsToColumn(x, tmp.data(), meta);
+    }
 }
 
 void SoundImageRenderer::rebuildColumnNeighborhood(int center_column)
@@ -747,6 +847,10 @@ void SoundImageRenderer::finalizeCurrentColumnAndAdvance()
 
     clearRenderedColumnStorage(write_column_);
     rebuildColumnNeighborhood(write_column_);
+
+    // [재중심] 고정 격자에 대한 밴드 드리프트가 누적되면 전체를 새 오프셋으로 재중심
+    //  (current_column_ 가 아직 이번 컬럼 데이터를 담고 있는 시점에 호출).
+    maybeRecenterForDrift();
 
     clearCurrentBuckets();
     pruneOldMarkers();

@@ -94,6 +94,12 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
     ensureRenderer(wave.rawStart);
     if (!mInitialized) return;                        // 샘플레이트 미확정 → 이 슬라이스 건너뜀
 
+    // [정지/탭전환 강건성] 전역 정지 전환 등으로 일부 블록이 이 탭에 전달되지 않으면(TabManager 가
+    //  정지 중 onWave 를 게이트) 절대 샘플 클럭에 갭이 생긴다. 렌더러는 연속 입력을 가정하므로,
+    //  블록의 절대 시작 인덱스(rawStart)로 위상을 재동기해 resume 시 fold 가 위/아래로 깨지는 것을
+    //  막는다. 연속이면 no-op. (마커도 같은 절대 클럭이라 함께 정렬 유지)
+    mRenderer.resyncAbsolutePosition(wave.rawStart);
+
     // 원신호(정류 전 PCM)를 렌더러에 주입 — 폴딩 사운드 이미지 갱신.
     if (wave.raw && wave.rawN > 0)
         mRenderer.processSamples(wave.raw, (std::size_t)wave.rawN);
