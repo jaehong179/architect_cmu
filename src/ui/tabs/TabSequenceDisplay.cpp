@@ -96,10 +96,43 @@ TabSequenceDisplay::TabSequenceDisplay(QWidget *parent) : TabView(parent)
     ctl->setContentsMargins(0, 0, 0, 0);
 
     // [MPS] 수동 Position 선택 콤보는 자동 자세 시퀀스가 행 라우팅을 구동하므로
-    //  화면에는 표시하지 않는다(숨김 유지). 측정값 → 테이블 행 매핑에만 사용.
+    //  릴리즈 빌드에서는 화면에 표시하지 않는다(숨김 유지).
+    //  측정값 → 테이블 행 매핑에만 사용.
     mPos = new QComboBox(this);
     mPos->addItems(standardPositionNames());
+
+#ifdef QT_DEBUG
+    // [DEBUG ONLY] 수동 포지션 변경으로 capture/finalize 흐름을 직접 테스트하기 위해
+    //  디버그 빌드에서만 제어 바에 노출한다.
+    //  콤보 변경 시 onPositionComboChanged() → capture 확정 체인이 그대로 실행되므로
+    //  실제 시나리오와 동일한 경로를 수동으로 재현할 수 있다.
+    {
+        auto *dbgLabel = new QLabel(QStringLiteral("[DBG] Position:"), this);
+        dbgLabel->setStyleSheet(QStringLiteral(
+            "font-weight: bold; color: #FFA500; margin-left: 10px; margin-right: 4px;"
+        ));
+        dbgLabel->setToolTip(QStringLiteral(
+            "DEBUG ONLY — 포지션을 수동으로 변경해 capture/finalize 흐름을 테스트합니다.\n"
+            "변경 시 이전 포지션이 capture 확정되고 onPositionComboChanged()가 실행됩니다.\n"
+            "릴리즈 빌드에서는 이 컨트롤이 나타나지 않습니다."
+        ));
+        ctl->addWidget(dbgLabel);
+
+        mPos->setToolTip(dbgLabel->toolTip());
+        mPos->setStyleSheet(QStringLiteral(
+            "QComboBox { background-color: #2a1a00; color: #FFA500;"
+            "  border: 1px solid #FFA500; padding: 4px 8px;"
+            "  border-radius: 4px; min-width: 110px; }"
+            "QComboBox::drop-down { border: none; }"
+            "QComboBox QAbstractItemView { background-color: #1a1000; color: #FFA500;"
+            "  selection-background-color: #5a3a00; }"
+        ));
+        mPos->setVisible(true);
+        ctl->addWidget(mPos);
+    }
+#else
     mPos->setVisible(false);
+#endif
 
     mSave = new QPushButton(QStringLiteral("Upload to Cloud"), this);
     mSave->setStyleSheet(QStringLiteral(
