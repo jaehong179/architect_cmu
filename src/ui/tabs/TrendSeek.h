@@ -140,10 +140,13 @@ private:
     void showCursor(double x)
     {
         for (PlotCur &pc : mPlots) {
-            // 선택 지점이 현재 보이는 x범위 밖이면 가장자리로 클램프 → 롤리팝이 항상 화면 안에 보인다.
-            double cx = x;
-            if (pc.plot) { const QCPRange r = pc.plot->xAxis->range(); cx = qBound(r.lower, x, r.upper); }
-            showLollipop(pc.stem, pc.head, pc.tip, cx, QString::number(cx, 'f', 1));
+            // 선택 지점을 가장자리에 붙이지 않고 '뷰 가운데'로 패닝(현재 폭 유지). 정지 중에만 seek 가
+            //  오므로 라이브 autoscale 과 충돌하지 않는다. → 선택 지점과 그 앞뒤 맥락이 함께 보인다.
+            if (pc.plot) {
+                const double w = pc.plot->xAxis->range().size();
+                if (w > 0.0) pc.plot->xAxis->setRange(x - w * 0.5, x + w * 0.5);
+            }
+            showLollipop(pc.stem, pc.head, pc.tip, x, QString::number(x, 'f', 1));
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
         }
     }
