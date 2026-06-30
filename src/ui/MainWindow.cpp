@@ -327,10 +327,14 @@ MainWindow::MainWindow(QWidget *parent)
     //  결과: 화면 우측 상단 배너로 알림 → 배너 클릭 시 가운데 상세 가이드 창.
     mDiagBanner = new DiagBanner(ui->GraphicsTabWidget);
     connect(mDiagBanner, &DiagBanner::clicked, this, [this]() {
+        mDiagBannerPending = false;   // 확인됨 → 탭 전환해도 다시 뜨지 않음
         if (mLastDiagKey.isEmpty()) return;
         DiagDetailDialog dlg(mLastDiagKey, mLastDiagConf, this);
         dlg.exec();
     });
+    // [diag] 배너는 BED 탭에서만 노출 → 탭 전환 때마다 가시성 재평가.
+    connect(ui->GraphicsTabWidget, &QTabWidget::currentChanged,
+            this, [this](int) { updateDiagBannerVisibility(); });
 
     // [diag] Stop 시 t1/t3(rateTicY/rateTocY) 로 고장유형을 진단하는 전용 스레드.
     //  슬라이딩 윈도우 보팅 추론을 워커 스레드에서 수행 → UI/측정 핫패스 비차단.
@@ -350,8 +354,11 @@ MainWindow::MainWindow(QWidget *parent)
                 const diagui::DiagEntry *e = diagui::lookup(label);
                 const QString title   = e ? e->title   : label;
                 const bool    healthy = e ? e->healthy : false;
+                mLastDiagTitle = title;
                 // 정상(healthy)일 때는 배너를 표시하지 않는다.
-                if (mDiagBanner && !healthy) mDiagBanner->showResult(title, healthy, conf);
+                //  비정상이면 보류로 두고, BED 탭에 있을 때만 노출(updateDiagBannerVisibility).
+                mDiagBannerPending = !healthy;
+                updateDiagBannerVisibility();
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
@@ -956,6 +963,21 @@ void MainWindow::triggerDiagnosis()
     }
 #endif
 }
+
+#ifdef ENABLE_DIAG
+void MainWindow::updateDiagBannerVisibility()
+{
+    // [diag] 'Diagnosis complete' 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
+    //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 그 외(다른 탭·확인됨)에는 숨김.
+    if (!mDiagBanner) return;
+    const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
+        && ui->GraphicsTabWidget->currentWidget() == mBedTab;
+    if (mDiagBannerPending && onBedTab)
+        mDiagBanner->showResult(mLastDiagTitle, false, mLastDiagConf);
+    else
+        mDiagBanner->hide();
+}
+#endif
 
 // =========================================================================
 // [측정 대기] Warm-up Delay 로직

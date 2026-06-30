@@ -352,7 +352,12 @@ private:
     diag::DiagWorker *mDiagWorker = nullptr;         // [diag] Stop 시 t1/t3 고장유형 진단
     DiagBanner       *mDiagBanner = nullptr;         // [diag] 진단 완료 알림 배너(우측 상단)
     QString           mLastDiagKey;                  // [diag] 마지막 진단 라벨 키(상세창용)
+    QString           mLastDiagTitle;                // [diag] 배너 표시용 사람이 읽는 제목
     float             mLastDiagConf = 0.0f;          // [diag] 마지막 진단 신뢰도
+    bool              mDiagBannerPending = false;    // [diag] 미확인 진단 결과 — BED 탭에서만 배너 노출
+    // [diag] 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
+    //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 아니면 숨김(탭 전환 시 호출).
+    void   updateDiagBannerVisibility();
 #endif
 };
 #endif // MAINWINDOW_H
