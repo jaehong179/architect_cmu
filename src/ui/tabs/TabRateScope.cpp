@@ -2,7 +2,6 @@
 #include "qcustomplot.h"
 #include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
 #include "PlotHelpers.h"           // [PERF] applyFastPaint(AA off·fast polyline·adaptive)
-#include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
@@ -425,7 +424,9 @@ void TabRateScope::onWave(const WaveBlock &wave)
         mScopePlot->yAxis->setRange(0, ymax * 1.12);
     }
 
-    if (isVisible())
+    // [§3] 스코프 페인트 ~30fps 상한 — 보일 때만, 디스플레이보다 빠른 페인트는 합침(고-fps 누적 부하↓).
+    //  마커/축은 매 onWave 갱신하되 실제 페인트만 coalesce(정상 실시간 ≤30fps 면 영향 없음).
+    if (isVisible() && frameDue(33))
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 

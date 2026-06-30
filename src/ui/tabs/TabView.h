@@ -66,9 +66,11 @@ protected:
     //  여러 번 불려 매 프레임 배열을 새로 빌드하는 탭은 중복 렌더가 된다(페인트는 rpQueuedReplot 이
     //  이미 1회로 합침). frameDue() 로 디스플레이보다 빠른 렌더를 스킵 → 'handleInputData 당 ~1 렌더'.
     //  정상 실시간(슬라이스 간격 ≫ kCoalesceMs)에선 항상 true(영향 없음), 버스트에서만 합쳐진다.
-    bool frameDue()
+    //  minMs 로 상한을 조절(기본 60fps). 페인트가 무거운 라이브 스코프는 30fps(33ms) 등으로 더 낮춰
+    //  고-fps(작은 오디오 청크) 구간에서 누적 페인트 부하를 바운드한다.
+    bool frameDue(int minMs = kCoalesceMs)
     {
-        if (mFrameTimer.isValid() && mFrameTimer.elapsed() < kCoalesceMs) return false;
+        if (mFrameTimer.isValid() && mFrameTimer.elapsed() < minMs) return false;
         mFrameTimer.restart();
         return true;
     }
