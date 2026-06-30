@@ -118,6 +118,15 @@ void TabSoundPrint::onWave(const WaveBlock &wave)
 
 void TabSoundPrint::onShown()
 {
-    if (mInitialized && mImage)
-        mImage->DrawImage();
+    if (!mInitialized || !mImage) return;
+    // [마커 복원] onWave 는 isVisible() 일 때만 위젯에 오버레이 마커를 반영한다(숨김 탭 부하↓).
+    //  따라서 탭이 숨은 동안 누적된 A/C 마커는 위젯에 빠져 있을 수 있다(특히 pause→resume 이
+    //  숨김 상태에서 일어나면 onResetSession 으로 위젯 마커가 비워진 뒤 숨김 중 렌더러에만 다시
+    //  쌓인다). 표시 복귀 시 렌더러(권위 상태)의 마커·live 컬럼을 위젯에 1회 동기해 점이 사라지지
+    //  않게 한다. (fold 이미지는 processSamples 가 숨김에도 누적하므로 별도 동기 불필요.)
+    if (mHasBph) {
+        mImage->setLiveColumn(mRenderer.currentColumn());
+        mImage->setOverlayMarkers(mRenderer.overlayMarkers());
+    }
+    mImage->DrawImage();
 }
