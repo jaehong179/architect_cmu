@@ -248,6 +248,7 @@ Ordered by "Status"
 - [ADR-002: Adopt a watchdog (timeout) for microphone-disconnect detection](ADRs/ADR-002-Adopt%20a%20watchdog%20(timeout)%20for%20microphone-disconnect%20detection.md)
 - [ADR-003: Register display tabs through a Tab Manager](ADRs/ADR-003-register-display-tabs.md)
 - [ADR-004: Share a single WaveLodHistory instance across all display tabs](ADRs/ADR-004-shared-waveform-history-buffer.md)
+- [ADR-005: Cloud Storage Architecture for Measurement Data](ADRs/ADR-005-cloud-storage-architecture-en.md)
 
 # 10. References
 
