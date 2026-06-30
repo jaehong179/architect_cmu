@@ -117,21 +117,33 @@ void TabSyncSweepScope::render()
     QVector<double> raw; mRawBuf.copyRange(from, sweep, raw);
     double mean = 0; for (double v : raw) mean += v; mean /= std::max(1, (int)raw.size());
 
-    QVector<double> folded(sweep);
+    // sweep(수만~십수만 샘플)은 화면 폭 대비 과해 매 프레임 비용이 크다(렌더·탭전환 끊김).
+    //  → 실제 플롯 픽셀 폭에 맞춰(픽셀당 ~2점) 버킷별 '최대 |raw-mean|'(엔벨로프 피크 보존)로 데시메이션.
+    //    좁은 창=적게, 넓은/고해상도 창=많이 → 항상 적정 점 수.
+    const int pxW = mPlot->axisRect() ? std::max(1, mPlot->axisRect()->width()) : 1200;
+    const int targetPoints = std::min(sweep, std::max(400, pxW * 2));
+    const int rawN = raw.size();
+    const int step = std::max(1, sweep / targetPoints);
+    const int nOut = (sweep + step - 1) / step;
+    QVector<double> x(nOut), pooled(nOut);
     double curPeak = 1e-9;
-    for (int i = 0; i < sweep; ++i) {
-        folded[i] = (i < raw.size() ? std::fabs(raw[i] - mean) : 0.0);
-        if (folded[i] > curPeak) curPeak = folded[i];
+    for (int b = 0; b < nOut; ++b) {
+        const int i0 = b * step, i1 = std::min(sweep, i0 + step);
+        double m = 0.0;
+        for (int i = i0; i < i1; ++i) {
+            const double v = (i < rawN) ? std::fabs(raw[i] - mean) : 0.0;
+            if (v > m) m = v;
+        }
+        pooled[b] = m;
+        if (m > curPeak) curPeak = m;
+        x[b] = 1000.0 * (i0 + (i1 - i0) * 0.5) / sr;   // 버킷 중심 시각(ms)
     }
     // 축 고정: 스무딩 피크로 정규화(상승 즉시·하강 천천히) → 매 프레임 y범위가 흔들리지 않음.
     if (curPeak > mNorm) mNorm = curPeak; else mNorm = 0.92 * mNorm + 0.08 * curPeak;
     if (mNorm < 1e-9) mNorm = 1e-9;
 
-    QVector<double> y(sweep), x(sweep);
-    for (int i = 0; i < sweep; ++i) {
-        y[i] = std::min(1.0, folded[i] / mNorm);       // 상단 클립(scope_mode.c)
-        x[i] = 1000.0 * i / sr;
-    }
+    QVector<double> y(nOut);
+    for (int b = 0; b < nOut; ++b) y[b] = std::min(1.0, pooled[b] / mNorm);   // 상단 클립
     mPlot->graph(0)->setData(x, y, true);
 
     mPlot->xAxis->setRange(0, 1000.0 * sweep / sr);
