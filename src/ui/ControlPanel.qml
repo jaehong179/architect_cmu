@@ -96,6 +96,77 @@ Rectangle {
         };
     }
 
+    // ─── [설정 스테이징] 팝업에서 바꾼 값은 여기에만 담아두고, Apply 시 일괄 적용한다.
+    //  Gain 은 예외(측정 중 실시간 조절 유지) → 스테이징하지 않고 cppBackend 직결.
+    QtObject {
+        id: staged
+        property int    currentMode: 0
+        property int    deviceIndex: 0
+        property int    sampleRateIndex: 0
+        property int    simBphIndex: 0
+        property int    simErrorRate: 0
+        property int    simAmplitude: 0
+        property real   simBeatError: 0
+        property bool   simRealistic: false
+        property int    detectorBphIndex: 0
+        property int    liftAngle: 0
+        property int    averagingPeriodIndex: 0
+        property int    warmupDelayIndex: 0
+        property string watchId: ""
+        property string engineer: ""
+        property int    highPassCutoff: 0
+        property bool   useConset: false
+    }
+
+    function loadStaged() {
+        staged.currentMode = cppBackend.currentMode
+        staged.deviceIndex = cppBackend.deviceIndex
+        staged.sampleRateIndex = cppBackend.sampleRateIndex
+        staged.simBphIndex = cppBackend.simBphIndex
+        staged.simErrorRate = cppBackend.simErrorRate
+        staged.simAmplitude = cppBackend.simAmplitude
+        staged.simBeatError = cppBackend.simBeatError
+        staged.simRealistic = cppBackend.simRealistic
+        staged.detectorBphIndex = cppBackend.detectorBphIndex
+        staged.liftAngle = cppBackend.liftAngle
+        staged.averagingPeriodIndex = cppBackend.averagingPeriodIndex
+        staged.warmupDelayIndex = cppBackend.warmupDelayIndex
+        staged.watchId = cppBackend.watchId
+        staged.engineer = cppBackend.engineer
+        staged.highPassCutoff = cppBackend.highPassCutoff
+        staged.useConset = cppBackend.useConset
+    }
+
+    function applyStaged() {
+        cppBackend.currentMode = staged.currentMode
+        cppBackend.deviceIndex = staged.deviceIndex
+        cppBackend.sampleRateIndex = staged.sampleRateIndex
+        cppBackend.simBphIndex = staged.simBphIndex
+        cppBackend.simErrorRate = staged.simErrorRate
+        cppBackend.simAmplitude = staged.simAmplitude
+        cppBackend.simBeatError = staged.simBeatError
+        cppBackend.simRealistic = staged.simRealistic
+        cppBackend.detectorBphIndex = staged.detectorBphIndex
+        cppBackend.liftAngle = staged.liftAngle
+        cppBackend.averagingPeriodIndex = staged.averagingPeriodIndex
+        cppBackend.warmupDelayIndex = staged.warmupDelayIndex
+        cppBackend.watchId = staged.watchId
+        cppBackend.engineer = staged.engineer
+        cppBackend.highPassCutoff = staged.highPassCutoff
+        cppBackend.useConset = staged.useConset
+    }
+
+    Component.onCompleted: loadStaged()
+
+    // 팝업이 열릴 때마다 현재 적용값으로 staged 초기화(취소 후 재오픈 대비).
+    Connections {
+        target: cppBackend
+        function onSettingsOpenChanged() {
+            if (cppBackend.settingsOpen)
+                loadStaged()
+        }
+    }
+
     // ─── session transport helpers (shared by collapsed + expanded panels) ──
     readonly property bool sessionIdle: !cppBackend.isRunning
     readonly property bool sessionRunning: cppBackend.isRunning && !cppBackend.isPaused
@@ -614,14 +685,14 @@ Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: "transparent"
                                         border.width: 2
-                                        border.color: cppBackend.currentMode === index
+                                        border.color: staged.currentMode === index
                                             ? root.colorPrimary : root.colorBorder
                                         Behavior on border.color { ColorAnimation { duration: 120 } }
                                         Rectangle {
                                             anchors.centerIn: parent
                                             width: 9; height: 9; radius: 4.5
                                             color: root.colorPrimary
-                                            visible: cppBackend.currentMode === index
+                                            visible: staged.currentMode === index
                                         }
                                     }
 
@@ -629,8 +700,8 @@ Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: modelData
                                         font.pixelSize: 13
-                                        font.bold: cppBackend.currentMode === index
-                                        color: cppBackend.currentMode === index
+                                        font.bold: staged.currentMode === index
+                                        color: staged.currentMode === index
                                             ? root.colorTextMain : root.colorTextSub
                                     }
                                 }
@@ -639,7 +710,7 @@ Rectangle {
                                     anchors.fill: parent
                                     enabled: !cppBackend.isRunning
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: { cppBackend.currentMode = index }
+                                    onClicked: { staged.currentMode = index }
                                 }
 
                                 opacity: cppBackend.isRunning ? 0.45 : 1.0
@@ -674,7 +745,7 @@ Rectangle {
                     // LIVE MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 0 // LIVE
+                        visible: staged.currentMode === 0 // LIVE
                         spacing: 8
 
                         RowLayout {
@@ -761,8 +832,8 @@ Rectangle {
                                         Layout.preferredHeight: 38
                                         font.pixelSize: 14
                                         model: cppBackend.deviceList
-                                        currentIndex: cppBackend.deviceIndex
-                                        onActivated: (index) => { cppBackend.deviceIndex = index }
+                                        currentIndex: staged.deviceIndex
+                                        onActivated: (index) => { staged.deviceIndex = index }
                                         enabled: !cppBackend.isRunning
                                         background: Rectangle {
                                             color: root.colorBgInput
@@ -799,8 +870,8 @@ Rectangle {
                                     Layout.preferredHeight: 38
                                     font.pixelSize: 14
                                     model: cppBackend.sampleRateList
-                                    currentIndex: cppBackend.sampleRateIndex
-                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
+                                    currentIndex: staged.sampleRateIndex
+                                    onActivated: (index) => { staged.sampleRateIndex = index }
                                     enabled: !cppBackend.isRunning
                                     background: Rectangle {
                                         color: root.colorBgInput
@@ -822,7 +893,7 @@ Rectangle {
                     // PLAYBACK MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 1 // PLAYBACK
+                        visible: staged.currentMode === 1 // PLAYBACK
                         spacing: 10
 
                         RowLayout {
@@ -905,7 +976,7 @@ Rectangle {
                     // SIMULATION MODE PANEL
                     ColumnLayout {
                         Layout.fillWidth: true
-                        visible: cppBackend.currentMode === 2 // SIMULATION
+                        visible: staged.currentMode === 2 // SIMULATION
                         spacing: 6
 
                         RowLayout {
@@ -961,8 +1032,8 @@ Rectangle {
                                     id: simBphCombo
                                     Layout.preferredWidth: 110
                                     model: cppBackend.simBphList
-                                    currentIndex: cppBackend.simBphIndex
-                                    onActivated: (index) => { cppBackend.simBphIndex = index }
+                                    currentIndex: staged.simBphIndex
+                                    onActivated: (index) => { staged.simBphIndex = index }
                                     enabled: !cppBackend.isRunning
                                 }
                             }
@@ -975,8 +1046,8 @@ Rectangle {
                                     id: simSrCombo
                                     Layout.preferredWidth: 110
                                     model: cppBackend.sampleRateList
-                                    currentIndex: cppBackend.sampleRateIndex
-                                    onActivated: (index) => { cppBackend.sampleRateIndex = index }
+                                    currentIndex: staged.sampleRateIndex
+                                    onActivated: (index) => { staged.sampleRateIndex = index }
                                     enabled: !cppBackend.isRunning
                                 }
                             }
@@ -995,7 +1066,7 @@ Rectangle {
                                     }
                                     Text {
                                         id: errorRateLabel
-                                        text: cppBackend.simErrorRate
+                                        text: staged.simErrorRate
                                         color: root.colorPrimaryLight
                                         font.pixelSize: 12
                                         font.bold: true
@@ -1010,9 +1081,9 @@ Rectangle {
                                     from: -999
                                     to: 999
                                     stepSize: 1
-                                    value: cppBackend.simErrorRate
+                                    value: staged.simErrorRate
                                     enabled: !cppBackend.isRunning
-                                    onMoved: { cppBackend.simErrorRate = Math.round(value) }
+                                    onMoved: { staged.simErrorRate = Math.round(value) }
 
                                     background: Rectangle {
                                         x: errorRateSlider.leftPadding
@@ -1057,7 +1128,7 @@ Rectangle {
                                     }
                                     Text {
                                         id: amplitudeLabel
-                                        text: cppBackend.simAmplitude + "°"
+                                        text: staged.simAmplitude + "°"
                                         color: root.colorPrimaryLight
                                         font.pixelSize: 12
                                         font.bold: true
@@ -1072,9 +1143,9 @@ Rectangle {
                                     from: 100
                                     to: 360
                                     stepSize: 1
-                                    value: cppBackend.simAmplitude
+                                    value: staged.simAmplitude
                                     enabled: !cppBackend.isRunning
-                                    onMoved: { cppBackend.simAmplitude = Math.round(value) }
+                                    onMoved: { staged.simAmplitude = Math.round(value) }
 
                                     background: Rectangle {
                                         x: amplitudeSlider.leftPadding
@@ -1119,7 +1190,7 @@ Rectangle {
                                     }
                                     Text {
                                         id: beatErrorLabel
-                                        text: cppBackend.simBeatError.toFixed(1)
+                                        text: staged.simBeatError.toFixed(1)
                                         color: root.colorPrimaryLight
                                         font.pixelSize: 12
                                         font.bold: true
@@ -1134,9 +1205,9 @@ Rectangle {
                                     from: -100    // × 0.1 = -10.0 ms
                                     to:    100    // × 0.1 = +10.0 ms
                                     stepSize: 1
-                                    value: cppBackend.simBeatError * 10
+                                    value: staged.simBeatError * 10
                                     enabled: !cppBackend.isRunning
-                                    onMoved: { cppBackend.simBeatError = value / 10.0 }
+                                    onMoved: { staged.simBeatError = value / 10.0 }
 
                                     background: Rectangle {
                                         x: beatErrorSlider.leftPadding
@@ -1180,9 +1251,9 @@ Rectangle {
                                 }
                                 Switch {
                                     id: realisticNoiseSwitch
-                                    checked: cppBackend.simRealistic
+                                    checked: staged.simRealistic
                                     enabled: !cppBackend.isRunning
-                                    onToggled: { cppBackend.simRealistic = checked }
+                                    onToggled: { staged.simRealistic = checked }
 
                                     // padding 을 모두 제거해야 indicator 가 카드 밖으로 나가지 않음
                                     leftPadding: 0
@@ -1307,10 +1378,10 @@ Rectangle {
                             ComboBox {
                                 id: detBphCombo
                                 Layout.fillWidth: true
-                                visible: cppBackend.currentMode !== 2
+                                visible: staged.currentMode !== 2
                                 model: cppBackend.bphList
-                                currentIndex: cppBackend.detectorBphIndex
-                                onActivated: (index) => { cppBackend.detectorBphIndex = index }
+                                currentIndex: staged.detectorBphIndex
+                                onActivated: (index) => { staged.detectorBphIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
 
@@ -1319,7 +1390,7 @@ Rectangle {
                                 Layout.preferredHeight: 28
                                 color: root.colorBgInput
                                 radius: 4
-                                visible: cppBackend.currentMode === 2
+                                visible: staged.currentMode === 2
                                 Text {
                                     anchors.centerIn: parent
                                     text: "Follows Sim BPH"
@@ -1338,9 +1409,9 @@ Rectangle {
                                 Layout.preferredWidth: 110
                                 from: 30
                                 to: 70
-                                value: cppBackend.liftAngle
+                                value: staged.liftAngle
                                 enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.liftAngle = value }
+                                onValueModified: { staged.liftAngle = value }
                             }
                         }
 
@@ -1353,8 +1424,8 @@ Rectangle {
                                 id: avgCombo
                                 Layout.fillWidth: true
                                 model: cppBackend.averagingPeriodList
-                                currentIndex: cppBackend.averagingPeriodIndex
-                                onActivated: (index) => { cppBackend.averagingPeriodIndex = index }
+                                currentIndex: staged.averagingPeriodIndex
+                                onActivated: (index) => { staged.averagingPeriodIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
                         }
@@ -1368,8 +1439,8 @@ Rectangle {
                                 id: warmupCombo
                                 Layout.fillWidth: true
                                 model: cppBackend.warmupDelayList
-                                currentIndex: cppBackend.warmupDelayIndex
-                                onActivated: (index) => { cppBackend.warmupDelayIndex = index }
+                                currentIndex: staged.warmupDelayIndex
+                                onActivated: (index) => { staged.warmupDelayIndex = index }
                                 enabled: !cppBackend.isRunning
                             }
                         }
@@ -1438,7 +1509,7 @@ Rectangle {
                             TextField {
                                 Layout.fillWidth: true
                                 placeholderText: "e.g. rolex_123456"
-                                text: cppBackend.watchId
+                                text: staged.watchId
                                 enabled: !cppBackend.isRunning
                                 color: root.colorTextMain
                                 placeholderTextColor: root.colorTextSub
@@ -1448,7 +1519,7 @@ Rectangle {
                                     radius: 4
                                 }
                                 onEditingFinished: {
-                                    cppBackend.watchId = text.trim()
+                                    staged.watchId = text.trim()
                                 }
                             }
                         }
@@ -1466,7 +1537,7 @@ Rectangle {
                             TextField {
                                 Layout.fillWidth: true
                                 placeholderText: "e.g. Mr. Park"
-                                text: cppBackend.engineer
+                                text: staged.engineer
                                 enabled: !cppBackend.isRunning
                                 color: root.colorTextMain
                                 placeholderTextColor: root.colorTextSub
@@ -1476,7 +1547,7 @@ Rectangle {
                                     radius: 4
                                 }
                                 onEditingFinished: {
-                                    cppBackend.engineer = text.trim()
+                                    staged.engineer = text.trim()
                                 }
                             }
                         }
@@ -1540,18 +1611,18 @@ Rectangle {
                                 from: 10
                                 to: 10000
                                 stepSize: 50
-                                value: cppBackend.highPassCutoff
+                                value: staged.highPassCutoff
                                 enabled: !cppBackend.isRunning
-                                onValueModified: { cppBackend.highPassCutoff = value }
+                                onValueModified: { staged.highPassCutoff = value }
                             }
                         }
 
                         // Onset Amplitude
                         CheckBox {
                             text: "C Event Onset Amplitude"
-                            checked: cppBackend.useConset
+                            checked: staged.useConset
                             enabled: !cppBackend.isRunning
-                            onCheckedChanged: { cppBackend.useConset = checked }
+                            onCheckedChanged: { staged.useConset = checked }
                             contentItem: Text {
                                 text: parent.text
                                 color: root.colorTextMain
@@ -1748,8 +1819,65 @@ Rectangle {
                 }
             }
 
-            // 하단 여백 (2열 전체)
-            Item { Layout.columnSpan: 2; Layout.preferredHeight: 20 }
+            // ── 푸터: Cancel / Apply (2열 전체) ──
+            //  스테이징: Apply 눌러야 실제 적용, Cancel 은 변경 버림.
+            //  측정 중에는 Apply 비활성(dim) → 측정 중 설정 변경이 적용되지 않음.
+            RowLayout {
+                Layout.columnSpan: 2
+                Layout.fillWidth: true
+                Layout.topMargin: 6
+                Layout.bottomMargin: 4
+                spacing: 10
+
+                Item { Layout.fillWidth: true }
+
+                Button {
+                    id: cancelBtn
+                    text: "Cancel"
+                    Layout.preferredWidth: 110
+                    Layout.preferredHeight: 36
+                    onClicked: { cppBackend.settingsOpen = false }   // 변경 버림(다음 오픈 시 재로드)
+                    background: Rectangle {
+                        color: cancelBtn.down ? "#2a2a33" : (cancelBtn.hovered ? "#33333d" : "#2f2f3a")
+                        radius: 6
+                        border.color: root.colorBorder
+                    }
+                    contentItem: Text {
+                        text: cancelBtn.text
+                        color: root.colorTextMain
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 13
+                    }
+                }
+
+                Button {
+                    id: applyBtn
+                    text: "Apply"
+                    Layout.preferredWidth: 130
+                    Layout.preferredHeight: 36
+                    enabled: !cppBackend.isRunning   // 측정 중 비활성(dim)
+                    onClicked: {
+                        root.applyStaged()
+                        cppBackend.settingsOpen = false
+                    }
+                    background: Rectangle {
+                        color: !applyBtn.enabled ? "#33333d"
+                             : (applyBtn.down ? "#7d2e89"
+                             : (applyBtn.hovered ? "#bb5ccb" : root.colorPrimary))
+                        radius: 6
+                        border.color: applyBtn.enabled ? root.colorPrimary : root.colorBorder
+                    }
+                    contentItem: Text {
+                        text: applyBtn.text
+                        color: applyBtn.enabled ? "#ffffff" : root.colorTextSub
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                        font.pixelSize: 13
+                    }
+                }
+            }
         }
     }
 }

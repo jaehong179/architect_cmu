@@ -397,12 +397,11 @@ MainWindow::MainWindow(QWidget *parent)
     //  결과: 화면 우측 상단 배너로 알림 → 배너 클릭 시 가운데 상세 가이드 창.
     mDiagBanner = new DiagBanner(ui->GraphicsTabWidget);
     connect(mDiagBanner, &DiagBanner::clicked, this, [this]() {
-        mDiagBannerPending = false;   // 확인됨 → 탭 전환해도 다시 뜨지 않음
         if (mLastDiagKey.isEmpty()) return;
         DiagDetailDialog dlg(mLastDiagKey, mLastDiagConf, this);
         dlg.exec();
     });
-    // [diag] 배너는 BED 탭에서만 노출 → 탭 전환 때마다 가시성 재평가.
+    // [diag] BED 탭을 벗어나면 배너 숨김(다른 탭 위에 떠 있지 않도록). 재노출은 안 함.
     connect(ui->GraphicsTabWidget, &QTabWidget::currentChanged,
             this, [this](int) { updateDiagBannerVisibility(); });
 
@@ -425,10 +424,12 @@ MainWindow::MainWindow(QWidget *parent)
                 const QString title   = e ? e->title   : label;
                 const bool    healthy = e ? e->healthy : false;
                 mLastDiagTitle = title;
-                // 정상(healthy)일 때는 배너를 표시하지 않는다.
-                //  비정상이면 보류로 두고, BED 탭에 있을 때만 노출(updateDiagBannerVisibility).
-                mDiagBannerPending = !healthy;
-                updateDiagBannerVisibility();
+                // [diag] 결과 도착(=Stop 직후) 시점에 BED 탭을 '보고 있을 때만' 배너 노출.
+                //  다른 탭에서 Stop 했거나, 나중에 BED 로 들어오는 경우엔 띄우지 않는다.
+                const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
+                    && ui->GraphicsTabWidget->currentWidget() == mBedTab;
+                if (mDiagBanner && !healthy && onBedTab)
+                    mDiagBanner->showResult(title, false, conf);
             });
     connect(mDiagWorker, &diag::DiagWorker::error, this,
             [this](const QString &message) { statusBar()->showMessage(message); });
@@ -1040,14 +1041,12 @@ void MainWindow::triggerDiagnosis()
 #ifdef ENABLE_DIAG
 void MainWindow::updateDiagBannerVisibility()
 {
-    // [diag] 'Diagnosis complete' 배너는 Beat Error Display and Diagnostic Trace 탭에서만 보인다.
-    //  보류된 결과가 있고 현재 탭이 BED 탭이면 노출, 그 외(다른 탭·확인됨)에는 숨김.
+    // [diag] BED 탭을 벗어나면 배너를 숨긴다(다른 탭 위에 떠 있지 않도록).
+    //  표시는 결과 도착 시점에 BED 탭일 때만(resultReady) 직접 한다 — 여기선 숨김만.
     if (!mDiagBanner) return;
     const bool onBedTab = ui && ui->GraphicsTabWidget && mBedTab
         && ui->GraphicsTabWidget->currentWidget() == mBedTab;
-    if (mDiagBannerPending && onBedTab)
-        mDiagBanner->showResult(mLastDiagTitle, false, mLastDiagConf);
-    else
+    if (!onBedTab)
         mDiagBanner->hide();
 }
 #endif
