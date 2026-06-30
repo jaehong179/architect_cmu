@@ -269,6 +269,7 @@ MainWindow::MainWindow(QWidget *parent)
     mCapture = new CaptureController(&mEngine, mTabManager, this);
     connect(mCapture, &CaptureController::statusMessage,  this, [this](const QString &m){ statusBar()->showMessage(m); });
     connect(mCapture, &CaptureController::measurementReady, this, &MainWindow::DisplayResults);
+    connect(mCapture, &CaptureController::watchdogEvent, this, &MainWindow::onWatchdogEvent);
     // [워치독] 이벤트 → EventHandler(severity 별 상태바/모달). 워커 스레드에서 큐드 전달.
     mEventHandler = new EventHandler(this, this);
     connect(mCapture, &CaptureController::watchdogEvent, mEventHandler, &EventHandler::onEvent);
@@ -1314,6 +1315,24 @@ void MainWindow::Reset(void)
     clearPauseState();
     if (mSeekLabel)  mSeekLabel->clear();
     EventsReset();
+}
+
+void MainWindow::onWatchdogEvent(const WatchdogEvent &ev)
+{
+    // 오디오 장치가 측정 중 분리되면: 측정을 멈추고 사용 중인 버퍼/데이터를 전부 비워
+    //  초기화 상태로 되돌린다. → 장치를 다시 연결하고 Start 를 누르면 곧바로 정상 동작한다.
+    //  (분리 감지는 Live 모드에서만 발생하므로 stopLive 경로만 처리.)
+    if (ev.id != WatchdogEventId::AudioDeviceLost)
+        return;
+    if (!mIsRunning)
+        return;
+
+    qInfo() << "[audio-disconnect] capture device lost — auto-stopping and resetting to clean state";
+
+    if (mCapture)
+        mCapture->stopLive();   // 오디오 워커 정지(녹음/캡처 중단)
+    finishSession(false);       // GUI Stop 모드 전환(mIsRunning=false), 진단은 생략(데이터 불완전)
+    Reset();                    // 엔진/탭/이력 버퍼 전부 클리어 → 초기화 상태
 }
 
 void MainWindow::HandlePlaybackDoneReadingFile()

@@ -76,6 +76,7 @@ void TabSoundPrint::onResetSession()
     mInitialized = false;   // 다음 onWave에서 고정 캔버스로 재초기화(누적 비움)
     mHasBph = false;
     if (mImage) {
+        mImage->clearImage();                // 캔버스 즉시 비움 → 다음 onWave 전에도 잔상 없음
         mImage->resetZoom();                 // 새 측정 시작 → 확대/이동 초기화(전체 보기)
         mImage->setOverlayMarkers({});       // 이전 세션 마커 제거
         mImage->setBeatPeriodMs(0.0);        // BPH 재확정 전까지 눈금 숫자 보류

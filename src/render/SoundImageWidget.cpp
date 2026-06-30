@@ -27,7 +27,7 @@ void SoundImageWidget::CreateImage(int w, int h)
     image = nullptr;
     if (w <= 0 || h <= 0) return;
     image = new QImage(w, h, QImage::Format_ARGB32);
-    image->fill(QColor(24, 24, 31));
+    image->fill(kBackgroundColor);
     resetView();
 }
 
@@ -60,6 +60,15 @@ void SoundImageWidget::setBeatPeriodMs(double ms)
 void SoundImageWidget::resetZoom(void)
 {
     resetView();   // 확대/이동 초기화 → 전체 보기(fit)
+}
+
+// 캔버스 픽셀을 배경색으로 즉시 비우고 repaint 한다(생성 시 fill 과 동일 색).
+//  Reset 직후 다음 onWave() 전에 탭으로 전환해도 이전 세션의 folded 이미지가 남지 않도록.
+void SoundImageWidget::clearImage(void)
+{
+    if (image) image->fill(kBackgroundColor);
+    mLiveColumn = -1;
+    update();
 }
 
 // 축 라벨 여백을 뺀 이미지 표시 영역.
@@ -173,7 +182,7 @@ void SoundImageWidget::resetView()
 void SoundImageWidget::paintEvent(QPaintEvent * /*event*/)
 {
     QPainter painter(this);
-    painter.fillRect(rect(), QColor(24, 24, 31));
+    painter.fillRect(rect(), kBackgroundColor);
 
     if (!image || image->isNull()) return;
 

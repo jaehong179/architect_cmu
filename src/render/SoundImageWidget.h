@@ -8,6 +8,7 @@
 //  마우스 휠=확대/축소, 드래그=팬, 더블클릭=전체 보기 리셋.
 //  렌더러 live 컬럼을 받으면(측정 중) 자동으로 갱신 위치를 따라간다(수동 팬 전까지).
 #include "SoundImageRenderer.h"   // OverlayMarker
+#include <QColor>
 #include <QPointF>
 #include <QRectF>
 #include <QWidget>
@@ -31,6 +32,7 @@ public:
     void     setOverlayMarkers(std::vector<SoundImageRenderer::OverlayMarker> markers);
     void     setBeatPeriodMs(double ms);            // 한 비트 길이(ms) — y축 ms·x축 시간 눈금 산출용
     void     resetZoom(void);                        // 새 측정 시작 시 확대/이동 초기화(전체 보기)
+    void     clearImage(void);                       // 캔버스를 배경색으로 즉시 비우고 repaint(reset 시 잔상 제거)
     QImage  *GetImage(void);                         // 렌더러가 그릴 대상 캔버스
     void     paintEvent(QPaintEvent *event) override;
     void     wheelEvent(QWheelEvent *event) override;
@@ -82,6 +84,8 @@ private:
     static constexpr double kMinViewScale = 1.0;
     static constexpr double kMaxViewScale = 20.0;
     static constexpr double kWheelFactor    = 1.15;
+
+    static inline const QColor kBackgroundColor{24, 24, 31};
 };
 
 #endif // SOUNDIMAGEWIDGET_H

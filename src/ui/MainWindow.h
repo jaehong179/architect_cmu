@@ -237,6 +237,7 @@ private:
     bool   maybeConfirmLeaveSequence(int targetIndex);
     void   ConfigureSoundCard(void);
     void   Reset(void);
+    void   onWatchdogEvent(const WatchdogEvent &ev);  // 오디오 장치 분리 시 자동 정지 + 초기화
     void   LoadAudioDevices(void);
     bool   OpenFile(const QString &FileName);
     void   EventsReset(void);
