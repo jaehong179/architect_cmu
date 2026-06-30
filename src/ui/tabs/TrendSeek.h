@@ -115,7 +115,18 @@ public:
         // 줄기: 바닥(ratio 1) → 머리(kHeadRatio). 머리 위로는 선이 없다.
         if (stem) { stem->start->setCoords(x, 1.0); stem->end->setCoords(x, kHeadRatio); stem->setVisible(true); }
         if (head) { head->position->setCoords(x, kHeadRatio); head->setVisible(true); }
-        if (tip)  { tip->position->setCoords(x, kHeadRatio); tip->setText(label); tip->setVisible(true); }
+        if (tip)  {
+            tip->setText(label);
+            // 툴팁을 머리 '옆'(기본 오른쪽, 우측 가장자리면 왼쪽으로 플립)에 둔다 → 선택 지점 위 데이터를 덜 가림.
+            bool toLeft = false;
+            if (QCustomPlot *p = tip->parentPlot()) {
+                const QCPRange r = p->xAxis->range();
+                if (r.size() > 0.0) toLeft = (x > r.lower + r.size() * 0.7);
+            }
+            tip->setPositionAlignment(Qt::AlignVCenter | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
+            tip->position->setCoords(x, kHeadRatio);
+            tip->setVisible(true);
+        }
     }
     static void hideLollipop(QCPItemLine *stem, QCPItemTracer *head, QCPItemText *tip)
     {

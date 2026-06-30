@@ -584,13 +584,16 @@ void TabRateScope::showRateClickLabel(double t, double y)
         mRateClickLabel = new QCPItemText(mRatePlot);
         mRateClickLabel->setColor(QColor(120, 0, 120));
         mRateClickLabel->setFont(QFont("monospace", 9, QFont::Bold));
-        mRateClickLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);  // 점 위쪽에 표시
         mRateClickLabel->position->setType(QCPItemPosition::ptPlotCoords);
         mRateClickLabel->setPen(QPen(QColor(120, 0, 120)));
         mRateClickLabel->setBrush(QBrush(Theme::kLabelBg));
         mRateClickLabel->setPadding(QMargins(5, 2, 5, 2));
     }
     mRateClickLabel->setText(QString("t = %1 s\nrate = %2 ms").arg(t, 0, 'f', 2).arg(y, 0, 'f', 2));
+    // 라벨을 점 '옆'(기본 오른쪽, 우측 가장자리면 왼쪽)에 둔다 → 데이터를 위에서 가리지 않게.
+    const QCPRange r = mRatePlot->xAxis->range();
+    const bool toLeft = (r.size() > 0.0) && (t > r.lower + r.size() * 0.7);
+    mRateClickLabel->setPositionAlignment(Qt::AlignVCenter | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
     mRateClickLabel->position->setCoords(t, y);
     mRateClickLabel->setVisible(true);
 }
