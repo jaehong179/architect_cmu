@@ -49,6 +49,7 @@ private:
     QCPItemText         *mCurAmpTip  = nullptr;
     QCustomPlot *mRate  = nullptr;   // 상단: rate(raw+smoothed)
     QCustomPlot *mAmp   = nullptr;   // 하단: amplitude
+    QCPItemRect *mRateBand = nullptr; // 보율 정상범위(-10~+15 s/d) 시각 밴드
     QCPItemRect *mAmpBand = nullptr; // 진폭 정상범위(270~300°) 시각 밴드
     QLabel      *mAlert = nullptr;
     QLabel      *mDerived = nullptr; // 파생 측정(DiffTicTac/DiffPeriod/AvgPeriod) + 롤링/세션 평균
@@ -59,6 +60,7 @@ private:
     QVector<QPair<double,double>> mDevWin;   // (x초, 편차ms) 최근 4초
     double mDevSum = 0; long mDevN = 0;
     static constexpr double kAmpLo=270.0, kAmpHi=300.0, kLateSlow=-1.0;
+    static constexpr double kRateLo=-10.0, kRateHi=15.0;   // 보율 정상범위(s/day)
     static constexpr double kDiffPeriodWinS = 4.0;   // Chour DiffPeriod 창(초)
     // 그래프 무한 누적 방지: 최근 kHistorySec 구간만 유지(장기추이는 Long-Term 탭 담당).
     //  지속 관찰용 — 8분 보존(넘으면 오토스케일이 최근 8분으로 흘러감). 장기추이는 Long-Term(10분).
