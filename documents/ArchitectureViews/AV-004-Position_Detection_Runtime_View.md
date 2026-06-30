@@ -27,7 +27,7 @@ resultReady(label, confidence): VisionWorker → MainWindow, asynchronous queued
 
 ##  Behavior
 One detection cycle: VisionWorker wakes on its 1 Hz timer, asks TfliteApi to classify the latest frame, gets back position + confidence, and emits resultReady to MainWindow. MainWindow then displays/records the result (confidence above threshold) or prompts for manual selection (low confidence / camera not used).
-![Sequence Diagram](../images/AI_multiposition_sequence.jpg)
+![Sequence Diagram](../images/AI_multiposition_sequence_2.jpg)
 
 ##  Related ADRs
 
