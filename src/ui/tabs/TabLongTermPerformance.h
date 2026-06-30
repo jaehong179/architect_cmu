@@ -52,6 +52,9 @@ private:
     void applyView();                       // 8분 고정 + 8분 경과 후 슬라이딩, 세로 스케일 갱신
     Lane mRate, mAmp, mBe;
     double mT0=0.0; bool mHaveT0=false; long mTick=0; double mCurX=0.0;
+    // [측정 대기] DataTime x 원점. 세션 시작/포지션 전환 리셋 시 첫 측정의 누적샘플을
+    //  여기에 잡아 빼주면, 누적샘플이 절대값이어도 새 그래프가 x=0 에서 시작한다(앞쪽 공백 방지).
+    double mSample0=0.0;
 
     // ── 시간축 정책 (전환은 mXTimeBase 한 줄) ──────────────────────────────
     //  · DataTime(2번, 현재 기본): x = 누적샘플/샘플레이트. Live pause 중 샘플이 안 늘어

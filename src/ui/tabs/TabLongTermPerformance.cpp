@@ -233,13 +233,13 @@ void TabLongTermPerformance::redrawAnomalies(Lane &L)
 double TabLongTermPerformance::measurementX(const MeasurementSnapshot &s) const
 {
     if (mXTimeBase == XTimeBase::DataTime && s.sampleRateHz > 0)
-        return (double)s.totalSamples / (double)s.sampleRateHz;
+        return (double)(s.totalSamples - mSample0) / (double)s.sampleRateHz;   // 리셋 원점 기준(공백 방지)
     return (s.timeMs - mT0) / 1000.0;   // WallClock (또는 sr 미상 시 폴백)
 }
 
 void TabLongTermPerformance::onMeasurement(const MeasurementSnapshot &s)
 {
-    if (!mHaveT0) { mT0 = s.timeMs; mHaveT0 = true; }
+    if (!mHaveT0) { mT0 = s.timeMs; mSample0 = (double)s.totalSamples; mHaveT0 = true; }
     const double x = measurementX(s);
     mCurX = x;
     mXtoSample.push_back({ x, (double)s.totalSamples });   // [③] x(초) → 절대 샘플(클릭→시점)
@@ -291,7 +291,7 @@ void TabLongTermPerformance::onShown()
 
 void TabLongTermPerformance::onResetSession()
 {
-    mHaveT0 = false; mTick = 0; mCurX = 0.0;
+    mHaveT0 = false; mTick = 0; mCurX = 0.0; mSample0 = 0.0;
     mHaveLastAdd = false; mLastAddX = 0.0;
     mXtoSample.clear();
     for (Lane *L : {&mRate, &mAmp, &mBe}) {
