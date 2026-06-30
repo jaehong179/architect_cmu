@@ -111,8 +111,10 @@ Rectangle {
             cppBackend.togglePauseSession()
     }
 
-    function primaryButtonIcon() {
-        return (sessionIdle || sessionPaused) ? "▶" : "⏸"
+    function primaryButtonIconSource() {
+        return (sessionIdle || sessionPaused)
+            ? "qrc:/images/src/ui/images/ic_play.svg"
+            : "qrc:/images/src/ui/images/ic_pause.svg"
     }
 
     function primaryButtonShortLabel() {
@@ -121,8 +123,8 @@ Rectangle {
 
     function primaryButtonFullLabel() {
         if (sessionIdle || sessionPaused)
-            return "▶ START"
-        return "⏸ PAUSE"
+            return "START"
+        return "PAUSE"
     }
 
     function primaryButtonTooltip() {
@@ -363,12 +365,12 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 1
 
-                Text {
+                Image {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.primaryButtonIcon()
-                    font.pixelSize: 15
-                    color: "#ffffff"
-                    horizontalAlignment: Text.AlignHCenter
+                    source: root.primaryButtonIconSource()
+                    width: 18
+                    height: 18
+                    fillMode: Image.PreserveAspectFit
                 }
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -404,11 +406,12 @@ Rectangle {
             border.color: "#f44336"
             border.width: 1
 
-            Text {
+            Image {
                 anchors.centerIn: parent
-                text: "⏹"
-                font.pixelSize: 15
-                color: "#ffffff"
+                source: "qrc:/images/src/ui/images/ic_stop.svg"
+                width: 20
+                height: 20
+                fillMode: Image.PreserveAspectFit
             }
 
             ToolTip.visible: stopHover.hovered
@@ -1215,7 +1218,6 @@ Rectangle {
                         Button {
                             id: playPauseBtn
                             Layout.fillWidth: true
-                            text: root.primaryButtonFullLabel()
                             enabled: root.playPauseEnabled
                             onClicked: { root.primarySessionAction() }
 
@@ -1229,21 +1231,32 @@ Rectangle {
                                     : (root.sessionIdle ? "#2d382e" : "#3d3020")
                                 radius: 4
                             }
-                            contentItem: Text {
-                                text: parent.text
-                                color: parent.enabled
-                                    ? "#ffffff"
-                                    : (root.sessionIdle ? "#608060" : "#806040")
-                                font.bold: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
+                            contentItem: Row {
+                                spacing: 4
+                                anchors.centerIn: parent
+                                Image {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    source: root.primaryButtonIconSource()
+                                    width: 16
+                                    height: 16
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: playPauseBtn.enabled ? 1.0 : 0.4
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.primaryButtonFullLabel()
+                                    color: playPauseBtn.enabled
+                                        ? "#ffffff"
+                                        : (root.sessionIdle ? "#608060" : "#806040")
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
 
                         Button {
                             id: stopBtn
                             Layout.fillWidth: true
-                            text: "⏹ STOP"
                             enabled: cppBackend.isRunning
                             onClicked: { cppBackend.stopSession() }
 
@@ -1251,12 +1264,24 @@ Rectangle {
                                 color: parent.enabled ? "#f44336" : "#382d2d"
                                 radius: 4
                             }
-                            contentItem: Text {
-                                text: parent.text
-                                color: parent.enabled ? "#ffffff" : "#806060"
-                                font.bold: true
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
+                            contentItem: Row {
+                                spacing: 4
+                                anchors.centerIn: parent
+                                Image {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    source: "qrc:/images/src/ui/images/ic_stop.svg"
+                                    width: 16
+                                    height: 16
+                                    fillMode: Image.PreserveAspectFit
+                                    opacity: stopBtn.enabled ? 1.0 : 0.4
+                                }
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "STOP"
+                                    color: stopBtn.enabled ? "#ffffff" : "#806060"
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
                             }
                         }
                     }

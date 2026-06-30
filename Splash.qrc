@@ -14,6 +14,9 @@
         <file>src/ui/images/pos_cd.svg</file>
         <file>src/ui/images/pos_cd_empty.svg</file>
         <file>src/ui/images/pos_camera_disconnected.svg</file>
+        <file>src/ui/images/ic_play.svg</file>
+        <file>src/ui/images/ic_pause.svg</file>
+        <file>src/ui/images/ic_stop.svg</file>
     </qresource>
     <qresource prefix="/qml">
         <file>src/ui/ControlPanel.qml</file>
