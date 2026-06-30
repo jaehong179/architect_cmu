@@ -7,7 +7,8 @@
 #include <QVector>
 class QCustomPlot;
 class QCPItemRect;
-class QCPItemStraightLine;
+class QCPItemLine;
+class QCPItemTracer;
 class QCPItemText;
 class QLabel;
 
@@ -40,9 +41,12 @@ private:
     static constexpr int    kMaxAnomMarks = 256;
     static constexpr bool   kShowAnomalyShade = false;  // 빨강 음영 표시(현재 off; 코드/검출은 보존)
     QVector<QPair<double,double>> mXtoSample;   // (x초, totalSamples) — 클릭→시점 변환용
-    QCPItemStraightLine *mCurRate = nullptr;    // 클릭 커서(상단)
-    QCPItemStraightLine *mCurAmp  = nullptr;    // 클릭 커서(하단)
-    QCPItemText         *mCurLabel = nullptr;   // 선택 시각/샘플 표시(상단)
+    QCPItemLine         *mCurRate = nullptr;    // 롤리팝 줄기(상단)
+    QCPItemTracer       *mCurRateHead = nullptr;
+    QCPItemText         *mCurRateTip  = nullptr;
+    QCPItemLine         *mCurAmp  = nullptr;    // 롤리팝 줄기(하단)
+    QCPItemTracer       *mCurAmpHead = nullptr;
+    QCPItemText         *mCurAmpTip  = nullptr;
     QCustomPlot *mRate  = nullptr;   // 상단: rate(raw+smoothed)
     QCustomPlot *mAmp   = nullptr;   // 하단: amplitude
     QCPItemRect *mAmpBand = nullptr; // 진폭 정상범위(270~300°) 시각 밴드

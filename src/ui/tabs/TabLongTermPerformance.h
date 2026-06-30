@@ -10,7 +10,8 @@
 #include <QVector>
 class QCustomPlot;
 class QCPItemRect;
-class QCPItemStraightLine;
+class QCPItemLine;
+class QCPItemTracer;
 class QCPItemText;
 
 class TabLongTermPerformance : public TabView
@@ -32,7 +33,9 @@ private:
     double sampleAtX(double xSeconds) const;     // 클릭 x(초) → 가장 가까운 점의 절대 샘플
     void   showCursor(double xSeconds);          // 세 레인에 클릭 커서선
     QVector<QPair<double,double>> mXtoSample;    // (x초, totalSamples)
-    QCPItemStraightLine *mCursors[3]   = {nullptr, nullptr, nullptr};
+    QCPItemLine         *mCursors[3]    = {nullptr, nullptr, nullptr};   // 롤리팝 줄기
+    QCPItemTracer       *mCursorHead[3] = {nullptr, nullptr, nullptr};   // 롤리팝 머리
+    QCPItemText         *mCursorTip[3]  = {nullptr, nullptr, nullptr};   // 상단 툴팁(선택 시각)
     QCPItemRect         *mWaveShade[3] = {nullptr, nullptr, nullptr};   // 8분 이전(선택 불가) 구간 회색 배경
     struct Lane { QCustomPlot *plot=nullptr; QCPItemRect *band=nullptr; QCPItemText *stats=nullptr;
                   double sum=0,sumSq=0,min=0,max=0,xFirst=0,xLast=0; long n=0; bool have=false;

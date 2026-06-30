@@ -1,5 +1,6 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
+#include "TrendSeek.h"             // 롤리팝 커서(줄기+머리+툴팁) 공용 스타일
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
@@ -85,9 +86,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
 
     // [③] 상단 RatePlot 클릭 소스 — 정지 시 상단은 '라이브 형태 그대로 동결'(재렌더 안 함)이라 x 는
     //  라이브 beat-index 좌표. 클릭 위치 비율(좌=오래/우=최근)을 동결 시점 최신에서 역산해 절대 샘플로.
-    mRateCursor = new QCPItemStraightLine(mRatePlot);
-    mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
-    mRateCursor->setVisible(false);
+    TrendSeek::makeLollipop(mRatePlot, mRateCursor, mRateCursorHead, mRateCursorTip);   // 청록 롤리팝+툴팁
     connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
         if (!mPaused || !mHistory || !mHistory->hasData()) return;   // 정지 중에만 의미
         bool found = false;
@@ -102,8 +101,7 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
         const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
         double seekSample = latest - (1.0 - f) * winSamples;
         if (seekSample < 0.0) seekSample = 0.0;
-        mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
-        mRateCursor->setVisible(true);
+        showRateCursorAtX(x, seekSample);
         mRatePlot->replot();
         emit seekRequested(seekSample);
     });
@@ -388,7 +386,7 @@ void TabRateScope::setPaused(bool paused)
         // Resume: restore live axis interaction only — keep waveform/markers/counters so
         // the amplitude trace continues from the pause point (seek cleanup is onResumeLive).
         mHistActive = false;
-        if (mRateCursor) mRateCursor->setVisible(false);
+        hideRateCursor();
         mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
@@ -402,7 +400,7 @@ void TabRateScope::onResumeLive(bool seeked)
         return;
 
     mHistActive = false;
-    if (mRateCursor) mRateCursor->setVisible(false);
+    hideRateCursor();
     mDecimCount = 0;
     mScopePlot->graph(0)->data()->clear();
     mScopePlot->graph(1)->data()->clear();
@@ -480,6 +478,19 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
 }
 
 // [③] 트렌드에서 선택한 절대 샘플 시점으로 스코프를 이동(정지 중에만). 현재 줌 폭은 유지.
+void TabRateScope::hideRateCursor()
+{
+    TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);
+}
+
+// 롤리팝 커서(줄기+머리+툴팁)를 상단 RatePlot x 위치에 표시. 툴팁=선택 시각(초).
+void TabRateScope::showRateCursorAtX(double x, double absSample)
+{
+    const double tSec = (mSampleRateHz > 0) ? (absSample - mHistOffset) / mSampleRateHz : 0.0;
+    TrendSeek::showLollipop(mRateCursor, mRateCursorHead, mRateCursorTip, x,
+                            QString("%1 s").arg(tSec, 0, 'f', 2));
+}
+
 void TabRateScope::onSeek(double absSample)
 {
     if (!mPaused || !mHistory || !mHistory->hasData()) return;
@@ -503,12 +514,8 @@ void TabRateScope::onSeek(double absSample)
             const double samplesPerTic = 2.0 * (3600.0 / (double)bph) * (double)mSampleRateHz;
             const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
             const double x = kr.upper - (latest - absSample) / samplesPerTic;
-            if (x >= kr.lower && x <= kr.upper) {
-                mRateCursor->point1->setCoords(x, 0); mRateCursor->point2->setCoords(x, 1);
-                mRateCursor->setVisible(true);
-            } else {
-                mRateCursor->setVisible(false);   // 동결 창 밖(더 과거) → 상단엔 표시 불가(하단이 담당)
-            }
+            // 동결 창 밖이면 숨기지 않고 가장자리로 클램프해 '그 방향에 선택됨'을 항상 보여준다.
+            showRateCursorAtX(qBound(kr.lower, x, kr.upper), absSample);
             mRatePlot->replot(QCustomPlot::rpQueuedReplot);
         }
     }
@@ -539,7 +546,7 @@ void TabRateScope::onResetSession()
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
-    if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
+    hideRateCursor();   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
     mRatePlot->replot();
 }

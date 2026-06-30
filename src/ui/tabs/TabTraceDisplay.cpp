@@ -2,6 +2,7 @@
 #include "LegendBox.h"
 #include "PlotHelpers.h"
 #include "qcustomplot.h"
+#include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
 #include <QMouseEvent>   // [③] 트렌드 클릭 → 시점 변환
 
 TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
@@ -47,17 +48,9 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     lay->addWidget(mRate, 1);
     lay->addWidget(mAmp, 1);
 
-    // [③] 클릭 지점 세로 커서선(자홍, 점선) — 선택한 시각을 두 그래프에 표시(확인용).
-    mCurRate = new QCPItemStraightLine(mRate);
-    mCurRate->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurRate->setVisible(false);
-    mCurAmp = new QCPItemStraightLine(mAmp);
-    mCurAmp->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine)); mCurAmp->setVisible(false);
-    mCurLabel = new QCPItemText(mRate);                 // 선택 시각/샘플 표시(상단 근처)
-    mCurLabel->setColor(QColor(150, 0, 150));
-    mCurLabel->setPositionAlignment(Qt::AlignTop | Qt::AlignHCenter);
-    mCurLabel->position->setTypeX(QCPItemPosition::ptPlotCoords);
-    mCurLabel->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
-    mCurLabel->setVisible(false);
+    // [③] 클릭 지점 롤리팝 커서(청록, 줄기+머리+툴팁) — 선택 시각을 두 그래프에 표시.
+    TrendSeek::makeLollipop(mRate, mCurRate, mCurRateHead, mCurRateTip);
+    TrendSeek::makeLollipop(mAmp,  mCurAmp,  mCurAmpHead,  mCurAmpTip);
 
     // [③] 트렌드 클릭 → 커서 표시 + 그 x(초)의 측정 시점(절대 샘플) 방출. 정지 중 스코프 탭이 점프.
     auto onClick = [this](QCustomPlot *pl, QMouseEvent *e) {
@@ -72,19 +65,14 @@ TabTraceDisplay::TabTraceDisplay(QWidget *parent) : TabView(parent)
     onResetSession();
 }
 
-// [③] 선택한 시각(x초)에 두 그래프 세로 커서선을 표시.
+// [③] 선택한 시각(x초)에 두 그래프 롤리팝 커서를 표시(툴팁=선택 시각).
 void TabTraceDisplay::showCursor(double xSeconds)
 {
-    if (mCurLabel) {
-        mCurLabel->position->setCoords(xSeconds, 0.04);   // 상단 4% 위치
-        mCurLabel->setText(QString("t=%1 s   #%2")
-                           .arg(xSeconds, 0, 'f', 1).arg((qint64)sampleAtX(xSeconds)));
-        mCurLabel->setVisible(true);
-    }
-    if (mCurRate) { mCurRate->point1->setCoords(xSeconds, 0); mCurRate->point2->setCoords(xSeconds, 1);
-                    mCurRate->setVisible(true); mRate->replot(QCustomPlot::rpQueuedReplot); }
-    if (mCurAmp)  { mCurAmp->point1->setCoords(xSeconds, 0);  mCurAmp->point2->setCoords(xSeconds, 1);
-                    mCurAmp->setVisible(true);  mAmp->replot(QCustomPlot::rpQueuedReplot); }
+    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);
+    TrendSeek::showLollipop(mCurRate, mCurRateHead, mCurRateTip, xSeconds, label);
+    TrendSeek::showLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip,  xSeconds, label);
+    if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
+    if (mAmp)  mAmp->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 측정점의 x(초)로 커서를 옮긴다(트렌드 동기화).
@@ -96,18 +84,15 @@ void TabTraceDisplay::onSeek(double absSample)
         const double err = qAbs(p.second - absSample);
         if (err < bestErr) { bestErr = err; bestX = p.first; }
     }
-    showCursor(bestX);
-    // 크로스탭 seek 시 로컬 t/# 라벨은 숨김 — 시점 표시는 전역 코너 라벨로 일원화(스냅값 충돌 방지).
-    if (mCurLabel) { mCurLabel->setVisible(false); if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot); }
+    showCursor(bestX);   // 롤리팝 툴팁이 선택 시각을 표시(전역 코너 라벨은 제거됨)
 }
 
 // 클릭한 x(초)에 가장 가까운 측정점의 절대 샘플 인덱스(totalSamples). (점 수 적어 선형 탐색)
 // [③] 선택 해제 — 클릭 커서/라벨을 숨긴다(데이터·축은 유지).
 void TabTraceDisplay::onSeekClear()
 {
-    if (mCurRate)  mCurRate->setVisible(false);
-    if (mCurAmp)   mCurAmp->setVisible(false);
-    if (mCurLabel) mCurLabel->setVisible(false);
+    TrendSeek::hideLollipop(mCurRate, mCurRateHead, mCurRateTip);
+    TrendSeek::hideLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip);
     if (mRate) mRate->replot(QCustomPlot::rpQueuedReplot);
     if (mAmp)  mAmp->replot(QCustomPlot::rpQueuedReplot);
 }
@@ -259,10 +244,9 @@ void TabTraceDisplay::onResetSession()
     for (QCPItemRect *m : mAmpAnomMarks)  if (m) m->setVisible(false);
     mAlert->setText(QStringLiteral("Waiting for signal…")); mAlert->setStyleSheet(QStringLiteral("color:#9e9e9e; font-weight:bold;"));
     if (mDerived) mDerived->setText(QStringLiteral("DiffTicTac=--   DiffPeriod(4s)=--   AvgPeriod=--"));
-    // [③] 이전 세션의 seek 커서/라벨 제거(새 세션 = 시점 표시 리셋).
-    if (mCurRate)  mCurRate->setVisible(false);
-    if (mCurAmp)   mCurAmp->setVisible(false);
-    if (mCurLabel) mCurLabel->setVisible(false);
+    // [③] 이전 세션의 seek 커서 제거(새 세션 = 시점 표시 리셋).
+    TrendSeek::hideLollipop(mCurRate, mCurRateHead, mCurRateTip);
+    TrendSeek::hideLollipop(mCurAmp,  mCurAmpHead,  mCurAmpTip);
     if (mRate) { PlotHelpers::clearAllGraphs(mRate); mRate->replot(); }
     if (mAmp)  { PlotHelpers::clearAllGraphs(mAmp);  mAmp->replot(); }
 }

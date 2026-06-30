@@ -1,5 +1,6 @@
 #include "TabLongTermPerformance.h"
 #include "qcustomplot.h"
+#include "TrendSeek.h"   // 청록 롤리팝 커서 공용 스타일
 
 #include <QPushButton>
 #include <QLabel>
@@ -85,9 +86,7 @@ TabLongTermPerformance::TabLongTermPerformance(QWidget *parent) : TabView(parent
     // [③] 클릭 소스: 세 레인 어디를 클릭하든 그 시각(절대 샘플)을 방출 + 커서 표시.
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
-        mCursors[i] = new QCPItemStraightLine(plots[i]);
-        mCursors[i]->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
-        mCursors[i]->setVisible(false);
+        TrendSeek::makeLollipop(plots[i], mCursors[i], mCursorHead[i], mCursorTip[i]);   // 청록 롤리팝+툴팁
         // 파형 이력(8분) 이전 = 선택해도 파형 복원 불가 → 그 구간을 회색 배경으로 음영.
         mWaveShade[i] = new QCPItemRect(plots[i]);
         mWaveShade[i]->setPen(Qt::NoPen);
@@ -129,7 +128,7 @@ void TabLongTermPerformance::onSeekClear()
 {
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
-        if (mCursors[i]) mCursors[i]->setVisible(false);
+        TrendSeek::hideLollipop(mCursors[i], mCursorHead[i], mCursorTip[i]);
         if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
     }
 }
@@ -147,11 +146,10 @@ double TabLongTermPerformance::sampleAtX(double xSeconds) const
 
 void TabLongTermPerformance::showCursor(double xSeconds)
 {
+    const QString label = QString("%1 s").arg(xSeconds, 0, 'f', 1);   // x=초
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
-        if (!mCursors[i]) continue;
-        mCursors[i]->point1->setCoords(xSeconds, 0); mCursors[i]->point2->setCoords(xSeconds, 1);
-        mCursors[i]->setVisible(true);
+        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, label);
         if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
     }
 }

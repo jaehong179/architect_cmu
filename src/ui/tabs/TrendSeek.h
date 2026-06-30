@@ -37,7 +37,7 @@ public:
     void clear()
     {
         mMap.clear();
-        for (PlotCur &pc : mPlots) if (pc.cur) pc.cur->setVisible(false);
+        for (PlotCur &pc : mPlots) setCursorVisible(pc, false);
     }
 
     // [③] 다른 탭에서 온 seek(절대 샘플) → 가장 가까운 보관 지점의 x 로 커서를 옮긴다.
@@ -53,15 +53,14 @@ public:
         showCursor(bestX);
     }
 
-    // 플롯에 클릭 핸들러 + 세로 커서선 부착. 클릭 시 onSeek(absSample) 호출.
+    // 플롯에 클릭 핸들러 + 롤리팝 커서(줄기+머리+툴팁) 부착. 클릭 시 onSeek(absSample) 호출.
     //  여러 번 호출해 같은 매핑을 여러 플롯에 공유 가능(각 플롯에 커서 1개).
     void attach(QCustomPlot *plot, std::function<void(double)> onSeek)
     {
         if (!plot) return;
-        auto *cur = new QCPItemStraightLine(plot);
-        cur->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
-        cur->setVisible(false);
-        mPlots.push_back({ plot, cur });
+        PlotCur pc; pc.plot = plot;
+        makeLollipop(plot, pc.stem, pc.head, pc.tip);
+        mPlots.push_back(pc);
         QObject::connect(plot, &QCustomPlot::mousePress, plot,
             [this, plot, onSeek](QMouseEvent *e) {
                 if (mMap.isEmpty()) return;
@@ -74,13 +73,60 @@ public:
     // [③] 선택 해제 — 커서만 숨긴다(매핑 데이터는 유지, clear() 와 다름).
     void hideCursor()
     {
-        for (PlotCur &pc : mPlots) if (pc.cur) {
-            pc.cur->setVisible(false);
+        for (PlotCur &pc : mPlots) {
+            setCursorVisible(pc, false);
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
         }
     }
 
+    // 밝은 청록 롤리팝(줄기 + 원형 머리 + 상단 툴팁) 생성 — 다른 탭에서도 동일 스타일 재사용 가능.
+    //  줄기는 유한 선(바닥→머리)이라 머리 위로는 뻗지 않는다(머리 = 윗 끝).
+    static void makeLollipop(QCustomPlot *plot, QCPItemLine *&stem,
+                             QCPItemTracer *&head, QCPItemText *&tip)
+    {
+        const QColor cyan(0, 230, 240);
+        stem = new QCPItemLine(plot);
+        stem->setPen(QPen(cyan, 1.6));
+        stem->start->setTypeX(QCPItemPosition::ptPlotCoords);
+        stem->start->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        stem->end->setTypeX(QCPItemPosition::ptPlotCoords);
+        stem->end->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        stem->setVisible(false);
+        head = new QCPItemTracer(plot);
+        head->setStyle(QCPItemTracer::tsCircle); head->setSize(9);
+        head->setPen(QPen(cyan, 1.6)); head->setBrush(cyan);
+        head->position->setTypeX(QCPItemPosition::ptPlotCoords);
+        head->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        head->setVisible(false);
+        tip = new QCPItemText(plot);
+        tip->position->setTypeX(QCPItemPosition::ptPlotCoords);
+        tip->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+        tip->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);   // 머리 위로 박스
+        tip->setColor(Qt::white); tip->setBrush(QColor(0, 0, 0, 190));
+        tip->setPen(QPen(cyan)); tip->setPadding(QMargins(4, 2, 4, 2));
+        tip->setFont(QFont(QStringLiteral("sans"), 8, QFont::Bold));
+        tip->setVisible(false);
+    }
+
+    // 롤리팝 표시/숨김 — TrendSeek 미사용(자체 커서 보유) 탭도 동일 스타일·동작 재사용.
+    static void showLollipop(QCPItemLine *stem, QCPItemTracer *head, QCPItemText *tip,
+                             double x, const QString &label)
+    {
+        // 줄기: 바닥(ratio 1) → 머리(kHeadRatio). 머리 위로는 선이 없다.
+        if (stem) { stem->start->setCoords(x, 1.0); stem->end->setCoords(x, kHeadRatio); stem->setVisible(true); }
+        if (head) { head->position->setCoords(x, kHeadRatio); head->setVisible(true); }
+        if (tip)  { tip->position->setCoords(x, kHeadRatio); tip->setText(label); tip->setVisible(true); }
+    }
+    static void hideLollipop(QCPItemLine *stem, QCPItemTracer *head, QCPItemText *tip)
+    {
+        if (stem) stem->setVisible(false);
+        if (head) head->setVisible(false);
+        if (tip)  tip->setVisible(false);
+    }
+
 private:
+    static constexpr double kHeadRatio = 0.10;   // 머리 세로 위치(0=상단)
+
     double sampleAtX(double x) const
     {
         if (mMap.isEmpty()) return 0.0;
@@ -94,14 +140,26 @@ private:
     void showCursor(double x)
     {
         for (PlotCur &pc : mPlots) {
-            if (!pc.cur) continue;
-            pc.cur->point1->setCoords(x, 0); pc.cur->point2->setCoords(x, 1);
-            pc.cur->setVisible(true);
+            // 선택 지점이 현재 보이는 x범위 밖이면 가장자리로 클램프 → 롤리팝이 항상 화면 안에 보인다.
+            double cx = x;
+            if (pc.plot) { const QCPRange r = pc.plot->xAxis->range(); cx = qBound(r.lower, x, r.upper); }
+            showLollipop(pc.stem, pc.head, pc.tip, cx, QString::number(cx, 'f', 1));
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
         }
     }
 
-    struct PlotCur { QCustomPlot *plot = nullptr; QCPItemStraightLine *cur = nullptr; };
+    struct PlotCur {
+        QCustomPlot *plot = nullptr;
+        QCPItemLine *stem = nullptr;
+        QCPItemTracer *head = nullptr;
+        QCPItemText *tip = nullptr;
+    };
+    static void setCursorVisible(PlotCur &pc, bool v)
+    {
+        if (v) return;                       // 표시는 showCursor 가 좌표와 함께 처리
+        hideLollipop(pc.stem, pc.head, pc.tip);
+    }
+
     QVector<QPair<double, double>> mMap;   // (x, 절대샘플)
     QVector<PlotCur>               mPlots;
     double                         mPurge = 0.0;

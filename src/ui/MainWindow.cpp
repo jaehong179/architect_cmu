@@ -510,12 +510,11 @@ void MainWindow::RegisterDisplayTabs(void)
 
     QWidget *rightCorner = new QWidget(this);
     auto *cl = new QHBoxLayout(rightCorner); cl->setContentsMargins(0, 0, 6, 0); cl->setSpacing(8);
-    mSeekLabel = new QLabel(rightCorner);
-    mSeekLabel->setStyleSheet(QStringLiteral("color:#960096; font-weight:bold;"));
+    // 전역 seek 라벨 제거 — 선택 시각은 각 그래프의 롤리팝 툴팁이 표시(중복 방지). mSeekLabel 은
+    //  nullptr 로 남으며 updateSeekLabel()/clear 는 가드되어 안전한 no-op.
     auto *rightBtn = new QToolButton(rightCorner);
     rightBtn->setText(QStringLiteral("▶"));
     rightBtn->setToolTip(QStringLiteral("Move tabs right"));
-    cl->addWidget(mSeekLabel);
     cl->addWidget(rightBtn);
     ui->GraphicsTabWidget->setCornerWidget(rightCorner, Qt::TopRightCorner);
 
