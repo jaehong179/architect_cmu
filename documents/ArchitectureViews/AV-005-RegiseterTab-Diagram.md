@@ -29,8 +29,9 @@ The sequence diagram below shows tab registration: a new tab is added simply by 
 
 ![Sequence Diagram](../images/RegisterTab_SequenceDiagram.png)
 
+The runtime broadcast side — `broadcastWave()` calling `onWave()` on every registered tab.
 
-The runtime broadcast side — `broadcastWave()` calling `onWave()` on every registered tab — is the same `onWave` interaction documented in [AV-003](./AV-003-MicToGraph-SeqenceDiagram.md); see that view for the runtime/threading context.
+![Sequence Diagram](../images/UpdateRegistredTabs.png)
 
 
 ## Related ADRs
