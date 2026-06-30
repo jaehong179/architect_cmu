@@ -78,16 +78,22 @@ static QString translateFieldName(const QString &field)
     return field;
 }
 
-static QString parseErrorMessage(const QByteArray &body, const QString &fallback)
+static QString parseErrorMessage(const QByteArray &body, int httpStatus, const QString &fallback)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(body);
     if (!doc.isObject())
         return fallback;
 
     const QJsonObject obj = doc.object();
+    const bool isSuccess = (httpStatus >= 200 && httpStatus < 300);
+    const bool isValidationError = (httpStatus == 400 || httpStatus == 422);
+    const bool shouldAppendTryAgain = !isSuccess && !isValidationError;
+
     if (obj.contains(QStringLiteral("error"))) {
         QString message = obj.value(QStringLiteral("error")).toString();
-        if (message == QStringLiteral("Validation failed")) {
+        if (message == QStringLiteral("Internal server error")) {
+            message = QStringLiteral("An internal server error occurred.");
+        } else if (message == QStringLiteral("Validation failed")) {
             message = QStringLiteral("Input validation failed.");
         }
         
@@ -100,7 +106,7 @@ static QString parseErrorMessage(const QByteArray &body, const QString &fallback
                 message += QStringLiteral(" (Missing: %1)").arg(fields.join(QStringLiteral(", ")));
         }
 
-        if (!message.contains(QStringLiteral("Please try again later"))) {
+        if (shouldAppendTryAgain && !message.contains(QStringLiteral("Please try again later"))) {
             if (message.endsWith(QStringLiteral("."))) {
                 message += QStringLiteral(" Please try again later.");
             } else {
@@ -113,9 +119,9 @@ static QString parseErrorMessage(const QByteArray &body, const QString &fallback
     if (obj.contains(QStringLiteral("message"))) {
         QString msg = obj.value(QStringLiteral("message")).toString();
         if (msg == QStringLiteral("Internal server error")) {
-            return QStringLiteral("An internal server error occurred. Please try again later.");
+            msg = QStringLiteral("An internal server error occurred.");
         }
-        if (!msg.contains(QStringLiteral("Please try again later"))) {
+        if (shouldAppendTryAgain && !msg.contains(QStringLiteral("Please try again later"))) {
             if (msg.endsWith(QStringLiteral("."))) {
                 msg += QStringLiteral(" Please try again later.");
             } else {
@@ -158,13 +164,13 @@ MeasurementUploadClient::UploadResult MeasurementUploadClient::uploadMeasurement
         result.success = false;
         result.message = body.isEmpty()
                              ? toUserFriendlyNetworkError(reply->error(), reply->errorString())
-                             : parseErrorMessage(body, toUserFriendlyNetworkError(reply->error(), reply->errorString()));
+                             : parseErrorMessage(body, result.httpStatus, toUserFriendlyNetworkError(reply->error(), reply->errorString()));
     } else if (result.httpStatus >= 200 && result.httpStatus < 300) {
         result.success = true;
-        result.message = parseErrorMessage(body, QStringLiteral("Upload complete."));
+        result.message = parseErrorMessage(body, result.httpStatus, QStringLiteral("Upload complete."));
     } else {
         result.success = false;
-        result.message = parseErrorMessage(body, toUserFriendlyHttpStatusError(result.httpStatus));
+        result.message = parseErrorMessage(body, result.httpStatus, toUserFriendlyHttpStatusError(result.httpStatus));
     }
 
     reply->deleteLater();
