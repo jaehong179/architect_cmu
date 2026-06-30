@@ -981,73 +981,246 @@ Rectangle {
                                 }
                             }
 
-                            // Sim Error Rate
-                            RowLayout {
+                            // Sim Error Rate — Slider + 현재값 레이블 (터치 최적화)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Error Rate (s/d)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    Layout.preferredWidth: 110
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Error Rate (s/d)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: errorRateLabel
+                                        text: cppBackend.simErrorRate
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 40
+                                    }
+                                }
+                                Slider {
+                                    id: errorRateSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
                                     from: -999
                                     to: 999
+                                    stepSize: 1
                                     value: cppBackend.simErrorRate
                                     enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simErrorRate = value }
+                                    onMoved: { cppBackend.simErrorRate = Math.round(value) }
+
+                                    background: Rectangle {
+                                        x: errorRateSlider.leftPadding
+                                        y: errorRateSlider.topPadding + errorRateSlider.availableHeight / 2 - height / 2
+                                        width: errorRateSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: errorRateSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: errorRateSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: errorRateSlider.leftPadding + errorRateSlider.visualPosition
+                                           * (errorRateSlider.availableWidth - width)
+                                        y: errorRateSlider.topPadding + errorRateSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: errorRateSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: errorRateSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
+                                    }
                                 }
                             }
 
-                            // Sim Amplitude
-                            RowLayout {
+                            // Sim Amplitude — Slider + 현재값 레이블 (터치 최적화)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Amplitude (°)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    Layout.preferredWidth: 110
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Amplitude (°)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: amplitudeLabel
+                                        text: cppBackend.simAmplitude + "°"
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 44
+                                    }
+                                }
+                                Slider {
+                                    id: amplitudeSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
                                     from: 100
                                     to: 360
+                                    stepSize: 1
                                     value: cppBackend.simAmplitude
                                     enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simAmplitude = value }
+                                    onMoved: { cppBackend.simAmplitude = Math.round(value) }
+
+                                    background: Rectangle {
+                                        x: amplitudeSlider.leftPadding
+                                        y: amplitudeSlider.topPadding + amplitudeSlider.availableHeight / 2 - height / 2
+                                        width: amplitudeSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: amplitudeSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: amplitudeSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
+                                    }
+                                    handle: Rectangle {
+                                        x: amplitudeSlider.leftPadding + amplitudeSlider.visualPosition
+                                           * (amplitudeSlider.availableWidth - width)
+                                        y: amplitudeSlider.topPadding + amplitudeSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: amplitudeSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: amplitudeSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
+                                    }
                                 }
                             }
 
-                            // Sim Beat Error (Decimals SpinBox logic inline)
-                            RowLayout {
+                            // Sim Beat Error — Slider + 현재값 레이블 (터치 최적화, 0.1ms 단위)
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Beat Error (ms)"; color: root.colorTextSub; font.pixelSize: 11; Layout.fillWidth: true }
-                                SpinBox {
-                                    id: simBeSpin
-                                    Layout.preferredWidth: 110
-                                    from: -100
-                                    to: 100
+                                spacing: 2
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Beat Error (ms)"
+                                        color: root.colorTextSub
+                                        font.pixelSize: 11
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        id: beatErrorLabel
+                                        text: cppBackend.simBeatError.toFixed(1)
+                                        color: root.colorPrimaryLight
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        horizontalAlignment: Text.AlignRight
+                                        Layout.preferredWidth: 44
+                                    }
+                                }
+                                Slider {
+                                    id: beatErrorSlider
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 36
+                                    from: -100    // × 0.1 = -10.0 ms
+                                    to:    100    // × 0.1 = +10.0 ms
                                     stepSize: 1
                                     value: cppBackend.simBeatError * 10
                                     enabled: !cppBackend.isRunning
-                                    onValueModified: { cppBackend.simBeatError = value / 10.0 }
+                                    onMoved: { cppBackend.simBeatError = value / 10.0 }
 
-                                    validator: DoubleValidator {
-                                        bottom: -10.0
-                                        top: 10.0
+                                    background: Rectangle {
+                                        x: beatErrorSlider.leftPadding
+                                        y: beatErrorSlider.topPadding + beatErrorSlider.availableHeight / 2 - height / 2
+                                        width: beatErrorSlider.availableWidth
+                                        height: 4
+                                        radius: 2
+                                        color: root.colorBorder
+
+                                        Rectangle {
+                                            width: beatErrorSlider.visualPosition * parent.width
+                                            height: parent.height
+                                            radius: 2
+                                            color: beatErrorSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        }
                                     }
-                                    textFromValue: function(value, locale) {
-                                        return (value / 10).toFixed(1)
-                                    }
-                                    valueFromText: function(text, locale) {
-                                        return parseFloat(text) * 10
+                                    handle: Rectangle {
+                                        x: beatErrorSlider.leftPadding + beatErrorSlider.visualPosition
+                                           * (beatErrorSlider.availableWidth - width)
+                                        y: beatErrorSlider.topPadding + beatErrorSlider.availableHeight / 2 - height / 2
+                                        width: 22
+                                        height: 22
+                                        radius: 11
+                                        color: beatErrorSlider.enabled ? root.colorPrimary : root.colorBorder
+                                        border.color: beatErrorSlider.pressed ? root.colorPrimaryLight : "transparent"
+                                        border.width: 2
                                     }
                                 }
                             }
 
-                            // Realistic Noise
-                            CheckBox {
-                                text: "Realistic Noise"
-                                checked: cppBackend.simRealistic
-                                enabled: !cppBackend.isRunning
-                                onCheckedChanged: { cppBackend.simRealistic = checked }
-                                contentItem: Text {
-                                    text: parent.text
+                            // Realistic Noise — Switch 토글 (터치 최적화)
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.topMargin: 2
+                                Text {
+                                    text: "Realistic Noise"
                                     color: root.colorTextMain
-                                    leftPadding: 24
-                                    verticalAlignment: Text.AlignVCenter
                                     font.pixelSize: 11
+                                    Layout.fillWidth: true
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                Switch {
+                                    id: realisticNoiseSwitch
+                                    checked: cppBackend.simRealistic
+                                    enabled: !cppBackend.isRunning
+                                    onToggled: { cppBackend.simRealistic = checked }
+
+                                    // padding 을 모두 제거해야 indicator 가 카드 밖으로 나가지 않음
+                                    leftPadding: 0
+                                    rightPadding: 0
+                                    topPadding: 0
+                                    bottomPadding: 0
+                                    Layout.preferredWidth: 44
+                                    Layout.preferredHeight: 28
+
+                                    indicator: Rectangle {
+                                        implicitWidth: 44
+                                        implicitHeight: 24
+                                        x: 0          // leftPadding 제거했으므로 0 기준
+                                        y: parent.height / 2 - height / 2
+                                        radius: 12
+                                        color: realisticNoiseSwitch.checked
+                                               ? root.colorPrimary
+                                               : root.colorBorder
+                                        border.color: realisticNoiseSwitch.checked
+                                                      ? root.colorPrimary
+                                                      : root.colorBorder
+                                        opacity: realisticNoiseSwitch.enabled ? 1.0 : 0.4
+
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+
+                                        Rectangle {
+                                            x: realisticNoiseSwitch.checked ? parent.width - width - 3 : 3
+                                            y: (parent.height - height) / 2
+                                            width: 18
+                                            height: 18
+                                            radius: 9
+                                            color: "#ffffff"
+
+                                            Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+                                        }
+                                    }
+                                    // contentItem 은 RowLayout 의 Text 로 대체하므로 비워둠
+                                    contentItem: Item {}
                                 }
                             }
                         }
