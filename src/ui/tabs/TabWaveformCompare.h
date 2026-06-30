@@ -29,14 +29,13 @@ private:
     WaveLodHistory *mHistory = nullptr;
     void render();
     void accumulate(const WaveBlock &w);                 // C 정렬 tic/toc 평균 + A onset 누적
-    QCustomPlot *makeScope();                            // 검정 배경 흰 미러 파형 패널 1개
-    void drawAvgPanel(QCustomPlot *plot, const QVector<double> &avg, const QString &title);
+    QCustomPlot *makeScope();                            // 검정 배경 미러 파형 패널 1개
+    void drawTicTocPanel();                             // Tic(위)·Toc(아래)를 한 패널에 노란 파형으로
     void drawPeriod();                                  // 하단: 한 박자 전체 파형
     void drawPaperstrip();                              // 좌측: tic/tac 점
 
     QCustomPlot *mPaper  = nullptr;   // 좌측 paperstrip
-    QCustomPlot *mTic    = nullptr;   // tic 평균파형
-    QCustomPlot *mToc    = nullptr;   // toc 평균파형
+    QCustomPlot *mTicToc = nullptr;   // tic(위)+toc(아래) 합본 평균파형
     QCustomPlot *mPeriod = nullptr;   // 하단 period 전체파형
     WaveBuffer   mBuf;        // 엔벨로프 + 이벤트(A/C 정렬·동기)
     WaveBuffer   mRawBuf;     // 바이폴라 원신호(표시)

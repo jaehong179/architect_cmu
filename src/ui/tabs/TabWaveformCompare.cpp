@@ -70,19 +70,37 @@ TabWaveformCompare::TabWaveformCompare(QWidget *parent) : TabView(parent)
     mPaper->axisRect()->insetLayout()->setInsetAlignment(0, Qt::AlignTop | Qt::AlignRight);  // 우상단 모서리(데이터 안 가림)
     mPaper->setMinimumWidth(210); mPaper->setMaximumWidth(290);
 
-    // ── 우측: tic / toc 평균파형 + period ──
-    mTic = makeScope(); mToc = makeScope(); mPeriod = makeScope();
+    // ── 우측: tic·toc 합본 평균파형 + period ──
+    mTicToc = makeScope(); mPeriod = makeScope();
+    // 합본 패널: 같은 x(ms)·도(°) 축 공유. Tic 은 '위 절반(중심 +0.5)', Toc 은 '아래 절반(중심 −0.5)'에
+    //  각각 미러 파형으로 분리해 그린다. 그래프 4개 = 밴드 2개(각 up/dn 사이를 채움).
+    mTicToc->addGraph();   // graph3 추가(기본 3개 → 4개)
+    const QColor kYellow(255, 230, 0);
+    const QColor kYellowFill(255, 230, 0, 210);
+    // Tic 밴드: graph0=up(outline), graph1=dn(up↔dn 채움). Toc 밴드: graph2=up, graph3=dn.
+    mTicToc->graph(0)->setPen(QPen(kYellow, 1)); mTicToc->graph(0)->setBrush(Qt::NoBrush);
+    mTicToc->graph(0)->setChannelFillGraph(nullptr);
+    mTicToc->graph(1)->setPen(QPen(kYellow, 1)); mTicToc->graph(1)->setBrush(kYellowFill);
+    mTicToc->graph(1)->setChannelFillGraph(mTicToc->graph(0));
+    mTicToc->graph(2)->setPen(QPen(kYellow, 1)); mTicToc->graph(2)->setBrush(Qt::NoBrush);
+    mTicToc->graph(2)->setChannelFillGraph(nullptr);
+    mTicToc->graph(3)->setPen(QPen(kYellow, 1)); mTicToc->graph(3)->setBrush(kYellowFill);
+    mTicToc->graph(3)->setChannelFillGraph(mTicToc->graph(2));
+    mTicToc->yAxis->setRange(-1.05, 1.05);
     mPeriod->xAxis->setLabel(QStringLiteral("ms (0=Tick T1)"));
     mPeriod->xAxis->setTicker(QSharedPointer<QCPAxisTicker>(new QCPAxisTicker));
+    for (int g : {1, 2}) {                                       // Period 파형도 노란색(미러: graph1=+, graph2=−)
+        mPeriod->graph(g)->setPen(QPen(kYellow, 1));
+        mPeriod->graph(g)->setBrush(kYellowFill);
+    }
 
     // ── paperstrip 데이터 누적은 유지하되 패널은 숨김 (beat error 표시 제거로 UI에서는 불표시)
     mPaper->hide();
 
-    // 3개 패널 수직 열: Tic 평균 / Toc 평균 / Period
+    // 2개 패널 수직 열: Tic(위)+Toc(아래) 합본 / Period — 높이 비중 6:4
     auto *body = new QVBoxLayout();
-    body->addWidget(mTic, 1);
-    body->addWidget(mToc, 1);
-    body->addWidget(mPeriod, 1);
+    body->addWidget(mTicToc, 6);
+    body->addWidget(mPeriod, 4);
     lay->addLayout(body, 1);
 }
 
@@ -181,30 +199,47 @@ void TabWaveformCompare::accumulate(const WaveBlock &)
     }
 }
 
-void TabWaveformCompare::drawAvgPanel(QCustomPlot *plot, const QVector<double> &avg, const QString &title)
+// Tic(위 밴드, 중심 +0.5) 과 Toc(아래 밴드, 중심 −0.5) 를 하나의 패널에 분리해 그린다 — x(ms)·도(°) 축 공유.
+void TabWaveformCompare::drawTicTocPanel()
 {
+    QCustomPlot *plot = mTicToc;
     const int sr = mRawBuf.sampleRate() > 0 ? mRawBuf.sampleRate() : 48000;
     const int pre = (int)(kPreMs / 1000.0 * sr);
-    const int n = avg.size();
-    if (n < 2) { for (int g = 0; g < 3; ++g) plot->graph(g)->data()->clear(); plot->clearItems(); plot->replot(); return; }
-    QVector<double> magnitude(n); for (int i = 0; i < n; ++i) magnitude[i] = std::fabs(avg[i]);
-    QVector<double> sorted = magnitude; const int pctIndex = std::min(n - 1, (int)(n * 0.90));
-    std::nth_element(sorted.begin(), sorted.begin() + pctIndex, sorted.end());
-    const double peak = std::max(1e-9, sorted[pctIndex]);
-    QVector<double> x(n), yUpper(n), yLower(n), base(n);
-    for (int i = 0; i < n; ++i) {
-        x[i] = 1000.0 * (i - pre) / sr;                          // ms, 0 = C
-        const double mag = std::min(1.0, magnitude[i] / peak * 1.0);  // 90퍼센타일을 가득 채움(파형 크게)
-        yUpper[i] = mag; yLower[i] = -mag; base[i] = 0.0;
+    constexpr double kCenterTic = 0.5, kCenterToc = -0.5, kHalf = 0.48;   // 각 밴드 중심·반높이(가득 채움)
+
+    // avg → 밴드 미러 파형(up/dn). 각자 90퍼센타일로 정규화해 자기 절반을 가득 채움.
+    auto buildBand = [&](const QVector<double> &avg, double center,
+                         QVector<double> &x, QVector<double> &up, QVector<double> &dn) -> bool {
+        const int n = avg.size();
+        if (n < 2) return false;
+        QVector<double> magnitude(n); for (int i = 0; i < n; ++i) magnitude[i] = std::fabs(avg[i]);
+        // 실제 최대값으로 정규화 → 가장 큰 피크가 밴드 끝에 딱 닿고 그 이하는 실제 모양대로(포화·잘림 없음).
+        double peak = 1e-9; for (double m : magnitude) peak = std::max(peak, m);
+        x.resize(n); up.resize(n); dn.resize(n);
+        for (int i = 0; i < n; ++i) {
+            x[i] = 1000.0 * (i - pre) / sr;                      // ms, 0 = C
+            const double mag = (magnitude[i] / peak) * kHalf;    // [0,1]·반높이 → 클램프 불필요
+            up[i] = center + mag; dn[i] = center - mag;          // 밴드 중심 기준 미러
+        }
+        return true;
+    };
+
+    QVector<double> xT, upT, dnT, xC, upC, dnC;
+    const bool hasTic = buildBand(mTicAvg, kCenterTic, xT, upT, dnT);
+    const bool hasToc = buildBand(mTocAvg, kCenterToc, xC, upC, dnC);
+    if (!hasTic && !hasToc) {
+        for (int g = 0; g < plot->graphCount(); ++g) plot->graph(g)->data()->clear();
+        plot->clearItems(); plot->replot(); return;
     }
-    plot->graph(0)->setData(x, base, true);
-    plot->graph(1)->setData(x, yUpper, true);
-    plot->graph(2)->setData(x, yLower, true);
+    if (hasTic) { plot->graph(0)->setData(xT, upT, true); plot->graph(1)->setData(xT, dnT, true); }   // Tic 밴드(위)
+    else { plot->graph(0)->data()->clear(); plot->graph(1)->data()->clear(); }
+    if (hasToc) { plot->graph(2)->setData(xC, upC, true); plot->graph(3)->setData(xC, dnC, true); }   // Toc 밴드(아래)
+    else { plot->graph(2)->data()->clear(); plot->graph(3)->data()->clear(); }
 
     plot->clearItems();
     auto drawVLine = [&](double xMs, const QColor &color, double width){
         if (xMs < -kPreMs || xMs > kPostMs) return;
-        auto *line = new QCPItemLine(plot); line->start->setCoords(xMs, -1.15); line->end->setCoords(xMs, 1.15);
+        auto *line = new QCPItemLine(plot); line->start->setCoords(xMs, -1.18); line->end->setCoords(xMs, 1.18);
         line->setPen(QPen(color, width));
     };
     // tg 식 도(°) 격자(시간 격자가 아님): 10°마다 세로선(비선형). x = −t_AC(°) = −3600·lift/(π·bph·°).
@@ -229,12 +264,21 @@ void TabWaveformCompare::drawAvgPanel(QCustomPlot *plot, const QVector<double> &
         if (mAmplitudeValid && mAmplitudeDeg > 0.0) drawVLine(degToMs(mAmplitudeDeg), QColor(40, 110, 255), 3);   // 측정 진폭
     }
     drawVLine(0.0, QColor(60, 120, 255), 1.5);                   // C(pulse) = 파랑(0ms)
-    auto *titleText = new QCPItemText(plot);                     // 그래프 이름(좌상단)
-    titleText->position->setType(QCPItemPosition::ptAxisRectRatio);
-    titleText->position->setCoords(0.015, 0.02); titleText->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
-    titleText->setText(title); titleText->setColor(Qt::white);
-    titleText->setFont(QFont(QStringLiteral("sans"), 9, QFont::Bold));
-    titleText->setBrush(QColor(0, 0, 0, 150)); titleText->setPadding(QMargins(3, 1, 3, 1));
+
+    // 위·아래 구분선(y=0) + Tic/Toc 라벨.
+    auto *mid = new QCPItemLine(plot);
+    mid->start->setCoords(-kPreMs, 0.0); mid->end->setCoords(kPostMs, 0.0);
+    mid->setPen(QPen(QColor(120, 120, 120), 1, Qt::DashLine));
+    auto addLabel = [&](const QString &t, double yRatio, Qt::Alignment va){
+        auto *txt = new QCPItemText(plot);
+        txt->position->setType(QCPItemPosition::ptAxisRectRatio);
+        txt->position->setCoords(0.015, yRatio); txt->setPositionAlignment(Qt::AlignLeft | va);
+        txt->setText(t); txt->setColor(Qt::white);
+        txt->setFont(QFont(QStringLiteral("sans"), 9, QFont::Bold));
+        txt->setBrush(QColor(0, 0, 0, 150)); txt->setPadding(QMargins(3, 1, 3, 1));
+    };
+    addLabel(QStringLiteral("Tic"), 0.02, Qt::AlignTop);        // 위 = Tic
+    addLabel(QStringLiteral("Toc"), 0.98, Qt::AlignBottom);     // 아래 = Toc
     plot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -254,14 +298,13 @@ void TabWaveformCompare::drawPeriod()
     if (count <= 1) return;
     QVector<double> raw; mRawBuf.copyRange(from, count, raw);
     QVector<double> magnitude(count); for (int i = 0; i < count; ++i) magnitude[i] = std::fabs(raw[i]);
-    QVector<double> sorted = magnitude; const int pctIndex = std::min(count - 1, (int)(count * 0.98));
-    std::nth_element(sorted.begin(), sorted.begin() + pctIndex, sorted.end());
-    const double peak = std::max(1e-9, sorted[pctIndex]);
+    // 실제 최대값으로 정규화 → 최대 피크가 가장자리에 닿고 그 이하는 실제 모양대로(포화·잘림 없음).
+    double peak = 1e-9; for (double m : magnitude) peak = std::max(peak, m);
     const int step = std::max(1, count / 2000);
     QVector<double> x, yUpper, yLower, base;
     for (int i = 0; i < count; i += step) {
         x.push_back(1000.0 * ((double)from + i - (double)ticA) / sr);
-        const double mag = std::min(1.0, magnitude[i] / peak * 0.96);
+        const double mag = (magnitude[i] / peak) * 0.98;        // [0,1]·여백 → 클램프 불필요
         yUpper.push_back(mag); yLower.push_back(-mag); base.push_back(0.0);
     }
     mPeriod->graph(0)->setData(x, base, true);
@@ -345,8 +388,7 @@ void TabWaveformCompare::drawPaperstrip()
 void TabWaveformCompare::render()
 {
     if (!mRawBuf.hasData()) return;
-    drawAvgPanel(mTic, mTicAvg, QStringLiteral("Tic"));
-    drawAvgPanel(mToc, mTocAvg, QStringLiteral("Toc"));
+    drawTicTocPanel();
     drawPeriod();
     drawPaperstrip();
 }
@@ -357,7 +399,7 @@ void TabWaveformCompare::onResetSession()
     mTicAvg.clear(); mTocAvg.clear(); mWindowLen = 0; mTicInit = mTocInit = false;
     mLastC = 0; mHaveLastC = false; mCCount = 0;
     mAOnsetHist.clear(); mAOnsetOutlier.clear(); mAnchor = 0; mHaveAnchor = false;
-    for (QCustomPlot *plot : {mPaper, mTic, mToc, mPeriod}) {
+    for (QCustomPlot *plot : {mPaper, mTicToc, mPeriod}) {
         if (!plot) continue;
         for (int g = 0; g < plot->graphCount(); ++g) plot->graph(g)->data()->clear();
         plot->clearItems(); plot->replot();
