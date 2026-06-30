@@ -225,8 +225,8 @@ MainWindow::MainWindow(QWidget *parent)
 
     {
         QSettings settings;
-        mWatchId = settings.value(QStringLiteral("watchId")).toString();
-        mEngineer = settings.value(QStringLiteral("engineer")).toString();
+        mWatchId = settings.value(QStringLiteral("watchId"), QStringLiteral("rolex_123")).toString();
+        mEngineer = settings.value(QStringLiteral("engineer"), QStringLiteral("Taehoon")).toString();
     }
 
     // ----------------------------------------------------
