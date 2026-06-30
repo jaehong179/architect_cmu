@@ -1,6 +1,5 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
-#include "TrendSeek.h"             // 롤리팝 커서(줄기+머리+툴팁) 공용 스타일
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
@@ -8,9 +7,11 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QLabel>
+#include <QPushButton>
 #include <QMouseEvent>   // [③] 상단 RatePlot 클릭
 #include <QtMath>
 #include <cmath>
+#include <limits>
 
 // ── 색상 팔레트 (TabBeatNoiseScope 계열과 통일) ──────────────────────────────
 namespace Theme {
@@ -62,53 +63,91 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     mWindowLabel = new QLabel(QStringLiteral("Window: 1.00 s"), this);
     mWindowLabel->setStyleSheet(QStringLiteral("color:#555; font-style:italic;"));
     mScopeLogView = new QCheckBox(QStringLiteral("Log Scale (dB)"), this);
+    // [정지 후] 상·하단을 정지 진입 시점 스케일로 되돌리는 버튼(정지 중에만 활성).
+    mResetZoomBtn = new QPushButton(QStringLiteral("Reset Zoom"), this);
+    mResetZoomBtn->setToolTip(QStringLiteral("Restore both graphs to the view shown when STOP was pressed"));
+    mResetZoomBtn->setEnabled(false);
     ctlRow->addWidget(scaleLabel);
     ctlRow->addWidget(mScopeScale);
     ctlRow->addWidget(mWindowLabel);
     ctlRow->addWidget(mScopeLogView);
+    ctlRow->addWidget(mResetZoomBtn);
     ctlRow->addStretch(1);
     // (정지/재생은 모든 탭에 보이는 전역 버튼 = QTabWidget 코너위젯이 담당. MainWindow 가 setPaused 호출.)
     lay->addLayout(ctlRow);
 
     mRatePlot  = new QCustomPlot(this);
     mScopePlot = new QCustomPlot(this);
-    lay->addWidget(mRatePlot,  1);   // rate error 그래프 (stretch 1)
-    lay->addWidget(mScopePlot, 2);   // 실시간 파형 스코프 (stretch 2 — 더 넓게)
+    lay->addWidget(mRatePlot,  1);   // rate error 그래프 (stretch 1 — 하단과 동일 높이)
+    lay->addWidget(mScopePlot, 1);   // 실시간 파형 스코프 (stretch 1 — 상단과 동일 높이)
+
+    connect(mResetZoomBtn, &QPushButton::clicked, this, [this]{ resetZoomToEntry(); });
 
     setupPlots();
 
-    // [8분 스크롤백] 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 다시 잘라 그린다.
-    //  (라이브 중에는 mPaused=false 라 무시 — line 207 의 AlignRight setRange 도 그냥 통과.)
+    // [정렬] 상·하단 플롯의 좌·우 여백을 하나의 그룹으로 묶어 x축(시간)을 픽셀 단위로 정렬한다.
+    //  → y축 라벨 폭이 달라도 두 그래프의 같은 시각이 화면상 정확히 수직선상에 온다.
+    auto *marginGroup = new QCPMarginGroup(mRatePlot);
+    mRatePlot->axisRect()->setMarginGroup(QCP::msLeft | QCP::msRight, marginGroup);
+    mScopePlot->axisRect()->setMarginGroup(QCP::msLeft | QCP::msRight, marginGroup);
+
+    // [8분 스크롤백] 정지 중 사용자가 하단 x축을 드래그/줌하면 → ① 상단을 같은 시간창으로 동기,
+    //  ② 그 시간창을 이력에서 다시 잘라 하단을 그린다. (라이브 중에는 mPaused=false 라 무시.)
     connect(mScopePlot->xAxis, QOverload<const QCPRange &>::of(&QCPAxis::rangeChanged),
-            this, [this](const QCPRange &) {
-                if (mPaused && !mInHistoryRender) renderHistoryWindow();   // 하단만 이력 렌더(상단은 동결)
+            this, [this](const QCPRange &r) {
+                if (!mPaused || mInHistoryRender || mSyncingAxes) return;   // 사용자 입력만(프로그램 설정·동기 제외)
+                mSyncingAxes = true;                                        // 상단을 같은 시간창으로(쉬프트 적용)
+                mRatePlot->xAxis->setRange(r.lower + mRateScopeShift, r.upper + mRateScopeShift);
+                mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+                mSyncingAxes = false;
+                renderHistoryWindow();                                      // 하단 이력 렌더
             });
 
-    // [③] 상단 RatePlot 클릭 소스 — 정지 시 상단은 '라이브 형태 그대로 동결'(재렌더 안 함)이라 x 는
-    //  라이브 beat-index 좌표. 클릭 위치 비율(좌=오래/우=최근)을 동결 시점 최신에서 역산해 절대 샘플로.
-    TrendSeek::makeLollipop(mRatePlot, mRateCursor, mRateCursorHead, mRateCursorTip);   // 청록 롤리팝+툴팁
+    // [정지 후] 정지 중 사용자가 상단 x축을 드래그/줌하면 → 하단을 같은 시간창으로 동기 + 이력 렌더.
+    connect(mRatePlot->xAxis, QOverload<const QCPRange &>::of(&QCPAxis::rangeChanged),
+            this, [this](const QCPRange &r) {
+                if (!mPaused || mInHistoryRender || mSyncingAxes) return;
+                mSyncingAxes = true;                                        // 하단을 같은 시간창으로(쉬프트 역적용)
+                mScopePlot->xAxis->setRange(r.lower - mRateScopeShift, r.upper - mRateScopeShift);
+                mSyncingAxes = false;
+                renderHistoryWindow();
+            });
+
+    // [정지 후] 상단 RatePlot 클릭 — 가장 가까운 tic/toc 점으로 스냅해 ① x/y 값을 떠있는 라벨로 표시,
+    //  ② 그 시각의 절대 샘플로 상·하단 창을 동기 이동(같은 시간창 유지). rate 점 x 는 초(=절대샘플/sr−원점)
+    //  이므로 절대 샘플 = (x + 원점) * sr 로 정확히 역산한다.
+    mRateCursor = new QCPItemStraightLine(mRatePlot);
+    mRateCursor->setPen(QPen(QColor(200, 0, 200), 1, Qt::DashLine));
+    mRateCursor->setVisible(false);
     connect(mRatePlot, &QCustomPlot::mousePress, this, [this](QMouseEvent *e) {
         if (!mPaused || !mHistory || !mHistory->hasData()) return;   // 정지 중에만 의미
-        bool found = false;
-        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);  // 동결된 점들의 x범위
-        if (!found) return;
-        const double x  = mRatePlot->xAxis->pixelToCoord(e->position().x());
-        const double lo = kr.lower, hi = kr.upper;
-        const double f  = (hi > lo) ? qBound(0.0, (x - lo) / (hi - lo), 1.0) : 1.0;
-        const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-        // (hi-lo)=표시된 tic 개수, 1 tic = 2비트 → 창의 샘플폭 = ticN * 2 * 비트주기.
-        const double winSamples = (hi - lo) * 2.0 * (3600.0 / (double)bph) * (double)mSampleRateHz;
-        const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
-        double seekSample = latest - (1.0 - f) * winSamples;
-        if (seekSample < 0.0) seekSample = 0.0;
-        showRateCursorAtX(x, seekSample);
-        mRatePlot->replot();
-        emit seekRequested(seekSample);
+        const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
+        if (sr <= 0) return;
+        const double px = e->position().x(), py = e->position().y();
+        // 클릭점에 픽셀상 가장 가까운 실제 데이터 점(tic=graph0, toc=graph1)으로 스냅 → 의미 있는 (x,y).
+        double bestT = mRatePlot->xAxis->pixelToCoord(px);
+        double bestY = mRatePlot->yAxis->pixelToCoord(py);
+        double bestD = std::numeric_limits<double>::max();
+        for (int gi = 0; gi < 2; ++gi) {
+            auto data = mRatePlot->graph(gi)->data();
+            for (auto it = data->constBegin(); it != data->constEnd(); ++it) {
+                const double dx = mRatePlot->xAxis->coordToPixel(it->key) - px;
+                const double dy = mRatePlot->yAxis->coordToPixel(it->value) - py;
+                const double d  = dx * dx + dy * dy;
+                if (d < bestD) { bestD = d; bestT = it->key; bestY = it->value; }
+            }
+        }
+        showRateClickLabel(bestT, bestY);                 // 떠있는 x/y 라벨(좌표는 통일된 캡처시간)
+        double absSel = bestT * sr + mHistOffset;         // 통일 좌표(초) → 절대 샘플
+        if (absSel < 0.0) absSel = 0.0;
+        seekTo(absSel);                                   // 상·하단 창 동기 이동 + 상단 커서
+        emit seekRequested(absSel);                       // seek 라벨/(전역 정지 시) 타 탭 동기
     });
 
     connect(mScopeScale, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int v) {
         const double windowSec = kScopeWindowBaseSec / v;
         mWindowLabel->setText(QString("Window: %1 s").arg(windowSec, 0, 'f', 2));
+        if (mPaused) return;   // 정지 중엔 줌/드래그·Reset 버튼이 창을 관리 → 스핀박스로 프레임 재설정 안 함
         mSweepArmed = false;   // 창 폭 변경 → 트리거락 재무장
         frameScope();
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
@@ -160,7 +199,7 @@ void TabRateScope::setupPlots()
 
     // ── ScopePlot ──
     mScopePlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
-    mScopePlot->legend->setVisible(true);
+    mScopePlot->legend->setVisible(false);
     mScopePlot->legend->setFont(legendFont);
     mScopePlot->legend->setSelectedFont(legendFont);
     mScopePlot->legend->setSelectableParts(QCPLegend::spItems);
@@ -193,18 +232,18 @@ void TabRateScope::setupPlots()
     mScopePlot->graph(1)->setPen(pen);
     mScopePlot->graph(1)->setName("Trigger");
     mScopePlot->graph(1)->setAdaptiveSampling(true);
-    mScopePlot->legend->setVisible(true);
+    mScopePlot->legend->setVisible(false);
 
     // ── RatePlot ──
-    mRatePlot->legend->setVisible(true);
+    mRatePlot->legend->setVisible(false);
     mRatePlot->legend->setFont(legendFont);
     mRatePlot->legend->setSelectedFont(legendFont);
     mRatePlot->legend->setSelectableParts(QCPLegend::spItems);
     mRatePlot->yAxis->setLabel("Rate Error (milliseconds)");
     mRatePlot->yAxis->setTickLabels(true);
-    mRatePlot->xAxis->setLabel("Time");
+    mRatePlot->xAxis->setLabel("Time (s)");                 // x축 = 시간(초)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
-    mRatePlot->xAxis->setTickLabels(false);
+    mRatePlot->xAxis->setTickLabels(true);                  // 시간 눈금 표시(요구사항 3)
     mRatePlot->clearGraphs();
     mRatePlot->addGraph();
     mRatePlot->graph(0)->setScatterStyle(QCPScatterStyle(QCPScatterStyle::ssDisc, 3));
@@ -224,7 +263,7 @@ void TabRateScope::setupPlots()
         mRatePlot->graph(gi)->setLineStyle(QCPGraph::lsNone);
         mRatePlot->graph(gi)->removeFromLegend();
     }
-    mRatePlot->legend->setVisible(true);
+    mRatePlot->legend->setVisible(false);
 }
 
 // RatePlot: snapshot 의 tic/toc 시리즈를 받아 그린다(setData 가 자체 복사).
@@ -234,6 +273,7 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     if (mPaused) return;
     if (snap.liftAngle > 0) mLiftAngle = snap.liftAngle;
     if (snap.rateMaxPoints > 0) mRateMaxPoints = snap.rateMaxPoints;   // 상단 클릭 비율 매핑용
+    mPlotOriginSec = snap.plotTimeOriginSec;   // rate x(초) ↔ 절대샘플 환산 원점(정지 시 이 값 고정)
 
     QVector<double> tx, ty, ox, oy;
     if (snap.rateTicN > 0 && snap.rateTicX && snap.rateTicY) {
@@ -258,7 +298,27 @@ void TabRateScope::onMeasurement(const MeasurementSnapshot &snap)
     outliersOf(ox, snap.rateTocOutY, snap.rateTocN, oox, ooy);
     mRatePlot->graph(2)->setData(tox, toy_);
     mRatePlot->graph(3)->setData(oox, ooy);
-    if (snap.rateMaxPoints > 0) mRatePlot->xAxis->setRange(0, snap.rateMaxPoints);
+    // [요구사항 1] SoundPrint처럼 '좌→우로 점을 찍어가는' 스트립차트.
+    //  표시 폭 W = ring(최근 N점)이 가득 찼을 때의 시간폭 추정(평균 점간격 × 최대점수).
+    //  점이 적을수록 W가 커 우측이 비어 있어 → 왼쪽부터 채워지는 모습. 가득 차면 좌측이 빠지며 스크롤.
+    //  (x값은 실제 시간(초)이라 요구사항 3의 '시간축'도 그대로 유지.)
+    bool fx0 = false, fx1 = false;
+    const QCPRange kx0 = mRatePlot->graph(0)->getKeyRange(fx0);
+    const QCPRange kx1 = mRatePlot->graph(1)->getKeyRange(fx1);
+    if (fx0 || fx1) {
+        double oldest = fx0 ? kx0.lower : kx1.lower;
+        double latest = fx0 ? kx0.upper : kx1.upper;
+        if (fx1) { oldest = qMin(oldest, kx1.lower); latest = qMax(latest, kx1.upper); }
+        const double span = latest - oldest;
+        const int    N    = tx.size() + ox.size();              // 현재 표시 점 수(tic+toc)
+        const double maxN = 2.0 * qMax(1, snap.rateMaxPoints);  // ring 최대(tic+toc)
+        double W = span;
+        if (span > 0.0 && N >= 2 && (double)N < maxN)
+            W = span * (maxN - 1.0) / (double)(N - 1);          // 미충전 구간 → 우측 여백(좌→우 채움)
+        if (W <= 0.0) W = 1.0;
+        const double m = W * 0.02;
+        mRatePlot->xAxis->setRange(oldest - m, oldest + W + m); // 좌측 끝 = 가장 오래된 점(가득 차면 스크롤)
+    }
     mRatePlot->replot(QCustomPlot::rpQueuedReplot);
 }
 
@@ -376,31 +436,45 @@ void TabRateScope::setPaused(bool paused)
         mHistOffset = (double)mHistory->latestAbs() - (double)mGraphTicks;
         mPauseLatest = mHistory->latestAbs();                 // 상단 RatePlot 클릭 비율 기준(정지 시점 최신)
         mHistActive = false;                                  // 아직 동결(드래그 전): 재렌더 안 함
-        mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 가로(시간) 전용 드래그/줌
+        mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal); // 하단: 가로(시간) 전용 드래그/줌
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal);
-        mScopePlot->xAxis->setLabel(QStringLiteral("PAUSED — drag/zoom to scroll back up to 8 min"));
-        renderHistoryWindow();       // 하단: 엔벨로프+마커(좁은 파형 창)
-        // 상단 rate 플롯은 '라이브 형태 그대로 동결' — 재렌더/재스케일 안 함(정지해도 모습 불변).
-        //  seek/스크롤 시엔 커서선만 라이브 좌표 위에서 이동(데이터·축 불변). onSeek 참고.
+        mScopePlot->xAxis->setLabel(QStringLiteral("STOPPED — drag/zoom to scroll; click top graph to seek"));
+        // 상단: 정지 중 가로(시간) 드래그/줌 활성 → 하단과 같은 시간창으로 동기.
+        mRatePlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom);
+        mRatePlot->axisRect()->setRangeDrag(Qt::Horizontal);
+        mRatePlot->axisRect()->setRangeZoom(Qt::Horizontal);
+        if (mResetZoomBtn) mResetZoomBtn->setEnabled(true);
+        enterLockedView();           // 상·하단을 같은 시간창으로 잠금 + 하단 이력 렌더 + 진입 뷰 저장
     } else {
         // Resume: restore live axis interaction only — keep waveform/markers/counters so
         // the amplitude trace continues from the pause point (seek cleanup is onResumeLive).
         mHistActive = false;
-        hideRateCursor();
+        if (mRateCursor) mRateCursor->setVisible(false);   // 상단 클릭 커서 숨김
+        if (mRateClickLabel) mRateClickLabel->setVisible(false);  // 떠있는 x/y 라벨 숨김
+        if (mResetZoomBtn) mResetZoomBtn->setEnabled(false);
+        mRatePlot->setInteractions(QCP::Interactions());   // 상단 상호작용 끔(라이브 중 줌/팬 금지)
+        mGraphTicks = 0; mHaveLastA = false; mDecimCount = 0; mSweepArmed = false; mHaveFirstTick = false;   // 재무장
+        mScopePlot->graph(0)->data()->clear();
+        mScopePlot->graph(1)->data()->clear();
+        mScopePlot->clearItems();
         mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
         mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
         mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
         mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+        mRatePlot->replot(QCustomPlot::rpQueuedReplot);
     }
 }
 
+// [③] seek 후 라이브 복귀 — 정지 중 seek 로 이력을 그려 둔 임시 상태를 비워 라이브로 깨끗이 복귀.
+//  (seek 없이 정지만 했으면 파형이 연속이라 그대로 둬서 amplitude trace 가 이어진다.)
 void TabRateScope::onResumeLive(bool seeked)
 {
     if (!seeked)
         return;
 
     mHistActive = false;
-    hideRateCursor();
+    if (mRateCursor) mRateCursor->setVisible(false);
+    if (mRateClickLabel) mRateClickLabel->setVisible(false);
     mDecimCount = 0;
     mScopePlot->graph(0)->data()->clear();
     mScopePlot->graph(1)->data()->clear();
@@ -409,6 +483,102 @@ void TabRateScope::onResumeLive(bool seeked)
     mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
     mScopePlot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
     mScopePlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// [정지 후] 정지 진입: 상·하단을 같은 시간창으로 잠근다. 진입 시점 뷰(상단 rate 데이터 전체 범위)를
+//  Reset 대상으로 저장한다. rateX = scopeX + mRateScopeShift (상수) 로 두 좌표계가 affine 정렬된다.
+void TabRateScope::enterLockedView()
+{
+    if (!mPaused || !mHistory) return;
+    const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
+    if (sr <= 0) return;
+    // 상단 rate 점 x = absSample/sr − origin,  하단 scope x = (absSample − histOffset)/sr.
+    //  두 좌표차 shift = rateX − scopeX = histOffset/sr − origin (상수).
+    //  → 상단 점 전체를 이만큼 평행이동하면 상·하단이 '완전히 같은 시간 좌표'(캡처 시작 기준 초)가 된다.
+    //    이렇게 좌표계를 하나로 통일하면 두 x축 눈금 숫자가 정확히 일치하고 동기가 단순해진다.
+    const double shift = mHistOffset / sr - mPlotOriginSec;
+    const QCPRange curLive = mRatePlot->xAxis->range();   // 정지 직전 화면(라이브 스트립차트 윈도우) — 변환 전 좌표
+    for (int gi = 0; gi < mRatePlot->graphCount(); ++gi) {
+        auto data = mRatePlot->graph(gi)->data();
+        QVector<double> xs, ys; xs.reserve(data->size()); ys.reserve(data->size());
+        for (auto it = data->constBegin(); it != data->constEnd(); ++it) {
+            xs.push_back(it->key - shift); ys.push_back(it->value);
+        }
+        mRatePlot->graph(gi)->setData(xs, ys, true);   // 평행이동(순서 보존) → alreadySorted=true
+    }
+    mRateScopeShift = 0.0;   // 통일 완료 → 이후 상·하단 동기는 같은 좌표를 그대로 복사
+
+    // 정지 진입 화면 = '정지 직전 라이브 화면에 보이던 윈도우'를 통일 좌표로 시프트(그대로 멈춤).
+    //  이 범위를 '초기 시작 크기'로 저장 → Reset Zoom 시 상단을 여기로 복원한다.
+    double lo = curLive.lower - shift, hi = curLive.upper - shift;
+    if (hi <= lo) hi = lo + 1.0;
+    mEntryRateLo = lo; mEntryRateHi = hi;
+
+    mInHistoryRender = true; mSyncingAxes = true;          // 프로그램 설정 → rangeChanged 동기/렌더 억제
+    mRatePlot->xAxis->setRange(lo, hi);
+    mScopePlot->xAxis->setRange(lo, hi);                   // shift=0 → 상·하단 동일 범위(눈금 일치)
+    mSyncingAxes = false; mInHistoryRender = false;
+    renderHistoryWindow();                                  // 하단 파형 렌더
+    mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// [정지 후] 절대 샘플 시점으로 상·하단 창을 동기 이동(현재 줌 폭 유지) + 상단 커서. 같은 시간창 잠금 유지.
+void TabRateScope::seekTo(double absSample)
+{
+    if (!mPaused || !mHistory || !mHistory->hasData()) return;
+    const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
+    if (sr <= 0) return;
+    const double center = (absSample - mHistOffset) / sr;   // 하단(스코프) 좌표
+    const QCPRange r = mScopePlot->xAxis->range();
+    double w = r.size(); if (w <= 0.0) w = 1.0;             // 현재 보이는 폭 유지
+    mInHistoryRender = true; mSyncingAxes = true;
+    mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
+    mRatePlot->xAxis->setRange(center - w * 0.5 + mRateScopeShift, center + w * 0.5 + mRateScopeShift);
+    mSyncingAxes = false; mInHistoryRender = false;
+    renderHistoryWindow();                                  // 하단: 그 시점 파형(좁은 창)
+
+    const double rateX = center + mRateScopeShift;          // = absSample/sr − origin (상단 좌표)
+    if (mRateCursor) {
+        mRateCursor->point1->setCoords(rateX, 0); mRateCursor->point2->setCoords(rateX, 1);
+        mRateCursor->setVisible(true);
+    }
+    mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// [버튼] Reset Zoom — 하단은 'Scope Zoom' 창 크기로 최신 위치에 정리, 상단은 정지 진입(초기 시작) 크기로 복원.
+//  상·하단 x창이 서로 달라져 동기가 일시적으로 풀릴 수 있다(의도된 동작). 이후 한쪽을 드래그/줌하거나
+//  다음에 다시 정지(일시정지)하면 enterLockedView 가 두 그래프를 같은 시간창으로 재동기한다.
+void TabRateScope::resetZoomToEntry()
+{
+    if (!mPaused || !mHistory) return;
+    const double sr = (double)(mHistory->sampleRate() > 0 ? mHistory->sampleRate() : mSampleRateHz);
+    if (sr <= 0) return;
+    const double windowSec = kScopeWindowBaseSec / qMax(1, mScopeScale->value());   // Scope Zoom 창폭
+    const double latest = ((double)mPauseLatest - mHistOffset) / sr;                 // 통일 좌표 최신(마지막 위치)
+    mInHistoryRender = true; mSyncingAxes = true;          // 상·하단을 서로 다르게 설정(동기 핸들러 억제)
+    mScopePlot->xAxis->setRange(latest - windowSec, latest);  // 하단: Scope Zoom 창 + 최신 위치
+    mRatePlot->xAxis->setRange(mEntryRateLo, mEntryRateHi);   // 상단: 초기 시작 크기
+    mSyncingAxes = false; mInHistoryRender = false;
+    renderHistoryWindow();                                  // 하단 파형(스코프 창) 렌더
+    mRatePlot->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// [클릭] 상단 위 떠있는 x/y 값 라벨(비모달). 데이터 좌표에 고정 → 팬/줌에도 점에 붙어 있음.
+void TabRateScope::showRateClickLabel(double t, double y)
+{
+    if (!mRateClickLabel) {
+        mRateClickLabel = new QCPItemText(mRatePlot);
+        mRateClickLabel->setColor(QColor(120, 0, 120));
+        mRateClickLabel->setFont(QFont("monospace", 9, QFont::Bold));
+        mRateClickLabel->setPositionAlignment(Qt::AlignHCenter | Qt::AlignBottom);  // 점 위쪽에 표시
+        mRateClickLabel->position->setType(QCPItemPosition::ptPlotCoords);
+        mRateClickLabel->setPen(QPen(QColor(120, 0, 120)));
+        mRateClickLabel->setBrush(QBrush(Theme::kLabelBg));
+        mRateClickLabel->setPadding(QMargins(5, 2, 5, 2));
+    }
+    mRateClickLabel->setText(QString("t = %1 s\nrate = %2 ms").arg(t, 0, 'f', 2).arg(y, 0, 'f', 2));
+    mRateClickLabel->position->setCoords(t, y);
+    mRateClickLabel->setVisible(true);
 }
 
 // 정지 중 사용자가 x축을 드래그/줌하면 그 시간창을 이력에서 잘라 그린다(라이브와 같은 좌표).
@@ -477,48 +647,10 @@ void TabRateScope::drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs)
     }
 }
 
-// [③] 트렌드에서 선택한 절대 샘플 시점으로 스코프를 이동(정지 중에만). 현재 줌 폭은 유지.
-void TabRateScope::hideRateCursor()
-{
-    TrendSeek::hideLollipop(mRateCursor, mRateCursorHead, mRateCursorTip);
-}
-
-// 롤리팝 커서(줄기+머리+툴팁)를 상단 RatePlot x 위치에 표시. 툴팁=선택 시각(초).
-void TabRateScope::showRateCursorAtX(double x, double absSample)
-{
-    const double tSec = (mSampleRateHz > 0) ? (absSample - mHistOffset) / mSampleRateHz : 0.0;
-    TrendSeek::showLollipop(mRateCursor, mRateCursorHead, mRateCursorTip, x,
-                            QString("%1 s").arg(tSec, 0, 'f', 2));
-}
-
+// [③] 트렌드(자기/타 탭)에서 선택한 절대 샘플 시점으로 상·하단을 동기 이동(정지 중에만). 줌 폭은 유지.
 void TabRateScope::onSeek(double absSample)
 {
-    if (!mPaused || !mHistory || !mHistory->hasData()) return;
-    const double center = (absSample - mHistOffset) / mSampleRateHz;     // 이력 절대 인덱스 → 라이브(초) 좌표
-    const QCPRange r = mScopePlot->xAxis->range();
-    double w = r.size();                               // 현재 보이는 폭 유지
-    if (w <= 0.0) w = 1.0;                             // 안전값(~1초)
-    mInHistoryRender = true;                            // setRange 가 rangeChanged 재귀 트리거하지 않도록
-    mScopePlot->xAxis->setRange(center - w * 0.5, center + w * 0.5);
-    mInHistoryRender = false;
-    renderHistoryWindow();              // 하단: 그 시점 파형(좁은 창)
-
-    // [③] 상단은 동결된 라이브 형태 유지 — 데이터·축 불변, 커서선만 역산 이동.
-    //  graph(0)=Tic 의 x인덱스는 'tic' 단위(tic/toc 교대 → 2비트마다 1) 이므로 tic 주기(=2비트)로 나눈다.
-    //  x = hi - (latest - absSample)/samplesPerTic. 동결 창 밖이면 숨김.
-    if (mRateCursor) {
-        bool found = false;
-        const QCPRange kr = mRatePlot->graph(0)->getKeyRange(found);
-        if (found && kr.upper > kr.lower) {
-            const int    bph = (mLastBph > 0) ? mLastBph : 28800;
-            const double samplesPerTic = 2.0 * (3600.0 / (double)bph) * (double)mSampleRateHz;
-            const double latest = (mPauseLatest > 0) ? (double)mPauseLatest : (double)mHistory->latestAbs();
-            const double x = kr.upper - (latest - absSample) / samplesPerTic;
-            // 동결 창 밖이면 숨기지 않고 가장자리로 클램프해 '그 방향에 선택됨'을 항상 보여준다.
-            showRateCursorAtX(qBound(kr.lower, x, kr.upper), absSample);
-            mRatePlot->replot(QCustomPlot::rpQueuedReplot);
-        }
-    }
+    seekTo(absSample);
 }
 
 void TabRateScope::onResetSession()
@@ -526,6 +658,9 @@ void TabRateScope::onResetSession()
     // 정지 상태였다면 라이브로 원복(축 상호작용·라벨 복구). 전역 버튼 원복은 MainWindow 담당.
     mPaused = false;
     mHistActive = false;
+    if (mResetZoomBtn) mResetZoomBtn->setEnabled(false);
+    if (mRateClickLabel) mRateClickLabel->setVisible(false);   // 떠있는 x/y 라벨 숨김
+    mRatePlot->setInteractions(QCP::Interactions());           // 상단 상호작용 끔(라이브)
     mScopePlot->xAxis->setTickLabels(true);
     mScopePlot->xAxis->setLabel(QStringLiteral("Time"));
     mScopePlot->axisRect()->setRangeDrag(Qt::Horizontal | Qt::Vertical);
@@ -546,7 +681,7 @@ void TabRateScope::onResetSession()
     mScopePlot->replot();
 
     for (int i = 0; i < mRatePlot->graphCount(); ++i) mRatePlot->graph(i)->data()->clear();
-    hideRateCursor();   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
+    if (mRateCursor) mRateCursor->setVisible(false);   // 클릭 커서는 삭제하지 말고 숨김(clearItems 금지)
     mRatePlot->yAxis->setRange(-ERROR_RATE_Y_SCALE, ERROR_RATE_Y_SCALE);
     mRatePlot->replot();
 }

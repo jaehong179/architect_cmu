@@ -44,7 +44,7 @@ private:
     void render() { const bool d = mStripsDirty; mStripsDirty = false;
                     if (mShowScope2) { renderScope2(); if (d) renderCells(); }
                     else             { renderScope1();  if (d) renderStrips(); } }
-    void onStripClicked(QMouseEvent *ev);   // Scope1 비트 띠 클릭 → 그 비트 확대
+    void onStripCellClicked(QMouseEvent *ev);   // Scope1 비트 칸 클릭 → 그 비트 확대
     void onCellClicked(QMouseEvent *ev);    // Scope2 누적평균 셀 클릭 → Scope2 표시
     double beatAmplitudeDeg(uint64_t aEventSample) const;   // E8: A→C 간격으로 비트 진폭(°)
     double beatAcSamples(uint64_t aEventSample) const;      // A→C 간격(샘플) — Scope2 T3 위치
@@ -54,7 +54,7 @@ private:
     QWidget     *mStripBox = nullptr;  // Scope1 하단(최근 비트 띠) 컨테이너
     QWidget     *mCellsBox = nullptr;  // Scope2 하단(누적평균 셀) 컨테이너
     QCustomPlot *mScope1 = nullptr;   // 단일 비트
-    QCustomPlot *mStrips = nullptr;   // Scope1 하단: 최근 개별 비트 띠(클릭 → 확대)
+    QVector<QCustomPlot *> mStripCells;   // Scope1 하단: 최근 개별 비트 8칸(분리·테두리, 클릭 → 확대)
     QVector<QCustomPlot *> mCells;      // Scope2 하단: 누적평균 셀 8칸(개별 플롯)
     QCustomPlot *mTr1    = nullptr;   // Scope2 trace 1 (짝수 비트)
     QCustomPlot *mTr2    = nullptr;   // Scope2 trace 2 (홀수 비트)

@@ -12,8 +12,8 @@
 class QCustomPlot;
 class QSpinBox;
 class QLabel;
-class QCPItemLine;
-class QCPItemTracer;
+class QPushButton;
+class QCPItemStraightLine;
 class QCPItemText;
 class WaveLodHistory;     // 8분 엔벨로프 이력 버퍼(중앙 1개) — pause 중 스크롤백 렌더 원본
 class QCPRange;
@@ -41,8 +41,6 @@ signals:
     void seekRequested(double absSample);   // [③] 정지 중 상단 RatePlot 클릭 → 그 시점
 private:
     void setupPlots();
-    void showRateCursorAtX(double x, double absSample);   // 롤리팝 커서(줄기+머리+툴팁) 표시(툴팁=선택 시각)
-    void hideRateCursor();              // 롤리팝 커서 전체(줄기+머리+툴팁) 숨김
     void renderHistoryWindow();         // 현재 보이는 시간창을 이력에서 잘라 그림(줌/팬 시 재호출)
     void drawHistoryMarkers(uint64_t fromAbs, uint64_t toAbs);   // 이력 이벤트로 A/C 마커·ms 복원
     void addVerticalMarker(double x, double height, const QColor &color, bool isEventA);
@@ -57,7 +55,14 @@ private:
     void updateScopeXAxisTicks(const QCPRange &range);
     double sampleToTime(uint64_t sample) const;
 
+    // ── [정지 후] 상·하단 시간 동기(같은 시간창 잠금) ────────────────────────────
+    void enterLockedView();              // 정지 진입: 상·하단을 같은 시간창으로 잠그고 진입 뷰 저장
+    void seekTo(double absSample);       // 그 절대샘플 시점으로 상·하단 창 동기 이동 + 상단 커서
+    void resetZoomToEntry();             // [버튼] 정지 진입 시점 뷰로 상·하단 복원
+    void showRateClickLabel(double t, double y);   // [클릭] 상단 위 떠있는 x/y 라벨
+
     QLabel      *mWindowLabel = nullptr;
+    QPushButton *mResetZoomBtn = nullptr;   // [버튼] 원래(정지 진입) 스케일로 복원
     QCustomPlot *mRatePlot   = nullptr;
     QCustomPlot *mScopePlot  = nullptr;
     QSpinBox    *mScopeScale = nullptr;
@@ -67,16 +72,19 @@ private:
     bool         mSweepArmed  = false;
     double       mSweepEnd    = 0.0;        // 고정창의 우측 끝 시각(틱). win 지나면 다음 틱으로 재무장
     double       mFirstTickTime = 0.0; bool mHaveFirstTick = false;  // 첫 검출 시각 — 잠금 전 한 창 채우는 기준
-    QCPItemLine         *mRateCursor = nullptr; // 상단 RatePlot 롤리팝 커서(줄기)
-    QCPItemTracer       *mRateCursorHead = nullptr;   // 롤리팝 머리
-    QCPItemText         *mRateCursorTip  = nullptr;   // 상단 툴팁(선택 위치)
+    QCPItemStraightLine *mRateCursor = nullptr; // 상단 RatePlot 클릭 커서
+    QCPItemText    *mRateClickLabel = nullptr;  // [클릭] 상단 위 떠있는 x/y 값 라벨
     int             mRateMaxPoints = 0;         // RatePlot x축 폭(0..N) — 클릭 비율 매핑용
     uint64_t        mPauseLatest = 0;           // 정지 시점의 이력 latest(상단 클릭 비율/커서 역산 기준)
     WaveLodHistory *mHistory    = nullptr;      // 주입된 중앙 이력 버퍼(소유 안 함)
     bool            mPaused     = false;        // true=이력 스크롤백 모드
     bool            mInHistoryRender = false;   // rangeChanged 재귀 가드
+    bool            mSyncingAxes = false;       // 상↔하단 x축 동기 재귀 가드
     bool            mHistActive = false;        // 정지 후 사용자가 드래그/줌해 이력 렌더로 전환됨
     double          mHistOffset = 0.0;          // 이력 절대인덱스 − 라이브 mGraphTicks (정지 시 고정)
+    double          mPlotOriginSec = 0.0;       // rate x 원점(초) — 라이브 수신 시 갱신, 정지 시 고정
+    double          mRateScopeShift = 0.0;      // rateX − scopeX (정지 시 고정 상수) = mHistOffset/sr − origin
+    double          mEntryRateLo = 0.0, mEntryRateHi = 0.0;   // 정지 진입(초기 시작) 상단 x창 — Reset Zoom 시 상단 복원용
     uint64_t        mGraphTicks = 0;        // 엔벨로프 샘플 카운터
     double       mLastA = 0.0; bool mHaveLastA = false;
     int          mSampleRateHz = 48000;

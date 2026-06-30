@@ -83,16 +83,32 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     lay->addWidget(mScope2Box, 3);
     mScope2Box->setVisible(false);   // 기본 = Scope 1
 
-    // ── 하단(Scope 1): 최근 개별 비트 띠 — 클릭 → 그 비트를 Scope 1 에 확대(명세). ──
+    // ── 하단(Scope 1): 최근 개별 비트 8칸(분리된 영역·테두리) — 클릭 → 그 비트를 Scope 1 에 확대. ──
+    //  Scope 2 의 누적평균 셀과 동일하게 칸을 개별 플롯으로 분리하고 각 칸에 테두리를 둔다.
     mStripBox = new QWidget(this);
-    auto *stripLay = new QVBoxLayout(mStripBox); stripLay->setContentsMargins(0, 0, 0, 0);
-    stripLay->addWidget(new QLabel(QStringLiteral(
-        "Recent beats — the most recent tick/tock beat-noise as small strips; "
+    auto *stripOuter = new QVBoxLayout(mStripBox); stripOuter->setContentsMargins(0, 0, 0, 0);
+    stripOuter->addWidget(new QLabel(QStringLiteral(
+        "Recent beats (separate boxes) — the most recent tick/tock beat-noise, one per box; "
         "click one to enlarge it in Scope 1 (click again to return to live)"), mStripBox));
-    mStrips = miniPlot(mStripBox, QString(), 90);
-    mStrips->xAxis->setTickLabels(false);
-    connect(mStrips, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripClicked);
-    stripLay->addWidget(mStrips, 1);
+    auto *stripRow = new QWidget(mStripBox);
+    auto *stripRowLay = new QHBoxLayout(stripRow);
+    stripRowLay->setContentsMargins(0, 0, 0, 0); stripRowLay->setSpacing(3);
+    mStripCells.resize(kStrips);
+    for (int k = 0; k < kStrips; ++k) {
+        auto *c = new QCustomPlot(stripRow);
+        c->addGraph();
+        c->graph(0)->setPen(QPen(QColor(120, 110, 0)));
+        c->graph(0)->setBrush(QColor(235, 215, 0, 150));
+        c->xAxis->setVisible(false);
+        c->yAxis->setVisible(false);
+        c->axisRect()->setAutoMargins(QCP::msNone);
+        c->axisRect()->setMargins(QMargins(0, 0, 0, 0));
+        c->setMinimumHeight(90);
+        connect(c, &QCustomPlot::mousePress, this, &TabBeatNoiseScope::onStripCellClicked);
+        mStripCells[k] = c;
+        stripRowLay->addWidget(c, 1);
+    }
+    stripOuter->addWidget(stripRow, 1);
     lay->addWidget(mStripBox, 1);
 
     // ── 하단(Scope 2): 누적평균 셀 8칸(개별 영역) — 한 칸 안에 tick(위)/tock(아래) 정상 적층.
@@ -372,7 +388,7 @@ void TabBeatNoiseScope::updateCellWindows(bool tick, const QVector<double> &beat
 //  tick: [0, H] 가운데(0) 바닥으로 채움. tock: [−H, 0] 아래(−H) 바닥으로 채움(graph(2) 채널 채움).
 //  selected 면 파란 테두리로 강조. (칸 안의 #N·×N 카운트 라벨은 표시하지 않음.)
 static void drawCell(QCustomPlot *p, const QVector<double> &tick, const QVector<double> &tock,
-                     int sr, double H, bool selected)
+                     int sr, double H, bool selected, int mult)
 {
     QVector<double> xt(tick.size()), yt(tick.size());                    // tick 위(정상): 바닥 0
     QVector<double> xk(tock.size()), yk(tock.size()), yb(tock.size());   // tock 아래(정상): 바닥 −H
@@ -388,45 +404,65 @@ static void drawCell(QCustomPlot *p, const QVector<double> &tick, const QVector<
     auto *mid = new QCPItemStraightLine(p);     // tick/tock 경계(0) 점선
     mid->point1->setCoords(0, 0); mid->point2->setCoords(1, 0);
     mid->setPen(QPen(QColor(150, 150, 150, 120), 1, Qt::DashLine));
-    if (selected) {
-        auto *r = new QCPItemRect(p);               // 선택 강조 테두리
-        r->topLeft->setType(QCPItemPosition::ptAxisRectRatio);
-        r->bottomRight->setType(QCPItemPosition::ptAxisRectRatio);
-        r->topLeft->setCoords(0, 0); r->bottomRight->setCoords(1, 1);
-        r->setPen(QPen(QColor(0, 80, 220), 2));
-        r->setBrush(Qt::NoBrush);
+    // 칸 테두리: 항상 회색, 선택 시 파란 굵게.
+    auto *r = new QCPItemRect(p);
+    r->topLeft->setType(QCPItemPosition::ptAxisRectRatio);
+    r->bottomRight->setType(QCPItemPosition::ptAxisRectRatio);
+    r->topLeft->setCoords(0, 0); r->bottomRight->setCoords(1, 1);
+    r->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(110, 110, 120), selected ? 2 : 1));
+    r->setBrush(Qt::NoBrush);
+    // 우상단 배율 배지(×5 … ×40) — 이 칸이 최근 몇 비트의 평균인지 표시.
+    auto *badge = new QCPItemText(p);
+    badge->setLayer(QStringLiteral("overlay"));
+    badge->position->setType(QCPItemPosition::ptAxisRectRatio);
+    badge->position->setCoords(0.97, 0.06);
+    badge->setPositionAlignment(Qt::AlignRight | Qt::AlignTop);
+    badge->setText(QStringLiteral("×%1").arg(mult));
+    badge->setFont(QFont(QStringLiteral("sans"), 8, QFont::Bold));
+    badge->setColor(selected ? QColor(0, 80, 220) : QColor(70, 70, 90));
+    badge->setBrush(QColor(255, 255, 255, 210));
+    badge->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(150, 150, 160)));
+    badge->setPadding(QMargins(4, 1, 4, 1));
+    p->replot(QCustomPlot::rpQueuedReplot);
+}
+
+// Scope1 하단: 개별 비트 1개를 한 칸(테두리 박스)에 그린다. 선택 칸은 파란 굵은 테두리.
+static void drawStripCell(QCustomPlot *p, const QVector<double> &beat,
+                          int sr, double H, bool selected)
+{
+    if (beat.isEmpty()) {
+        p->graph(0)->data()->clear();
+    } else {
+        QVector<double> x(beat.size()), y(beat.size());
+        for (int i = 0; i < beat.size(); ++i) { x[i] = 1000.0 * i / sr; y[i] = beat[i]; }
+        p->graph(0)->setData(x, y, true);
+        p->xAxis->setRange(0, beat.size() > 1 ? 1000.0 * (beat.size() - 1) / sr : 1.0);
     }
+    p->yAxis->setRange(0, H * 1.1);
+    p->clearItems();
+    auto *r = new QCPItemRect(p);
+    r->topLeft->setType(QCPItemPosition::ptAxisRectRatio);
+    r->bottomRight->setType(QCPItemPosition::ptAxisRectRatio);
+    r->topLeft->setCoords(0, 0); r->bottomRight->setCoords(1, 1);
+    r->setPen(QPen(selected ? QColor(0, 80, 220) : QColor(110, 110, 120), selected ? 2 : 1));
+    r->setBrush(Qt::NoBrush);
     p->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // Scope1 하단: 최근 개별 비트 kStrips 개를 2ms 간격으로 가로 배치. 선택 비트는 파란 박스 강조.
 void TabBeatNoiseScope::renderStrips()
 {
-    if (mRecent.isEmpty() || mWin <= 0) return;
+    if (mWin <= 0 || mStripCells.isEmpty()) return;
     const int sr = mBuf.sampleRate() > 0 ? mBuf.sampleRate() : 48000;
-    const double winMs = 1000.0 * mWin / sr;
-    const double pitch = winMs + 2.0;                       // 비트별 2ms 간격
-    QVector<double> x, y;
+    // 모든 비트 공통 피크 → 칸끼리 같은 스케일로 비교(출렁임 억제).
     double ymax = 0.0;
-    for (int b = 0; b < mRecent.size(); ++b)
-        for (int i = 0; i < mRecent[b].size(); ++i) {
-            x.push_back(b * pitch + 1000.0 * i / sr);
-            const double v = mRecent[b][i]; y.push_back(v);
-            if (v > ymax) ymax = v;
-        }
-    const double top = smoothPeak(mPeakBeats, ymax > 0 ? ymax : 1.0);   // 스무딩 피크(출렁임 억제)
-    mStrips->graph(0)->setData(x, y, true);
-    mStrips->clearItems();
-    if (mSelBeat >= 0 && mSelBeat < mRecent.size()) {       // 선택 비트 강조 박스
-        auto *rect = new QCPItemRect(mStrips);
-        rect->topLeft->setCoords(mSelBeat * pitch, top * 1.05);
-        rect->bottomRight->setCoords(mSelBeat * pitch + winMs, 0);
-        rect->setPen(QPen(QColor(0, 80, 220), 2));
-        rect->setBrush(Qt::NoBrush);
+    for (const QVector<double> &b : mRecent) for (double v : b) if (v > ymax) ymax = v;
+    const double top = smoothPeak(mPeakBeats, ymax > 0 ? ymax : 1.0);
+    // 칸 k = 최근 비트(최신=뒤)를 좌→우로. 비트가 모자란 칸은 빈 칸(테두리만).
+    for (int k = 0; k < mStripCells.size(); ++k) {
+        const QVector<double> beat = (k < mRecent.size()) ? mRecent[k] : QVector<double>();
+        drawStripCell(mStripCells[k], beat, sr, top, mSelBeat == k);
     }
-    mStrips->xAxis->setRange(0, mRecent.size() * pitch);
-    mStrips->yAxis->setRange(0, top * 1.1);
-    mStrips->replot(QCustomPlot::rpQueuedReplot);
 }
 
 // Scope2 하단: 누적평균 셀 8칸. tick/tock 공통 피크로 같은 스케일 비교, 선택 셀 강조.
@@ -440,17 +476,16 @@ void TabBeatNoiseScope::renderCells()
     for (const QVector<double> &c : mCellTock) for (double v : c) if (v > inst) inst = v;
     const double top = smoothPeak(mPeakStrips, inst > 0 ? inst : 1.0);   // 스무딩 피크(출렁임 억제)
     for (int k = 0; k < mCells.size(); ++k)
-        drawCell(mCells[k], mCellTick.value(k), mCellTock.value(k), sr, top, mSelCell == k);
+        drawCell(mCells[k], mCellTick.value(k), mCellTock.value(k), sr, top, mSelCell == k, kAvgStep * (k + 1));
 }
 
-// Scope1 비트 띠 클릭 → 그 비트를 Scope1 에 확대(현재 Scope1 보기 유지). 선택 비트 시점은 seek 전파.
-void TabBeatNoiseScope::onStripClicked(QMouseEvent *ev)
+// Scope1 비트 칸 클릭 → 그 비트를 Scope1 에 확대(현재 Scope1 보기 유지). 선택 비트 시점은 seek 전파.
+void TabBeatNoiseScope::onStripCellClicked(QMouseEvent *ev)
 {
+    Q_UNUSED(ev);
     if (mRecent.isEmpty() || mWin <= 0) return;
-    const int sr = mBuf.sampleRate() > 0 ? mBuf.sampleRate() : 48000;
-    const double pitch = 1000.0 * mWin / sr + 2.0;
-    const double xc = mStrips->xAxis->pixelToCoord(ev->pos().x());
-    const int idx = (int)(xc / pitch);
+    auto *plot = qobject_cast<QCustomPlot *>(sender());    // 클릭된 칸 플롯
+    const int idx = plot ? mStripCells.indexOf(plot) : -1;
     if (idx < 0 || idx >= mRecent.size()) return;
     mSelBeat = (mSelBeat == idx) ? -1 : idx;               // 재클릭 → 라이브 복귀
     if (mSelBeat >= 0 && mSelBeat < mRecentSample.size())
@@ -587,8 +622,10 @@ void TabBeatNoiseScope::onResetSession()
     if (mInfo) mInfo->setText(QStringLiteral("Waiting for signal…"));
     if (mCycle) mCycle->setText(QString("Σ 0/%1 · 0/%1").arg(kCycleN));
     if (mScope1 && mScope1->graphCount() > 1) mScope1->graph(1)->data()->clear();
-    for (QCustomPlot *p : {mScope1, mStrips, mTr1, mTr2})
+    for (QCustomPlot *p : {mScope1, mTr1, mTr2})
         if (p) { p->graph(0)->data()->clear(); p->clearItems(); p->replot(); }
+    for (QCustomPlot *c : mStripCells)
+        if (c) { c->graph(0)->data()->clear(); c->clearItems(); c->replot(); }
     for (QCustomPlot *c : mCells)
         if (c) { c->graph(0)->data()->clear(); c->graph(1)->data()->clear(); c->graph(2)->data()->clear(); c->clearItems(); c->replot(); }
 }

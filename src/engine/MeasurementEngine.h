@@ -48,6 +48,8 @@ public:
 
     // [측정 대기] rate 그래프 x축 원점(초). 웜업 종료 시 그 시점을 0으로 만들어 갭 제거.
     void setPlotTimeOrigin(double sec) { mPlotTimeOriginSec = sec; }
+    // rate 점 x = (절대샘플/sr − 원점). 탭이 rate 좌표 ↔ 절대샘플 환산(상·하단 시간 동기)에 사용.
+    double plotTimeOrigin() const { return mPlotTimeOriginSec; }
 
     SeriesUpdate onAEvent(double aEventSample, bool haveValidBph, double bph); // rate + beat error
     void         onCEvent(double cEventSample, bool haveValidBph, double bph); // amplitude

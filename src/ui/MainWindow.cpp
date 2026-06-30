@@ -1346,6 +1346,7 @@ void MainWindow::PublishMeasurementToTabs(void)
     snap.rateTocX = mEngine.tocX().constData(); snap.rateTocY = mEngine.tocY().constData(); snap.rateTocN = mEngine.tocX().size();
     snap.rateTicOutY = mEngine.ticOutY().constData(); snap.rateTocOutY = mEngine.tocOutY().constData();   // [이상치] 점별 표식
     snap.rateMaxPoints = mEngine.maxDataPoints();
+    snap.plotTimeOriginSec = mEngine.plotTimeOrigin();   // rate좌표 ↔ 절대샘플(상·하단 시간 동기)
     if (mReadoutBar) mReadoutBar->update(snap);
     mTabManager->broadcastMeasurement(snap);
 }
