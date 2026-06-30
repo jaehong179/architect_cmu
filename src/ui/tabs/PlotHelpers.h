@@ -21,6 +21,19 @@ inline QCPGraph *addLineGraph(QCustomPlot *plot, const QColor &color,
     return g;
 }
 
+// [PERF] 페인트 비용 절감 — PERF 측정상 병목은 DSP가 아니라 QCustomPlot 래스터(페인트 ~32ms)였다.
+//  비싼 요소(선·채움·스캐터·아이템)의 안티앨리어싱만 끄고(SW 래스터에서 AA·채움이 가장 비쌈),
+//  빠른 폴리라인 힌트 + 적응 샘플링(화면폭 초과 표본 솎음)을 켠다. 텍스트·축·그리드는 가독성 위해 AA 유지.
+//  시각은 거의 동일(선이 살짝 또렷/딱딱), 페인트만 가벼워진다. 그래프 추가 '후' 호출.
+inline void applyFastPaint(QCustomPlot *plot)
+{
+    if (!plot) return;
+    plot->setNotAntialiasedElements(QCP::aeFills | QCP::aePlottables | QCP::aeScatters | QCP::aeItems);
+    plot->setPlottingHint(QCP::phFastPolylines, true);
+    for (int i = 0; i < plot->graphCount(); ++i)
+        plot->graph(i)->setAdaptiveSampling(true);
+}
+
 // 플롯의 모든 그래프 데이터를 비운다(스타일/아이템/축은 불변). replot 은 호출측 책임.
 inline void clearAllGraphs(QCustomPlot *plot)
 {

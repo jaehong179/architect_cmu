@@ -1,6 +1,7 @@
 #include "TabRateScope.h"
 #include "qcustomplot.h"
 #include "TrendSeek.h"             // 청록 롤리팝 커서 공용 스타일(다른 트렌드 탭과 통일)
+#include "PlotHelpers.h"           // [PERF] applyFastPaint(AA off·fast polyline·adaptive)
 #include "WaveLodHistory.h"        // 8분 이력 버퍼(pause 중 queryWindow 렌더)
 #include "PerfInstrumentation.h"   // PERF_ENABLE (afterReplot→scopeReplotted 배선 게이트)
 #include <QVBoxLayout>
@@ -85,6 +86,8 @@ TabRateScope::TabRateScope(QWidget *parent) : TabView(parent)
     connect(mResetZoomBtn, &QPushButton::clicked, this, [this]{ resetZoomToEntry(); });
 
     setupPlots();
+    PlotHelpers::applyFastPaint(mScopePlot);   // [PERF] 페인트 경량화(채움/선 AA off 등) — 측정상 병목
+    PlotHelpers::applyFastPaint(mRatePlot);
 
     // [정렬] 상·하단 플롯의 좌·우 여백을 하나의 그룹으로 묶어 x축(시간)을 픽셀 단위로 정렬한다.
     //  → y축 라벨 폭이 달라도 두 그래프의 같은 시각이 화면상 정확히 수직선상에 온다.

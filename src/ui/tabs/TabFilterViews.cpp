@@ -2,6 +2,7 @@
 #include "ScopeFilters.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
+#include "PlotHelpers.h"      // [PERF] applyFastPaint
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -67,6 +68,7 @@ TabFilterViews::TabFilterViews(QWidget *parent) : TabView(parent)
         p->setNoAntialiasingOnDrag(true);
         p->xAxis->setLabel(QStringLiteral("time (ms, 0=T1)"));
         p->yAxis->setLabel(kScopeMirror[k] ? QStringLiteral("amplitude(normalized) ±") : QStringLiteral("amplitude(normalized) +"));
+        PlotHelpers::applyFastPaint(p);   // [PERF] 정적 표시도 AA off(채움/선) — 패널 4개라 효과 큼
         mQuad[k] = p;
         cl->addWidget(p, 1);
 

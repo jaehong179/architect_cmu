@@ -1,6 +1,7 @@
 #include "TabSyncSweepScope.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
+#include "PlotHelpers.h"      // [PERF] applyFastPaint
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -34,6 +35,7 @@ TabSyncSweepScope::TabSyncSweepScope(QWidget *parent) : TabView(parent)
     mPlot->graph(0)->setAdaptiveSampling(true);
     mPlot->xAxis->setLabel(QStringLiteral("sweep time (ms)"));
     mPlot->yAxis->setLabel(QStringLiteral("amplitude (envelope, normalized 0~1)"));
+    PlotHelpers::applyFastPaint(mPlot);   // [PERF] 채움(grass) AA off 등 페인트 경량화
     lay->addWidget(mPlot, 1);
 
     connect(mBeats, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });

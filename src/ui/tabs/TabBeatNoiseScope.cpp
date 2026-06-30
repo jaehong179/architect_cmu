@@ -1,6 +1,7 @@
 #include "TabBeatNoiseScope.h"
 #include "ScopeRender.h"
 #include "WaveLodHistory.h"   // [③] seek 대상 replay
+#include "PlotHelpers.h"      // [PERF] applyFastPaint
 #include <QComboBox>
 #include <QCheckBox>
 #include <QPushButton>
@@ -150,6 +151,11 @@ TabBeatNoiseScope::TabBeatNoiseScope(QWidget *parent) : TabView(parent)
     connect(mScopeToggle, &QPushButton::clicked, this, [this]{ mShowScope2 = !mShowScope2; applyScopeView(); });
     connect(mRange, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int){ mRangeMs = mRange->currentData().toInt(); if (isVisible() && !mShowScope2) renderScope1(); });
     connect(mAvg, &QCheckBox::toggled, this, [this](bool){ if (isVisible() && mShowScope2) renderScope2(); });
+
+    // [PERF] 모든 scope 플롯 페인트 경량화(채움/선 AA off + fast polyline + adaptive) — 측정상 병목이 페인트.
+    for (QCustomPlot *p : {mScope1, mTr1, mTr2}) PlotHelpers::applyFastPaint(p);
+    for (QCustomPlot *p : mStripCells) PlotHelpers::applyFastPaint(p);
+    for (QCustomPlot *p : mCells)      PlotHelpers::applyFastPaint(p);
 }
 
 // Scope1/Scope2 표시 전환 — 하단 영역도 함께 바뀐다(Scope1=최근 비트 띠 / Scope2=누적평균 셀).

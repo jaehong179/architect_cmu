@@ -1,6 +1,7 @@
 #include "TabEscapementAnalyzer.h"
 #include "WaveLodHistory.h"   // [③] seek replay 시 과거 구간 복원
 #include "qcustomplot.h"
+#include "PlotHelpers.h"      // [PERF] applyFastPaint
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -41,6 +42,7 @@ TabEscapementAnalyzer::TabEscapementAnalyzer(QWidget *parent) : TabView(parent)
     mPlot->graph(3)->setName(QStringLiteral("outlier"));
     mPlot->xAxis->setLabel(QStringLiteral("time (ms, 0 = Tick T1)"));
     mPlot->yAxis->setLabel(QStringLiteral("amplitude (raw, bipolar)"));
+    PlotHelpers::applyFastPaint(mPlot);   // [PERF] 페인트 경량화(선/아이템 AA off 등)
     lay->addWidget(mPlot, 1);
 
     connect(mThresh, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int){ if (isVisible()) render(); });

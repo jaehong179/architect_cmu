@@ -1,6 +1,7 @@
 #include "TabWaveformCompare.h"
 #include "WaveLodHistory.h"   // [③] seek replay
 #include "qcustomplot.h"
+#include "PlotHelpers.h"      // [PERF] applyFastPaint
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <algorithm>
@@ -104,6 +105,7 @@ QCustomPlot *TabWaveformCompare::makeScope()
     plot->addGraph(); plot->graph(0)->setPen(Qt::NoPen);
     plot->addGraph(); plot->graph(1)->setPen(QPen(Qt::white, 1)); plot->graph(1)->setBrush(QColor(255,255,255,230)); plot->graph(1)->setChannelFillGraph(plot->graph(0));
     plot->addGraph(); plot->graph(2)->setPen(QPen(Qt::white, 1)); plot->graph(2)->setBrush(QColor(255,255,255,230)); plot->graph(2)->setChannelFillGraph(plot->graph(0));
+    PlotHelpers::applyFastPaint(plot);   // [PERF] 채움/선 AA off — Tic·Toc·Period 패널 공통
     return plot;
 }
 
