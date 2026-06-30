@@ -54,16 +54,24 @@ void PositionSequenceController::resume()
         mTimer->start();
 }
 
-void PositionSequenceController::confirmPositionChange()
+void PositionSequenceController::confirmPositionChange(int measuredPositionCount,
+                                                       int nextPositionIndex)
 {
     if (!mAwaitingConfirm) return;
     mAwaitingConfirm = false;
 
-    if (mSequenceStep >= corePositionSequenceLength() - 1)
-        return;
+    const int total = corePositionSequenceLength();
+    mSequenceStep = qBound(0, measuredPositionCount, total);
 
-    ++mSequenceStep;
-    mCurrentPositionIndex = corePositionSequenceIndices()[mSequenceStep];
+    if (measuredPositionCount >= total || nextPositionIndex < 0) {
+        mTimer->stop();
+        mPhase = Phase::Idle;
+        mRemainingSec = 0;
+        emit phaseChanged(QString(), QStringLiteral("idle"), 0);
+        return;
+    }
+
+    mCurrentPositionIndex = nextPositionIndex;
     emit currentPositionIndexChanged(mCurrentPositionIndex);
     // [측정 대기] 포지션 전환 시에도 고정 안정화 대신 warm-up 을 요청한다.
     mPhase = Phase::Warmup;
@@ -101,12 +109,8 @@ void PositionSequenceController::finishMeasurementWindow()
     mAwaitingConfirm = true;
 
     const QString posName = mTiming->entryAt(currentTimingRow()).name;
-    const bool complete = (mSequenceStep >= corePositionSequenceLength() - 1);
-    QString nextName;
-    if (!complete)
-        nextName = mTiming->entryAt(corePositionSequenceIndices()[mSequenceStep + 1]).name;
 
-    emit measurementWindowEnded(mCurrentPositionIndex, posName, nextName, complete);
+    emit measurementWindowEnded(mCurrentPositionIndex, posName, QString(), false);
 }
 
 void PositionSequenceController::tick()

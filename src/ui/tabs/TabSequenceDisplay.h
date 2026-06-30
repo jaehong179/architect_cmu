@@ -29,6 +29,8 @@ public:
     void setEngineerProvider(std::function<QString()> provider);
     QList<int> measuredPositionIndices() const;
     QList<int> remainingPositionIndices() const;
+    int measuredPositionCount() const;
+    int firstRemainingPositionIndex() const;
     bool hasAllPositionsMeasured() const;
 
 public slots:
