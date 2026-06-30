@@ -1646,7 +1646,7 @@ static constexpr int WINDOW_W           = 1280;
 static constexpr int RIGHT_MARGIN        = 8;
 static constexpr int BOTTOM_MARGIN       = 4;
 
-static constexpr int SIDEBAR_W = 56;   // [설정 팝업] 항상 보이는 좁은 사이드바 폭
+static constexpr int SIDEBAR_W = 92;   // [설정 팝업] 항상 보이는 사이드바 폭(2x 버튼 수용)
 
 void MainWindow::setControlPanelCollapsed(bool collapsed)
 {

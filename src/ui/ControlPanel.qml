@@ -281,79 +281,17 @@ Rectangle {
     Column {
         id: collapsedInfo
         anchors.top: parent.top
-        anchors.topMargin: 14
+        anchors.topMargin: 20
         anchors.horizontalCenter: parent.horizontalCenter
-        spacing: 14
+        spacing: 18
         visible: !cppBackend.settingsOpen
-
-        // ── Mode badge ──
-        Rectangle {
-            width: 34
-            height: 34
-            radius: 8
-            color: root.colorBgCard
-            border.color: root.colorBorder
-            border.width: 1
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Text {
-                anchors.centerIn: parent
-                text: root.modeIcons[cppBackend.currentMode] || "●"
-                font.pixelSize: 16
-                color: {
-                    switch (cppBackend.currentMode) {
-                        case 0: return "#ef5350"  // Live  → red
-                        case 1: return "#42a5f5"  // Play  → blue
-                        case 2: return "#ab47bc"  // Sim   → purple
-                        default: return root.colorTextMain
-                    }
-                }
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-            }
-
-            // Tooltip: mode label
-            ToolTip.visible: modeHover.hovered
-            ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
-            ToolTip.delay: 400
-
-            HoverHandler { id: modeHover }
-        }
-
-        // ── Position badge ──
-        Rectangle {
-            width: 34
-            height: 34
-            radius: 8
-            color: root.colorBgCard
-            border.color: root.colorBorder
-            border.width: 1
-            anchors.horizontalCenter: parent.horizontalCenter
-
-            Image {
-                anchors.centerIn: parent
-                width: 24
-                height: 24
-                fillMode: Image.PreserveAspectFit
-                source: root.currentPositionInfo.icon
-            }
-
-            // Tooltip: position label
-            ToolTip.visible: posHover.hovered
-            ToolTip.text: root.currentPositionInfo.name !== "N/A"
-                ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
-                : "Unknown"
-            ToolTip.delay: 400
-
-            HoverHandler { id: posHover }
-        }
 
         // ── Start/Pause + Stop ──
         Rectangle {
             id: miniPlayPauseBtn
-            width: 34
-            height: 40
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.primaryButtonFillColor()
             border.color: root.primaryButtonBorderColor()
@@ -362,25 +300,12 @@ Rectangle {
 
             Behavior on color { ColorAnimation { duration: 200 } }
 
-            Column {
+            Image {
                 anchors.centerIn: parent
-                spacing: 1
-
-                Image {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    source: root.primaryButtonIconSource()
-                    width: 18
-                    height: 18
-                    fillMode: Image.PreserveAspectFit
-                }
-                Text {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: root.primaryButtonShortLabel()
-                    font.pixelSize: 8
-                    font.bold: true
-                    color: "#ffffff"
-                    horizontalAlignment: Text.AlignHCenter
-                }
+                source: root.primaryButtonIconSource()
+                width: 42
+                height: 42
+                fillMode: Image.PreserveAspectFit
             }
 
             ToolTip.visible: playPauseHover.hovered
@@ -398,9 +323,9 @@ Rectangle {
 
         Rectangle {
             id: miniStopBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             visible: cppBackend.isRunning
             color: "#b71c1c"
@@ -410,8 +335,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_stop.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -430,9 +355,9 @@ Rectangle {
         // ── History QR (평상시 이력 QR) ──
         Rectangle {
             id: miniQrBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.colorBgCard
             border.color: root.colorBorder
@@ -441,8 +366,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_qr.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -461,9 +386,9 @@ Rectangle {
         // ── Settings (가운데 설정 팝업 열기) ──
         Rectangle {
             id: miniSettingsBtn
-            width: 34
-            height: 34
-            radius: 8
+            width: 68
+            height: 68
+            radius: 14
             anchors.horizontalCenter: parent.horizontalCenter
             color: root.colorBgCard
             border.color: root.colorBorder
@@ -472,8 +397,8 @@ Rectangle {
             Image {
                 anchors.centerIn: parent
                 source: "qrc:/images/src/ui/images/ic_settings.svg"
-                width: 20
-                height: 20
+                width: 40
+                height: 40
                 fillMode: Image.PreserveAspectFit
             }
 
@@ -487,6 +412,75 @@ Rectangle {
                 anchors.fill: parent
                 onClicked: { cppBackend.settingsOpen = true }
             }
+        }
+    }
+
+    // ─── Sidebar: monitoring status (좌측 하단) ───────────────────────────────
+    //  모드 표시(색 점) + 감지 포지션/카메라 상태 — 컨트롤이 아니라 상태 표시.
+    Column {
+        id: statusBadges
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 20
+        anchors.horizontalCenter: parent.horizontalCenter
+        spacing: 18
+        visible: !cppBackend.settingsOpen
+
+        // ── Mode badge ──
+        Rectangle {
+            width: 68
+            height: 68
+            radius: 14
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Text {
+                anchors.centerIn: parent
+                text: root.modeIcons[cppBackend.currentMode] || "●"
+                font.pixelSize: 32
+                color: {
+                    switch (cppBackend.currentMode) {
+                        case 0: return "#ef5350"  // Live  → red
+                        case 1: return "#42a5f5"  // Play  → blue
+                        case 2: return "#ab47bc"  // Sim   → purple
+                        default: return root.colorTextMain
+                    }
+                }
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            ToolTip.visible: modeHover.hovered
+            ToolTip.text: ["Live", "Playback", "Sim"][cppBackend.currentMode] || ""
+            ToolTip.delay: 400
+            HoverHandler { id: modeHover }
+        }
+
+        // ── Position badge (camera/detected watch) ──
+        Rectangle {
+            width: 68
+            height: 68
+            radius: 14
+            color: root.colorBgCard
+            border.color: root.colorBorder
+            border.width: 1
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            Image {
+                anchors.centerIn: parent
+                width: 48
+                height: 48
+                fillMode: Image.PreserveAspectFit
+                source: root.currentPositionInfo.icon
+            }
+
+            ToolTip.visible: posHover.hovered
+            ToolTip.text: root.currentPositionInfo.name !== "N/A"
+                ? root.currentPositionInfo.name + " (" + root.currentPositionInfo.status + ")"
+                : "Unknown"
+            ToolTip.delay: 400
+            HoverHandler { id: posHover }
         }
     }
 
