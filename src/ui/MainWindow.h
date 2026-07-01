@@ -94,6 +94,8 @@ class MainWindow : public QMainWindow
     Q_PROPERTY(bool controlPanelCollapsed READ controlPanelCollapsed WRITE setControlPanelCollapsed NOTIFY controlPanelCollapsedChanged)
     // [설정 팝업] 사이드바 톱니바퀴 → 가운데 설정 팝업 표시 상태 (QML ↔ C++)
     Q_PROPERTY(bool settingsOpen READ settingsOpen WRITE setSettingsOpen NOTIFY settingsOpenChanged)
+    // [성능 로그] Config 의 "View Log" 체크 → perf 로그 실시간 팝업 표시 상태 (QML ↔ C++)
+    Q_PROPERTY(bool viewLogOpen READ viewLogOpen WRITE setViewLogOpen NOTIFY viewLogOpenChanged)
 
 public:
     MainWindow(QWidget *parent = nullptr);
@@ -187,6 +189,9 @@ public:
     bool settingsOpen() const { return mSettingsOpen; }
     void setSettingsOpen(bool open);
 
+    bool viewLogOpen() const { return mViewLogOpen; }
+    void setViewLogOpen(bool open);
+
 signals:
     void currentModeChanged();
     void gainChanged();
@@ -214,6 +219,7 @@ signals:
     void engineerChanged();
     void controlPanelCollapsedChanged();
     void settingsOpenChanged();
+    void viewLogOpenChanged();
     void warmupDelayIndexChanged();
 
 public slots:
@@ -354,6 +360,8 @@ private:
     PositionChangeDialog      *mActivePositionDialog = nullptr;
     bool                       mControlPanelCollapsed = false;
     bool                       mSettingsOpen = false;   // [설정 팝업] 가운데 설정 창 표시 여부
+    bool                       mViewLogOpen = false;    // [성능 로그] perf 실시간 뷰어 팝업 표시 여부
+    class PerfLogWindow       *mPerfLogWindow = nullptr; // [성능 로그] 독립 최상위 뷰어 창(소유)
 
     double                     mLiftAngle;
     int                        mAveragingPeriod;

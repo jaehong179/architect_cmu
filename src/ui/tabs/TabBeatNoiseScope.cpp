@@ -296,6 +296,9 @@ void TabBeatNoiseScope::processNewBeats()
     if (added) mStripsDirty = true;   // 새 비트 → 썸네일/선택 표시 갱신
 }
 
+// T1↔T3 측정 간격(ms) 배지 — 정의는 아래 drawTrace 앞에 있음(Scope1/Scope2 공용). 전방 선언.
+static void addT1T3Label(QCustomPlot *p, double t3Ms, double xRatio, Qt::Alignment align);
+
 void TabBeatNoiseScope::renderScope1()
 {
     const int sr = mBuf.sampleRate() > 0 ? mBuf.sampleRate() : 48000;
@@ -333,6 +336,7 @@ void TabBeatNoiseScope::renderScope1()
         ct->setPositionAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         mInfo->setText(QString("[selected beat #%1]  A→C=%2ms  lift=%3°  bph=%4")
             .arg(mSelBeat + 1).arg(cMs, 0, 'f', 1).arg(mLiftAngle).arg(mBuf.bph()));
+        addT1T3Label(mScope1, cMs, 0.985, Qt::AlignRight | Qt::AlignTop);   // T1↔T3 측정 간격
         mScope1->replot(QCustomPlot::rpQueuedReplot);
         return;
     }
@@ -353,6 +357,11 @@ void TabBeatNoiseScope::renderScope1()
     if (haveA) from = lastA > (uint64_t)pre ? lastA - (uint64_t)pre : 0;
     else       from = latest > (uint64_t)count ? latest - count : 0;   // 아직 완성 비트 없음 → 최근 구간
     scopePlotWindow(mScope1, mBuf, from, count);
+    // T1↔T3 측정 간격(ms) — 표시 중인 비트(lastA)의 A→C. scopePlotWindow 뒤에 코너 배지로 얹는다.
+    if (haveA) {
+        const double acS = beatAcSamples(lastA);
+        if (acS > 0.0) addT1T3Label(mScope1, 1000.0 * acS / sr, 0.985, Qt::AlignRight | Qt::AlignTop);
+    }
     // Plan §Scope 1: "shall present the lift angle associated with the displayed beat pattern".
     mInfo->setText(QString("range=%1ms  lift=%2°  beats=%3  bph=%4 %5")
         .arg(mRangeMs).arg(mLiftAngle).arg(mBeatCount).arg(mBuf.bph()).arg(mBuf.synced()?"[synced]":""));
@@ -518,6 +527,23 @@ void TabBeatNoiseScope::onCellClicked(QMouseEvent *ev)
     if (isVisible()) render();
 }
 
+// T1↔T3 측정 간격(ms) 배지 — T1(A, x=0)에서 T3(A→C)까지 걸린 시간. Scope1/Scope2 공용.
+//  코너(axisRectRatio)에 고정 표시해 파형/다른 라벨과 겹치지 않게 한다.
+static void addT1T3Label(QCustomPlot *p, double t3Ms, double xRatio, Qt::Alignment align)
+{
+    if (t3Ms <= 0.0) return;
+    auto *t = new QCPItemText(p);
+    t->position->setType(QCPItemPosition::ptAxisRectRatio);
+    t->position->setCoords(xRatio, 0.07);
+    t->setPositionAlignment(align);
+    t->setText(QString("T1→T3 = %1 ms").arg(t3Ms, 0, 'f', 2));
+    t->setColor(QColor(190, 0, 0));
+    t->setBrush(QColor(255, 255, 255, 200));
+    t->setPen(QPen(QColor(190, 0, 0, 120)));
+    t->setPadding(QMargins(4, 1, 4, 1));
+    t->setFont(QFont(QStringLiteral("monospace"), 8));
+}
+
 static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
                       const QVector<double> &last, int sr, bool avgOn,
                       double ampDeg, bool ampValid, double &norm, double t3Ms = -1.0)
@@ -548,6 +574,8 @@ static void drawTrace(QCustomPlot *p, const QVector<double> &sum, long n,
     };
     vmark(0.0, QStringLiteral("T1"));
     if (t3Ms > 0.0 && t3Ms < 1000.0 * w / sr) vmark(t3Ms, QStringLiteral("T3"));
+    // T1↔T3 측정 간격(ms) — 좌상단(우상단 진폭 라벨과 겹치지 않게).
+    addT1T3Label(p, t3Ms, 0.015, Qt::AlignLeft | Qt::AlignTop);
     // Plan: "display the average amplitude on each horizontal axis" — 축별 평균 진폭 라벨.
     if (ampValid) {
         auto *t = new QCPItemText(p);

@@ -30,6 +30,7 @@
 #include <QSettings>
 
 #include "QrCodeDialog.h"
+#include "PerfLogWindow.h"   // [성능 로그] perf 실시간 뷰어 팝업
 #include "cloud/MeasurementUploadClient.h"
 #include "tabs/TabManager.h"
 #include "tabs/TabRateScope.h"
@@ -1768,6 +1769,31 @@ void MainWindow::setSettingsOpen(bool open)
     mSettingsOpen = open;
     emit settingsOpenChanged();
     applyPanelLayout();
+}
+
+void MainWindow::setViewLogOpen(bool open)
+{
+    if (mViewLogOpen == open)
+        return;
+    mViewLogOpen = open;
+    if (open) {
+        if (!mPerfLogWindow) {
+            mPerfLogWindow = new PerfLogWindow(this);   // 부모=MainWindow(수명 종속), 독립 최상위 창
+            // perf 로그 → 뷰어: 워커/타이머 스레드에서 emit → UI 스레드로 큐 전달(항목별 통계 집계).
+            connect(Perf::LogBus::instance(), &Perf::LogBus::logRecord,
+                    mPerfLogWindow, &PerfLogWindow::addRecord, Qt::QueuedConnection);
+            // 창을 X 로 닫으면 체크박스도 해제(속성 false) — 재귀 없이 상태만 동기.
+            connect(mPerfLogWindow, &PerfLogWindow::closed, this, [this]{ setViewLogOpen(false); });
+        }
+        Perf::LogBus::instance()->setActive(true);   // 이때부터 log() 가 라인을 중계(관측자 효과 게이트)
+        mPerfLogWindow->show();
+        mPerfLogWindow->raise();
+        mPerfLogWindow->activateWindow();
+    } else {
+        Perf::LogBus::instance()->setActive(false);  // 중계 중단 → 핫패스 부하 0
+        if (mPerfLogWindow) mPerfLogWindow->hide();
+    }
+    emit viewLogOpenChanged();
 }
 
 void MainWindow::onControlPanelToggled(bool collapsed)

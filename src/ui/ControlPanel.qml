@@ -1628,6 +1628,22 @@ Rectangle {
                                 font.pixelSize: 11
                             }
                         }
+
+                        // View Log — perf 계측 로그 실시간 팝업(즉시 반영: Apply 대상 아님).
+                        //  onToggled(사용자 조작)로만 설정 → 바인딩 루프 없이 창을 닫으면 자동 해제.
+                        CheckBox {
+                            text: "View Performance Log"
+                            checked: cppBackend.viewLogOpen
+                            onToggled: { cppBackend.viewLogOpen = checked }
+                            contentItem: Text {
+                                text: parent.text
+                                color: root.colorAccent
+                                font.bold: true
+                                leftPadding: 24
+                                verticalAlignment: Text.AlignVCenter
+                                font.pixelSize: 11
+                            }
+                        }
                     }
                 }
             }

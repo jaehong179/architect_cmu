@@ -55,6 +55,8 @@ set(PROJECT_SOURCES
         src/ui/SequenceResultSaveDialog.cpp
         src/ui/QrCodeDialog.h
         src/ui/QrCodeDialog.cpp
+        src/ui/PerfLogWindow.h
+        src/ui/PerfLogWindow.cpp
         src/ui/cloud/MeasurementUploadClient.h
         src/ui/cloud/MeasurementUploadClient.cpp
         # [QR] nayuki QR-Code-generator (단일 파일, 무의존성) — qcustomplot 와 동일 번들 방식
@@ -494,7 +496,7 @@ target_link_libraries(TimeGrapher PRIVATE winmm)
 target_link_libraries(TimeGrapher PRIVATE Ole32)
 target_link_libraries(TimeGrapher PRIVATE Uuid)
 target_link_libraries(TimeGrapher PRIVATE Propsys)
-# (psapi 링크 제거 — 자원 측정은 외부 스크립트로 이동, 인앱 GetProcessMemoryInfo 미사용)
+target_link_libraries(TimeGrapher PRIVATE psapi)   # [성능 로그] 인앱 CPU/메모리 표시(GetProcessMemoryInfo)
 ELSEIF(LINUX)
 target_link_libraries(TimeGrapher PRIVATE asound)
 #DP REMOVED NOT NEED IN THIS VERSION

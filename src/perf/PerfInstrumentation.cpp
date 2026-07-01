@@ -66,6 +66,13 @@ inline bool sectionEnabled(const char *s)
 
 namespace Perf {
 
+// 실시간 로그 버스 싱글턴. init()(UI 스레드)에서 먼저 생성해 두므로 QObject 소속 스레드가 UI 로 고정된다.
+LogBus *LogBus::instance()
+{
+    static LogBus *bus = new LogBus();   // 프로세스 수명(앱 종료까지) — 의도적 무해 누수
+    return bus;
+}
+
 double nowMs()
 {
     // 단조 시계(절대 시각 아님). 캡처→처리→표시 지연(§A-1/A-2) 계산의 공통 기준.
@@ -75,6 +82,7 @@ double nowMs()
 
 void init(const QString &sessionTag)
 {
+    LogBus::instance();   // UI 스레드(Main)에서 버스 선생성 → 이후 어느 스레드가 써도 스레드 소속 UI 로 고정
     QMutexLocker lock(&gLogMutex);
     gStart = std::chrono::steady_clock::now();
     // gStart(단조시계 0점)와 같은 순간의 벽시계 epoch(ms)를 즉시 포착 → 외부 epoch 로그와 정렬 기준.
@@ -124,14 +132,16 @@ void log(const char *section, const char *qa, const char *metric,
     //  CSV·콘솔 기록 안 함 + 문자열 포맷·flush 오버헤드도 발생 안 함(관측자 효과↓).
     if (!sectionEnabled(section)) return;
     const double t = nowMs();
-    QMutexLocker lock(&gLogMutex);
-    if (gReady) {
-        gLogStream << QString::number(t, 'f', 3) << ','
-                   << section << ',' << qa << ',' << metric << ','
-                   << QString::number(value, 'f', 4) << ',' << unit << ','
-                   << extra << '\n';
-        // [관측자 효과↓] 매 줄 flush 안 함 — 1초 주기로만 디스크에 내림(핫패스 write 시스템콜 제거).
-        if (t - gLastFlushMs >= kFlushIntervalMs) { gLogStream.flush(); gLastFlushMs = t; }
+    {
+        QMutexLocker lock(&gLogMutex);
+        if (gReady) {
+            gLogStream << QString::number(t, 'f', 3) << ','
+                       << section << ',' << qa << ',' << metric << ','
+                       << QString::number(value, 'f', 4) << ',' << unit << ','
+                       << extra << '\n';
+            // [관측자 효과↓] 매 줄 flush 안 함 — 1초 주기로만 디스크에 내림(핫패스 write 시스템콜 제거).
+            if (t - gLastFlushMs >= kFlushIntervalMs) { gLogStream.flush(); gLastFlushMs = t; }
+        }
     }
     // [관측자 효과↓] 콘솔 echo 는 기본 OFF (켜면 매 줄 QString 포맷·stderr I/O 발생).
     if (gConsoleEcho) {
@@ -139,6 +149,10 @@ void log(const char *section, const char *qa, const char *metric,
                                   .arg(section).arg(qa).arg(metric)
                                   .arg(value, 0, 'f', 3).arg(unit).arg(extra);
     }
+    // [실시간 뷰어] 팝업이 켜졌을 때만(active) 구조화 레코드를 UI 로 중계. 꺼져 있으면 emit 없음.
+    //  publish 는 큐 연결 시그널이라 워커 스레드에서 호출해도 UI 스레드로 안전 전달(gLogMutex 밖).
+    if (LogBus *bus = LogBus::instance(); bus->active())
+        bus->publish(t, section, qa, metric, value, unit, extra);
 }
 
 // 콘솔 echo on/off (기본 OFF). 측정 중엔 OFF 권장, 실시간 디버깅 시에만 ON.

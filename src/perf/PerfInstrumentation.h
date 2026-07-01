@@ -51,6 +51,8 @@
 // =============================================================================
 #include <QString>
 #include <QtGlobal>
+#include <QObject>
+#include <atomic>
 
 // =============================================================================
 //  ★ 로그 ON/OFF 설정 (그룹별 컴파일 스위치) ★
@@ -116,6 +118,37 @@ void   setConsoleEcho(bool on);
 
 // 논리 코어 수 (세션 헤더 기록용).
 int    cpuCoreCount();
+
+// =============================================================================
+//  LogBus — perf 로그를 UI(실시간 뷰어 팝업)로 실시간 중계하는 스레드-세이프 버스.
+// -----------------------------------------------------------------------------
+//  Perf::log() 는 워커·메인·타이머 여러 스레드에서 불린다. 뷰어가 켜졌을 때만
+//  (setActive(true)) 한 줄씩 QString 을 만들어 publish → logLine 시그널을 emit 한다.
+//  수신부(UI 팝업)는 UI 스레드에 있으므로 큐 연결로 안전하게 전달된다.
+//  뷰어가 꺼져 있으면 active()==false 라 문자열 생성·emit 자체가 없어 관측자 효과 0.
+//  (isActive/setActive 는 원자변수라 QObject 스레드 소속과 무관하게 어디서든 안전.)
+class LogBus : public QObject
+{
+    Q_OBJECT
+public:
+    static LogBus *instance();
+    void setActive(bool on) { mActive.store(on, std::memory_order_relaxed); }
+    bool active() const     { return mActive.load(std::memory_order_relaxed); }
+    // 구조화 필드로 중계 → 뷰어가 항목(section/metric)별 통계(count·avg·min·max)를 집계.
+    //  (멤버라 시그널 emit 가능. const char* 는 QLatin1String 으로 감싸 QString 인자로 큐 전달.)
+    void publish(double t, const char *section, const char *qa, const char *metric,
+                 double value, const char *unit, const QString &extra)
+    {
+        emit logRecord(t, QLatin1String(section), QLatin1String(qa), QLatin1String(metric),
+                       value, QLatin1String(unit), extra);
+    }
+signals:
+    void logRecord(double t, const QString &section, const QString &qa, const QString &metric,
+                   double value, const QString &unit, const QString &extra);
+private:
+    LogBus() = default;
+    std::atomic<bool> mActive{false};
+};
 
 } // namespace Perf
 
