@@ -220,3 +220,13 @@ the display's real update interval (33 ms) and **draw only once.**
 > ⚠️ **cap2proc & e2e_full are Live-capture-only metrics.** These 48k/192k runs were **Sim**, so those values are absent;
 > only the "processing→paint" segment (⑤→⑧) is measured (**≈9.3–9.6 ms, sample-rate independent**).
 > For true capture-inclusive end-to-end, **re-measure in Live mode.**
+
+**Budget check (measurable segment ⑤→⑧)**
+| | 48kHz | 192kHz |
+|---|---|---|
+| Required (block deadline = budget) | 20 ms | 20 ms |
+| **Currently used (processing→paint)** | **9.6 ms** | **9.3 ms** |
+| **Remaining headroom** | **≈10.4 ms (52%)** | **≈10.7 ms (54%)** |
+
+> ※ Paint (8.6/7.5 ms) is **separately capped at 30 fps** → not on every block. A no-paint block uses only **proc2disp (1.0/1.76 ms)** (≈19/18 ms free).
+> The 9.6 ms is the worst case where a block's processing and a paint coincide. Backlog held at ≈1 block confirms real time.
