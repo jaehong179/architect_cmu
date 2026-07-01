@@ -23,9 +23,8 @@ Accepted
 
 Positive
 
-- Keeps measurement trustworthy and explainable.
+- Users do not need to select current position manually.
 - AI is isolated, so a wrong guess cannot corrupt the measurement.
-- Provides orientation reading that acoustic methods cannot, and keeps AI isolated so a misprediction cannot corrupt measurement.
 - Keeps inference lightweight enough for the Raspberry Pi ([RISK-09](../README.md#risk-09)).
 
 Negative / costs
