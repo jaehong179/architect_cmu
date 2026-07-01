@@ -44,4 +44,9 @@ Measure end-to-end latency from a microphone impulse to the GUI update and verif
 
 - Source code based analysis: All required graphs use the same Tic/Toc calculations and wave signal processing as the Rate/Scope tab and Sound Print graph. Therefore, they have the same algorithmic and computational complexity, and no additional processing overhead is expected based on the provided source code.
 
-- Log based : Measured <= 95ms on 3600BPH
+- Log based :
+1) DSP : 0.55 ms
+2) Render Request :	1.0 ms
+3) Paint :  8.6 ms
+4) UI loop : 1.3 ms
+5) Total : 11.45ms on 28800BPH
