@@ -196,26 +196,31 @@ the display's real update interval (33 ms) and **draw only once.**
 
 ## Slide 11 — End-to-End Latency (measured window · per-stage times)
 
-**Our e2e = ④ ring-buffer write → ⑧ actual paint** (in-app only; acoustic & monitor HW excluded)
+**Of the full pipeline ① → ⑩, the app can only measure ④ → ⑧**
 
 ```
-④ ring write ─cap2proc─▶ ⑤ proc start ─proc2disp─▶ ⑦ replot req ─disp_paint─▶ ⑧ paint
-  (T_capture)                                                       (afterReplot)
- └────────────────────── e2e_full ──────────────────────┘
- e2e_full = cap2proc + proc2disp + disp_paint
+[outside app · unmeasurable]        [★ measurable = our e2e ★]                    [outside app · unmeasurable]
+① sound → ② mic·ADC → ③ OS buffer →│ ④ ring write ─cap2proc→ ⑤ proc start ─proc2disp→ ⑦ replot req ─disp_paint→ ⑧ paint │→ ⑨ monitor → ⑩ eye
+                                    │  ★T_capture           ★T_procStart          ★T_replotReq         ★T_paint       │
+                                    │  └──────────── e2e_full = cap2proc + proc2disp + disp_paint ───────────┘         │
 ```
 
-**Per-stage time (avg)**
-| Segment | Stage | 48kHz | 192kHz |
-|---|---|---|---|
-| ④→⑤ | cap2proc (queue wait) | *Live-only* | *Live-only* |
-| ⑤→⑦ | proc2disp (DSP+broadcast+build) | 1.0 ms | 1.76 ms |
-| — | └ of which DSP | 0.47 ms | 0.55 ms |
-| ⑦→⑧ | disp_paint (Qt queue+rasterize) | 8.6 ms | 7.5 ms |
-| ⑤→⑧ | **processing→paint sum** | **~9.6 ms** | **~9.3 ms** |
-| ④→⑧ | e2e_full (true end-to-end) | *needs Live* | *needs Live* |
+**Per-stage time (avg) — full pipeline**
+| # / Segment | Stage | Measured | 48kHz | 192kHz |
+|---|---|---|---|---|
+| ① | Sound generated (acoustic) | ✗ outside | — | — |
+| ② | Mic → ADC (HW) | ✗ outside | — | — |
+| ③ | OS audio buffer (driver) | ✗ outside | — | — |
+| ④→⑤ | cap2proc (ring queue wait) | △ Live-only | *Sim: none* | *Sim: none* |
+| ⑤→⑦ | proc2disp (DSP+broadcast+build) | ✓ | 1.0 ms | 1.76 ms |
+| ⑥ | └ of which DSP (tg_process) | ✓ | 0.47 ms | 0.55 ms |
+| ⑦→⑧ | disp_paint (Qt queue+rasterize) | ✓ | 8.6 ms | 7.5 ms |
+| ⑨ | Monitor emit (HW) | ✗ outside | — | — |
+| ⑩ | Human eye | ✗ outside | — | — |
+| **⑤→⑧** | **measured sum (processing→paint)** | ✓ | **~9.6 ms** | **~9.3 ms** |
+| **④→⑧** | **e2e_full (true end-to-end)** | needs Live | *needs Live* | *needs Live* |
 
-**Excluded**: the front (sound→mic→ADC→OS buffer) and back (monitor→eye) — the app cannot timestamp them.
+**Measurable window = ④→⑧** (front ①②③ and back ⑨⑩ cannot be timestamped by the app).
 
 > ⚠️ **cap2proc & e2e_full are Live-capture-only metrics.** These 48k/192k runs were **Sim**, so those values are absent;
 > only the "processing→paint" segment (⑤→⑧) is measured (**≈9.3–9.6 ms, sample-rate independent**).
