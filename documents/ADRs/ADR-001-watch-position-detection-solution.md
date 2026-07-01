@@ -1,19 +1,19 @@
 # ADR-001 : Limit AI (TinyML) to camera-based watch-position detection
 
-We keep all acoustic measurement rule-based, and use TinyML only to read the watch position from a camera. This keeps measurement trustworthy, and adds AI only where rules cannot help.
+We keep all acoustic measurement rule-based, and use TinyML only to read the watch position from a camera.
 
 ***Decision***
 
 - The acoustic path stays rule-based: tick/tock detection, rate/beat-error/amplitude, health grading, fault hints. Low-SNR is solved with signal processing (adaptive threshold, matched filter), not ML.
-- TinyML only reads the watch position from a camera (one of the 9 standard positions).
+- TinyML only reads the watch position from a camera (one of the 6 standard positions).
 - The classifier never computes measurements — it only labels the position, so a wrong position cannot corrupt a measured value.
 - AI detection is the default; when confidence is low, the user selects the position manually.
 
 ***Rationale***
 
 - Acoustic measurement is the root of every metric, so it must stay deterministic and explainable — ML stays out.
-- Watch position, however, can't be read from the acoustic signal ([EXP-12](../Experiments/EXP-12-usb-protocol-watch-position-detection.md)), and is hard to express as rules.
-- Camera images are easy to label per position, so ML is feasible here (avoids [RISK-05](../README.md#risk-05)) and a small model runs fine on the Pi ([RISK-09](../README.md#risk-09)).
+- Watch position, however, can't be read from the microphone USB ([EXP-12](../Experiments/EXP-12-usb-protocol-watch-position-detection.md)).
+- Camera images are easy to label per position, so ML is feasible here and a small model runs fine on the Pi ([EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md)).
 
 ***Status***
 
@@ -30,5 +30,5 @@ Positive
 
 Negative / costs
 
-- Adds a camera, a per-position dataset, and accuracy testing ([EXP-18](../Experiments/EXP-18-camera-tinyml-9-position-accuracy.md)).
+- Adds a camera, a per-position dataset, and accuracy testing.
 - Adds camera-environment dependencies as a new risk ([RISK-20](../README.md#risk-20)).

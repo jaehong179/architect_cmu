@@ -2,7 +2,7 @@
 
 The system reads the watch's position with a USB camera and an on-device TFLite classifier. Detection runs in a dedicated VisionWorker thread, separate from the acoustic measurement path, so a misclassified position can never corrupt a measured value (ADR-001). The camera streams frames continuously, but the worker classifies once per second and pushes the result to the GUI thread asynchronously.
 
-![Sequence Diagram](../images/AI_multiposition_cc.jpg)
+![Sequence Diagram](../images/AI_multiposition_cc.png)
 
 ##  Element catalog
 
@@ -35,6 +35,4 @@ One detection cycle: VisionWorker wakes on its 1 Hz timer, asks TfliteApi to cla
 
 ##  Related views
 
-[AV-003: Live Microphone to Graph Runtime View](AV-003-MicToGraph-SeqenceDiagram.md)
-
-[AV-002: Top-Level Module Uses View](documents/ArchitectureViews/AV-002-TimeGrapher-module-view.md)
+N/A
