@@ -69,4 +69,7 @@ High classification accuracy was achieved across all 9 positions.
 
 
 ### Performance
-- One inference <= 2ms
+#### One inference <= 2ms
+#### Why is the AI inference so fast (2ms) on Raspberry Pi?
+- Quantization: Reduced the model size by 1/4 by changing the 32-bit model to 8-bit.
+- XNNPACK: Applied Google's optimization library to speed up deep learning on ARM-based boards.
