@@ -66,3 +66,7 @@ High classification accuracy was achieved across all 9 positions.
 ### Summary
 
 ![summary_grid](../images/summary_grid.png)
+
+
+### Performance
+- One inference <= 2ms
