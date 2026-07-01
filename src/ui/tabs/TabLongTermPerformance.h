@@ -19,7 +19,7 @@ class TabLongTermPerformance : public TabView
     Q_OBJECT
 public:
     explicit TabLongTermPerformance(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Long-Term Performance Graph"); }
+    QString tabTitle() const override { return QStringLiteral("Long-Term Trend"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onResetSession() override;
     bool resetOnResume() const override { return true; }   // [pause→start] resume 시 그래프·데이터 초기화
