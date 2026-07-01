@@ -184,12 +184,12 @@ void TabBeatErrorTrace::onWave(const WaveBlock &w)
     // x 범위는 숨김 중에도 데이터에 맞춰 갱신해 둔다(축 갱신은 저렴) → 정지 중 타 탭 seek 가
     //  도착해도 기본(0~5) 폭으로 확대되지 않고, 그 폭 그대로 선택 지점을 중심에 보여준다.
     mPlot->xAxis->rescale();
-    // 최신 비트가 우측 경계에 딱 붙어, 그 자리에 그려지는 초록 gap 화살표·"gap=beat error …" 라벨이
-    //  잘리지 않도록 우측에 라벨 폭(≈160px)만큼 여백을 더한다.
-    if (const int rectW = mPlot->axisRect()->width()) {
-        const double pad = mPlot->xAxis->range().size() / (double)rectW * 160.0;
-        mPlot->xAxis->setRange(mPlot->xAxis->range().lower, mPlot->xAxis->range().upper + pad);
-    }
+    // 시간축은 항상 0(측정 시작)부터 시작 — 좌측 음수 구간을 두지 않는다. 우측은 최신 비트에 딱 붙는
+    //  초록 gap 화살표·"gap=beat error …" 라벨이 잘리지 않도록 라벨 폭(≈160px)만큼 여백을 더한다.
+    double upper = mPlot->xAxis->range().upper;
+    if (const int rectW = mPlot->axisRect()->width())
+        upper += qMax(0.0, upper) / (double)rectW * 160.0;
+    mPlot->xAxis->setRange(0.0, qMax(upper, 1.0));
     mPlot->yAxis->setRange(-kWrapMs / 2.0, kWrapMs / 2.0);   // Y 는 랩 창 고정
     if (isVisible())
         mPlot->replot(QCustomPlot::rpQueuedReplot);

@@ -134,11 +134,18 @@ double TabLongTermPerformance::sampleAtX(double xSeconds) const
 
 void TabLongTermPerformance::showCursor(double xSeconds, double labelSample)
 {
-    // 모든 트렌드 탭 공통 라벨 — 선택한 '원본 절대샘플' 기준이라 어느 레인/탭에서 봐도 t·rate 가 같다.
-    const QString lbl = SeekInfo::labelAt(labelSample);
+    // 레인별 롤리팝 라벨 — 위=rate·가운데=amplitude·아래=beat error. 선택 시각 t 는 세 레인 공통이고,
+    //  값은 선택한 '원본 절대샘플' 기준이라 어느 레인/탭에서 봐도 같은 시점을 가리킨다.
+    const SeekInfo::Vals v = SeekInfo::valuesAt(labelSample);
+    const QString t = QString("t=%1 s").arg(v.t, 0, 'f', 1);
+    const QString lbls[3] = {
+        t + (v.rateV ? QString("\nrate=%1 s/d").arg(v.rate, 0, 'f', 1)  : QString()),
+        t + (v.ampV  ? QString("\namp=%1°").arg(v.amp, 0, 'f', 0)       : QString()),
+        t + (v.beV   ? QString("\nbeat err=%1 ms").arg(v.be, 0, 'f', 2) : QString()),
+    };
     QCustomPlot *plots[3] = { mRate.plot, mAmp.plot, mBe.plot };
     for (int i = 0; i < 3; ++i) {
-        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, lbl);
+        TrendSeek::showLollipop(mCursors[i], mCursorHead[i], mCursorTip[i], xSeconds, lbls[i]);
         if (plots[i]) plots[i]->replot(QCustomPlot::rpQueuedReplot);
     }
 }

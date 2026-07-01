@@ -30,6 +30,24 @@ namespace Theme {
     const QColor kGrid      {210, 210, 215};   // 점선 그리드
 }
 
+// 하단 ScopePlot x축 라벨을 '측정 시작(워밍업 종료) 기준 초'로 표시하는 티커.
+//  스코프의 내부 x좌표는 절대 샘플 기준(sample/sr)이라, 그대로 두면 상단 RatePlot·타 트렌드 탭
+//  (모두 sample/sr − 원점)과 원점(예:5s)만큼 눈금 숫자가 어긋나 '동기 안 맞음'으로 보인다.
+//  좌표·이력·seek 수식은 절대 기준 그대로 두고 '라벨만' 원점만큼 빼서 두 그래프의 같은 시각이
+//  같은 숫자로 읽히게 한다. tickOrigin 도 원점에 맞춰 라벨이 0,0.1,… 처럼 반올림돼 나온다.
+namespace {
+class MeasStartTicker : public QCPAxisTickerFixed
+{
+public:
+    double origin = 0.0;   // 측정 시작 원점(초) — 라벨에서 이만큼 뺀다
+protected:
+    QString getTickLabel(double tick, const QLocale &locale, QChar formatChar, int precision) override
+    {
+        return QCPAxisTickerFixed::getTickLabel(tick - origin, locale, formatChar, precision);
+    }
+};
+} // namespace
+
 // Scope Y축 안정화: 상승 즉시·하강 천천히 (TabBeatNoiseScope 와 동일 패턴)
 static double smoothPeak(double &norm, double inst)
 {
@@ -848,10 +866,13 @@ void TabRateScope::updateScopeXAxisTicks(const QCPRange &range)
         precision = 0;
     }
 
-    QSharedPointer<QCPAxisTickerFixed> ticker = QSharedPointer<QCPAxisTickerFixed>::create();
+    // 라벨을 '측정 시작 기준 초'로 이동(상단 RatePlot·타 탭과 x축 숫자 통일). tickOrigin 을 원점에
+    //  맞춰 눈금이 원점+k·step 위치에 오고, 라벨(tick−원점 = k·step)은 반올림된 값으로 표시된다.
+    QSharedPointer<MeasStartTicker> ticker = QSharedPointer<MeasStartTicker>::create();
     ticker->setTickStep(tickStep);
     ticker->setScaleStrategy(QCPAxisTickerFixed::ssNone);
-    ticker->setTickOrigin(0.0);
+    ticker->origin = mPlotOriginSec;
+    ticker->setTickOrigin(mPlotOriginSec);
     mScopePlot->xAxis->setTicker(ticker);
     mScopePlot->xAxis->setNumberPrecision(precision);
     updateLabelVisibility();

@@ -20,6 +20,7 @@
 #include <QVector>
 #include <QPair>
 #include <QString>
+#include <QFontMetrics>
 #include <functional>
 
 // =============================================================================
@@ -67,6 +68,28 @@ public:
         const Pt &p = v[best];
         if (p.rateV) lbl += QString("\nrate=%1 s/d").arg(p.rate, 0, 'f', 1);   // 툴팁은 시간·rate 만 표시(amp·error 제외)
         return lbl;
+    }
+
+    // 선택 시각의 측정값(통일 t + rate·amplitude·beat error). 레인별 라벨을 만드는 탭
+    //  (Long-Term: 위=rate·가운데=amplitude·아래=beat error)이 labelAt 대신 사용한다.
+    struct Vals { double t = 0, rate = 0, amp = 0, be = 0; bool rateV = false, ampV = false, beV = false; };
+    static Vals valuesAt(double absSample)
+    {
+        Vals r;
+        const int rate = sr();
+        r.t = rate > 0 ? absSample / (double)rate - origin() : 0.0;   // labelAt 과 동일 원점(워밍업 종료)
+        const QVector<Pt> &v = store();
+        if (v.isEmpty()) return r;
+        int best = 0; double bestErr = qAbs(v.first().sample - absSample);
+        for (int i = 1; i < v.size(); ++i) {
+            const double e = qAbs(v[i].sample - absSample);
+            if (e < bestErr) { bestErr = e; best = i; }
+        }
+        const Pt &p = v[best];
+        r.rate = p.rate; r.rateV = p.rateV;
+        r.amp  = p.amp;  r.ampV  = p.ampV;
+        r.be   = p.be;   r.beV   = p.beV;
+        return r;
     }
 
 private:
@@ -175,15 +198,39 @@ public:
         if (head) { head->position->setCoords(x, kHeadRatio); head->setVisible(true); }
         if (tip)  {
             tip->setText(label);
-            // 툴팁을 머리 '옆'(기본 오른쪽, 우측 가장자리면 왼쪽으로 플립)에 둔다 → 선택 지점 위 데이터를 덜 가림.
-            bool toLeft = false;
-            if (QCustomPlot *p = tip->parentPlot()) {
-                const QCPRange r = p->xAxis->range();
-                if (r.size() > 0.0) toLeft = (x > r.lower + r.size() * 0.7);
+            // 툴팁을 머리 '옆'에 두되, 플롯(축) 영역 밖으로 나가면 상·하·좌·우 어느 쪽이든 안으로
+            //  들어오게 픽셀 기준으로 클램프한다 → 가장자리 선택에서도 박스가 잘리지 않는다.
+            QCustomPlot *p = tip->parentPlot();
+            const QRect ar = p ? p->axisRect()->rect() : QRect();   // 플롯(축) 영역 픽셀 사각형
+            if (p && ar.width() > 20 && ar.height() > 20) {
+                // 라벨 박스 픽셀 크기 추정(패딩 포함).
+                const QFontMetrics fm(tip->font());
+                const QRect tb = fm.boundingRect(QRect(0, 0, 4000, 4000),
+                                                 Qt::AlignLeft | Qt::TextExpandTabs, label);
+                const QMargins pad = tip->padding();
+                const double boxW = tb.width()  + pad.left() + pad.right();
+                const double boxH = tb.height() + pad.top()  + pad.bottom();
+                const double gap  = 10.0;                         // 머리와 박스 사이 간격(px)
+                const double headX = p->xAxis->coordToPixel(x);
+                const double headY = ar.top() + kHeadRatio * ar.height();
+                // 가로: 기본은 머리 오른쪽, 넘치면 왼쪽으로 플립, 그래도 넘치면 영역 안으로 클램프.
+                double boxL = headX + gap;
+                if (boxL + boxW > ar.right()) boxL = headX - gap - boxW;
+                boxL = clampToRange(boxL, ar.left(), ar.right()  - boxW);
+                // 세로: 머리 높이에서 아래로. 상·하 영역 안으로 클램프.
+                double boxT = clampToRange(headY, ar.top(),  ar.bottom() - boxH);
+                tip->setPositionAlignment(Qt::AlignLeft | Qt::AlignTop);
+                tip->position->setType(QCPItemPosition::ptAbsolute);   // 픽셀 좌표로 배치(축 밖 클램프)
+                tip->position->setPixelPosition(QPointF(boxL, boxT));
+            } else {
+                // 폴백(숨김/미배치 플롯 = 유효 지오메트리 없음): 데이터 좌표로 머리 옆(좌·우 플립)에 둔다.
+                bool toLeft = false;
+                if (p) { const QCPRange r = p->xAxis->range(); if (r.size() > 0.0) toLeft = (x > r.lower + r.size() * 0.7); }
+                tip->position->setTypeX(QCPItemPosition::ptPlotCoords);
+                tip->position->setTypeY(QCPItemPosition::ptAxisRectRatio);
+                tip->setPositionAlignment(Qt::AlignTop | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
+                tip->position->setCoords(x, kHeadRatio);
             }
-            // 박스를 머리에서 '아래로' 매달아(상단 정렬) 위쪽이 플롯 상단 밖으로 잘리지 않게 한다.
-            tip->setPositionAlignment(Qt::AlignTop | (toLeft ? Qt::AlignRight : Qt::AlignLeft));
-            tip->position->setCoords(x, kHeadRatio);
             tip->setVisible(true);
         }
     }
@@ -196,6 +243,13 @@ public:
 
 private:
     static constexpr double kHeadRatio = 0.10;   // 머리 세로 위치(0=상단)
+
+    // v 를 [lo, hi] 로 클램프. 박스가 영역보다 커서 hi<lo 이면 lo(좌/상단 정렬)로 둔다.
+    static double clampToRange(double v, double lo, double hi)
+    {
+        if (hi < lo) return lo;
+        return v < lo ? lo : (v > hi ? hi : v);
+    }
 
     double sampleAtX(double x) const
     {
@@ -213,8 +267,15 @@ private:
             // 선택 지점을 가장자리에 붙이지 않고 '뷰 가운데'로 패닝(현재 폭 유지). 정지 중에만 seek 가
             //  오므로 라이브 autoscale 과 충돌하지 않는다. → 선택 지점과 그 앞뒤 맥락이 함께 보인다.
             if (pc.plot) {
-                const double w = pc.plot->xAxis->range().size();
-                if (w > 0.0) pc.plot->xAxis->setRange(x - w * 0.5, x + w * 0.5);
+                const QCPRange cur = pc.plot->xAxis->range();
+                const double w = cur.size();
+                // 선택 지점이 이미 보이면 뷰를 건드리지 않는다(시간축 0-start 유지). 밖이면 폭은 유지하되
+                //  시간축이 음수로 밀리지 않게 좌측을 0으로 클램프해 이동.
+                if (w > 0.0 && (x < cur.lower || x > cur.upper)) {
+                    double lo = x - w * 0.5;
+                    if (lo < 0.0) lo = 0.0;
+                    pc.plot->xAxis->setRange(lo, lo + w);
+                }
             }
             showLollipop(pc.stem, pc.head, pc.tip, x, SeekInfo::labelAt(labelSample));   // 라벨=원본 절대샘플(타 탭 통일)
             if (pc.plot) pc.plot->replot(QCustomPlot::rpQueuedReplot);
