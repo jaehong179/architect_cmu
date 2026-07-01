@@ -31,5 +31,5 @@
 ## Results and recommendations
 
 - Generated synthetic audio for 14 fault types in TimeGrapherTestFilesWeishiMic/fault_wavs/
-
+- Process time on the Raspberry PI 5 : <= 0.2ms
 
