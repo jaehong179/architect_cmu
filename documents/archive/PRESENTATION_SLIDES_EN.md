@@ -159,3 +159,64 @@ the display's real update interval (33 ms) and **draw only once.**
 **Revisit conditions (reopen the ADR)**
 - `dsp_total` exceeds 20% of budget (≈4 ms)
 - Backlog accumulates persistently, causing real-time delay
+
+---
+
+## Slide 10 — Sample-rate Scaling (48kHz vs 192kHz)
+
+**Re-measured on the same Pi, sample rate raised 4× (960 → 3,840 samples/block)**
+
+| Metric | 48kHz | 192kHz | Change |
+|---|---|---|---|
+| DSP (dsp_total) | 0.47 ms | 0.55 ms | **+17% (barely rises)** |
+| — of which detect | 0.453 ms | 0.485 ms | +7% |
+| Paint (disp_paint) | 8.6 ms | 7.5 ms | **no increase** |
+| Backlog | ≈1 block | ≈1 block | real time held |
+| Throughput fg_sps / spf | 50k / 960 | 201k / 3,840 | ×4 (expected) |
+
+**Why CPU & paint don't scale 4×**
+- **detect ∝ tic/toc events (time-based)** → independent of sample rate (only the +7% scan part grows)
+- **paint ∝ decimation** bounds points to pixel width → independent of sample rate
+
+**Memory & thermal (the only real constraint)**
+| Metric | 48kHz | 192kHz | Factor |
+|---|---|---|---|
+| PSS (absolute plateau) | 392 MB | 1,069 MB | ×2.7 |
+| RSS (physical total) | 441 MB | 1,119 MB | ×2.5 |
+| History-buffer step | +213 MB | +825 MB | ×~4 |
+| Temp peak | 75.2 °C | 80.7 °C | +5.5 °C |
+| Throttle | none | none | — |
+
+> ※ Memory figures are **absolute usage** (not the increase). vs 33 MB start, total growth = **+359 MB / +1,036 MB**.
+> The 8-min history buffer scales **linearly** with sample rate → **RSS 1.1 GB. On a ≤2 GB Pi, shrink the buffer.**
+
+**Takeaway**: compute & rendering handle 192kHz easily (no leak, real time held). **The only real constraint is memory (1.1 GB) and heat (80.7°C).**
+
+---
+
+## Slide 11 — End-to-End Latency (measured window · per-stage times)
+
+**Our e2e = ④ ring-buffer write → ⑧ actual paint** (in-app only; acoustic & monitor HW excluded)
+
+```
+④ ring write ─cap2proc─▶ ⑤ proc start ─proc2disp─▶ ⑦ replot req ─disp_paint─▶ ⑧ paint
+  (T_capture)                                                       (afterReplot)
+ └────────────────────── e2e_full ──────────────────────┘
+ e2e_full = cap2proc + proc2disp + disp_paint
+```
+
+**Per-stage time (avg)**
+| Segment | Stage | 48kHz | 192kHz |
+|---|---|---|---|
+| ④→⑤ | cap2proc (queue wait) | *Live-only* | *Live-only* |
+| ⑤→⑦ | proc2disp (DSP+broadcast+build) | 1.0 ms | 1.76 ms |
+| — | └ of which DSP | 0.47 ms | 0.55 ms |
+| ⑦→⑧ | disp_paint (Qt queue+rasterize) | 8.6 ms | 7.5 ms |
+| ⑤→⑧ | **processing→paint sum** | **~9.6 ms** | **~9.3 ms** |
+| ④→⑧ | e2e_full (true end-to-end) | *needs Live* | *needs Live* |
+
+**Excluded**: the front (sound→mic→ADC→OS buffer) and back (monitor→eye) — the app cannot timestamp them.
+
+> ⚠️ **cap2proc & e2e_full are Live-capture-only metrics.** These 48k/192k runs were **Sim**, so those values are absent;
+> only the "processing→paint" segment (⑤→⑧) is measured (**≈9.3–9.6 ms, sample-rate independent**).
+> For true capture-inclusive end-to-end, **re-measure in Live mode.**

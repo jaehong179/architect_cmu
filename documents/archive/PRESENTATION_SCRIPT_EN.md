@@ -71,3 +71,23 @@
 ## [Slide 9] Results & Revisit Conditions
 
 > "As a result, on the Pi, real-time processing used about 28% of one CPU core, UI event-loop lag was 1.3 milliseconds, memory was stable at 392 MB, and thermals and throttling were normal. That said, this decision is conditional. We specified that if DSP time exceeds 20% of the budget, or if backlog accumulates persistently, we will revisit thread separation."
+
+---
+
+## [Slide 10] Sample-rate Scaling (48kHz vs 192kHz)
+
+> "Finally, we re-measured on the same Pi with the sample rate raised 4×, to 192 kHz — 960 to 3,840 samples per block. The results are interesting. DSP rose only 17%, from 0.47 to 0.55 ms, and paint did not increase at all — actually 8.6 down to 7.5 ms. Processing never fell behind, so real time held.
+>
+> Why so little growth at 4× the samples? Because the two heavy tasks scale with something other than sample count. Detection scales with tic/toc events — how many times the watch ticks per second — which is independent of sample rate; and paint is bounded by decimation to the screen's pixel width, also independent.
+>
+> The real constraint is memory. The 8-minute history buffer scales linearly with sample rate, so absolute usage grew from 392 to 1,069 MB, up to 1.1 GB in RSS terms. Note this is absolute usage, not a delta; versus the 33 MB start it is about a gigabyte of growth. Temperature rose from 75 to 80.7 °C but never throttled. In short, at high sample rates CPU and the display are fine — only memory and heat need managing. On a Pi with 2 GB or less, the history buffer must be reduced."
+
+---
+
+## [Slide 11] End-to-End Latency
+
+> "By end-to-end we mean, inside the app, from the moment an audio block is written to the ring buffer to the moment that block is drawn as graph pixels. Hardware like the microphone or monitor is excluded because the app cannot timestamp it. This window splits into three stages: the ring-buffer queue wait, processing — that is DSP plus broadcast plus build — and the actual paint. Their sum is e2e_full.
+>
+> Per stage, processing went from 1.0 ms at 48 kHz to 1.76 ms at 192 kHz, and paint from 8.6 to 7.5 ms. Their sum, the processing-to-paint segment, was about 9.6 down to 9.3 ms — essentially unchanged at 4× the sample rate.
+>
+> One caveat: the capture-queue wait and the true end-to-end value are only measured in Live capture mode. Both of these runs were Sim, so those values are absent, and we only have processing to paint. For a true capture-inclusive end-to-end, we must re-measure in Live mode."
