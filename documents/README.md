@@ -2,7 +2,7 @@
 
 *— In collaboration with Carnegie Mellon University —*
 
-Status: **In Progress**
+Status: **Concluded**
 
 ## Table of Contents
 
@@ -212,7 +212,7 @@ Ordered by "Status"
 
 | EXP | Title | Status | Duration |
 |-----|-------|--------|----------|
-| [EXP-02](Experiments/EXP-02-end-to-end-latency-measurement.md) | Experiment for [[QAS-02](Requirements/quality-attribute-requirements.md#qas-02--end-to-end-latency)]: End-to-end latency measurement | In progress | 06/15–06/26 |
+| [EXP-02](Experiments/EXP-02-end-to-end-latency-measurement.md) | Experiment for [[QAS-02](Requirements/quality-attribute-requirements.md#qas-02--end-to-end-latency)]: End-to-end latency measurement | Concluded | 06/15–06/26 |
 | [EXP-07](Experiments/EXP-07-cross-platform-build-deployment.md) | Experiment for [[QAS-10](Requirements/quality-attribute-requirements.md#qas-10--pc-pi-platform-separation)]: Cross-platform build & deployment | Concluded | 05/25–06/08 |
 | [EXP-09](Experiments/EXP-09-legacy-codebase-comprehension-reverse-engineering.md) | Legacy Codebase Comprehension & Reverse Engineering via AI | Concluded | 06/03–06/04 |
 | [EXP-10](Experiments/EXP-10-realtime-tinyml-inference-performance.md) | Experiment for [FR-AI-1]: Real-time TinyML Inference Performance on Raspberry Pi | Concluded | 06/04–06/08 |
