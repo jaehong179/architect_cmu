@@ -19,7 +19,7 @@ class TabSyncSweepScope : public TabView
     Q_OBJECT
 public:
     explicit TabSyncSweepScope(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Scope Mode with Synchronized Sweep Display"); }
+    QString tabTitle() const override { return QStringLiteral("Sync Sweep Scope"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;

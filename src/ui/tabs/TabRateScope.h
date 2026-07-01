@@ -26,7 +26,7 @@ class TabRateScope : public TabView
     Q_OBJECT
 public:
     explicit TabRateScope(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Rate/Scope"); }
+    QString tabTitle() const override { return QStringLiteral("Rate / Scope"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;

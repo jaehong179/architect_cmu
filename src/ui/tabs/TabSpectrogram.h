@@ -19,7 +19,7 @@ class TabSpectrogram : public TabView
     Q_OBJECT
 public:
     explicit TabSpectrogram(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Time-Frequency Spectrogram Display"); }
+    QString tabTitle() const override { return QStringLiteral("Spectrogram"); }
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
     void onSeek(double absSample) override;            // [③] 다른 탭 선택 시점의 스펙트로그램 표시    void onResumeLive(bool seeked) override { if (seeked) { mBuf.clear(); mEvtBuf.clear(); } }   // seek 했으면 버퍼 비움

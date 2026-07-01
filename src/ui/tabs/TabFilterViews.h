@@ -22,7 +22,7 @@ class TabFilterViews : public TabView
     Q_OBJECT
 public:
     explicit TabFilterViews(QWidget *parent = nullptr);
-    QString tabTitle() const override { return QStringLiteral("Scope Function with Multiple Filter Views"); }
+    QString tabTitle() const override { return QStringLiteral("Filter Views"); }
     void onMeasurement(const MeasurementSnapshot &snap) override;
     void onWave(const WaveBlock &wave) override;
     void onResetSession() override;
