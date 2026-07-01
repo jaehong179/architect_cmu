@@ -10,10 +10,10 @@ The system reads the watch's position with a USB camera and an on-device TFLite 
 ### USB Camera
 External USB webcam («external device»). Streams frames of the watch to VisionWorker. Used only to read the position; falls back to manual selection when unavailable.
 
-### MainWindow
+### GUI Thread
 Coordinator on the GUI (main) thread. Starts the VisionWorker thread (moveToThread) and receives results via a queued connection (resultReady). It consumes results as they arrive — it does not poll the camera. Measured values (Rate/Beat-Error/Amplitude) come only from the deterministic measurement path, never the classifier.
 
-### VisionWorker
+### VisionWorker Thread
 vision::VisionWorker on a dedicated worker thread. Owns the camera pipeline (QCamera/QVideoSink), keeps only the newest frame, and runs a 1 Hz QTimer. Each tick: preprocess the latest frame, classify, then emit resultReady(label, confidence). Results below kConfThresh are flagged uncertain.
 
 ### TfliteApi (TinyML)
